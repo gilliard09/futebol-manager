@@ -89,6 +89,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   })
   const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match'>('overview')
   const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
+  const [tactic, setTactic] = useState('balanced')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -149,13 +150,16 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
     }
   }, [players])
 
+  useEffect(() => {
+    try { setTactic(JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').tactic ?? 'balanced') } catch {}
+  }, [])
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
   const home = nextFixture?.home_club_id === career.club.id
   const avg = players.length ? Math.round(players.reduce((sum, p) => sum + (p.position === 'GK' ? p.goalkeeping : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={home ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} back={() => setView('overview')} onComplete={(result) => {
+  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={home ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={() => setView('overview')} onComplete={(result) => {
     const nextMatches = { ...playedMatches, [nextFixture.id]: { ...result, home_club_id: nextFixture.home_club_id, away_club_id: nextFixture.away_club_id } }
     localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
     setPlayedMatches(nextMatches)
@@ -195,6 +199,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
   const [formation, setFormation] = useState<keyof typeof formations>(() => {
     try { return JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').formation ?? '4-3-3' } catch { return '4-3-3' }
   })
+  const [tactic, setTactic] = useState(() => { try { return JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').tactic ?? 'balanced' } catch { return 'balanced' } })
   const [lineup, setLineup] = useState<Record<number, string>>(() => {
     try { return JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {} } catch { return {} }
   })
@@ -229,12 +234,15 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
     localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation: value, lineup: {} }))
   }
 
+  function saveTactic(value: string) { setTactic(value); localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation, lineup, tactic: value })) }
+
   const selected = slots.map((position,index) => ({ position, index, player: players.find(p => p.id === lineup[index]) }))
   const starters = selected.filter(x => x.player).length
 
   return <main className="min-h-screen"><Top label="ESCALAÇÃO E TÁTICAS" back={back} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-5 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">{club.name}</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Quem começa jogando?</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Monte sua equipe antes da partida. A escalação escolhida será a base para o motor de jogo.</p></div><button onClick={autoPick} className="rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] hover:bg-emerald-300">Escalar melhor time</button></div>
     <div className="mt-8 flex flex-wrap gap-2">{(Object.keys(formations) as Array<keyof typeof formations>).map(item => <button key={item} onClick={() => changeFormation(item)} className={`rounded-lg px-4 py-2.5 text-xs font-bold ${formation === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/8 text-white/45 hover:text-white'}`}>{item}</button>)}</div>
+    <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estilo de jogo</p><div className="mt-4 grid grid-cols-3 gap-2">{[['defensive','Defensivo'],['balanced','Equilibrado'],['offensive','Ofensivo']].map(([value,label]) => <button key={value} onClick={() => saveTactic(value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${tactic === value ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/40'}`}>{label}</button>)}</div></div>
     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
       <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5">
         <div className="mb-5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Titulares</span><span className="text-xs text-white/30">{starters}/11</span></div>
@@ -248,7 +256,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; back: () => void; onComplete: (result: MatchResult) => void }) {
+function Match({ fixture, homePlayers, awayPlayers, tactic, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; back: () => void; onComplete: (result: MatchResult) => void }) {
   const [result, setResult] = useState<{ homeScore: number; awayScore: number; events: import('./engine/match').MatchEvent[] } | null>(null)
   const [simulating, setSimulating] = useState(false)
 
@@ -256,7 +264,7 @@ function Match({ fixture, homePlayers, awayPlayers, back, onComplete }: { fixtur
     setSimulating(true)
     const { simulateMatch } = await import('./engine/match')
     await new Promise(resolve => setTimeout(resolve, 500))
-    setResult(simulateMatch(fixture, homePlayers, awayPlayers))
+    setResult(simulateMatch(fixture, homePlayers, awayPlayers, tactic))
     setSimulating(false)
   }
 
