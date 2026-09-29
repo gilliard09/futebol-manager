@@ -140,7 +140,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   }
 
   function addFinanceTransaction(transaction: FinanceTransaction) {
-    saveFinance(applyTransaction(financeBalance, transaction), [...financeTransactions, transaction])
+    if (financeTransactions.some(item => item.id === transaction.id)) return
+    const nextTransactions = [...financeTransactions, transaction]
+    const nextBalance = applyTransaction(financeBalance, transaction)
+    saveFinance(nextBalance, nextTransactions)
+    return nextBalance
   }
 
 
@@ -257,8 +261,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== clock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
-      addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense))
-      const nextCareer = { ...career, club: { ...career.club, budget: Math.max(0, financeBalance + salaryExpense) } }
+      addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, `salary:${nextClock.currentDate.slice(0, 7)}`))
+      const nextBalance = addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, `salary:${nextClock.currentDate.slice(0, 7)}`)) ?? financeBalance
+      const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
       localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
       onCareerUpdate(nextCareer)
     }
@@ -270,7 +275,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   }
 
   if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? '2026-01-11'} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => setView('overview')} />
-  if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? '2026-01-11', 'training', 'Treinamento do elenco', -cost); const nextBalance = applyTransaction(financeBalance, transaction); const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); setView('overview') }} />
+  if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? '2026-01-11', 'training', 'Treinamento do elenco', -cost, `training:${nextFixture?.id ?? (clock?.currentDate ?? 'unknown')}`); const nextBalance = addFinanceTransaction(transaction) ?? financeBalance; const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
@@ -343,7 +348,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       if (matchHome && clock) {
         const attendance = estimateAttendance(career.club.reputation)
         const revenue = calculateMatchRevenue(attendance)
-        addFinanceTransaction(createTransaction(toDateKey(activeMatchFixture.scheduled_at), 'match_revenue', `Bilheteria · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'}`, revenue))
+        const transaction = createTransaction(toDateKey(activeMatchFixture.scheduled_at), 'match_revenue', `Bilheteria · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'}`, revenue, `match_revenue:${activeMatchFixture.id}`)
+        const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
+        const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
+        localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+        onCareerUpdate(nextCareer)
       }
       if (clock) {
         const matchClock = { ...clock, currentDate: toDateKey(activeMatchFixture.scheduled_at) }
