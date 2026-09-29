@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, Trophy, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, ShoppingBag, Trophy, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
 import { playerOverall, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
+import TransferMarket from './components/TransferMarket'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, createTransaction, estimateAttendance, type FinanceTransaction } from './engine/finance'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
+import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -18,6 +20,7 @@ const TRAINING_KEY = 'futebol-manager:training'
 const CLOCK_KEY = 'futebol-manager:season-clock'
 const CONTRACTS_KEY = 'futebol-manager:contracts'
 const FINANCE_KEY = 'futebol-manager:finance'
+const TRANSFERS_KEY = 'futebol-manager:transfers'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -81,7 +84,14 @@ export default function App() {
 
   function newCareer() {
     localStorage.removeItem(CAREER_KEY)
-    localStorage.removeItem(FINANCE_KEY); setCareer(null); setManagerName(''); setSelectedClub(null); setScreen('manager')
+    localStorage.removeItem(FINANCE_KEY)
+    localStorage.removeItem(TRANSFERS_KEY)
+    localStorage.removeItem(CONTRACTS_KEY)
+    localStorage.removeItem(TRAINING_KEY)
+    localStorage.removeItem(TACTIC_KEY)
+    localStorage.removeItem(CLOCK_KEY)
+    localStorage.removeItem(MATCHES_KEY)
+    setCareer(null); setManagerName(''); setSelectedClub(null); setScreen('manager')
   }
 
   return <div className="min-h-screen bg-[#090b0f] text-white"><div className="mx-auto min-h-screen max-w-6xl border-x border-white/5 bg-[#0d1015]">
@@ -120,7 +130,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
     try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
   })
-  const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match' | 'training'>('overview')
+  const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match' | 'training' | 'market'>('overview')
+  const [transferState, setTransferState] = useState<TransferState>(() => { try { return JSON.parse(localStorage.getItem(TRANSFERS_KEY) ?? '{"playerClubOverrides":{},"records":[]}') } catch { return { playerClubOverrides: {}, records: [] } } })
   const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
   const [tactic, setTactic] = useState('balanced')
   const [formation, setFormation] = useState('4-3-3')
@@ -153,15 +164,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     async function loadDashboard() {
       setLoading(true)
       const [squadResult, fixtureResult, tableResult, clubsResult, salaryResult] = await Promise.all([
-        supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', career.club.id).order('squad_number'),
+        supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').order('squad_number'),
         supabase.from('fixtures').select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
         supabase.from('fixtures').select('id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation').order('name'),
-        supabase.from('club_players').select('player_id,salary,contract_until,players!inner(first_name,last_name)').eq('club_id', career.club.id),
+        supabase.from('club_players').select('player_id,club_id,salary,contract_until,players!inner(first_name,last_name)').order('player_id'),
       ])
       if (!active) return
       if (!squadResult.error) {
-        const loaded = (squadResult.data ?? []).map(normalizePlayer)
+        const loaded = (squadResult.data ?? []).filter((row: any) => (transferState.playerClubOverrides[row.players?.id ?? row.players?.[0]?.id] ?? row.club_id) === career.club.id).map(normalizePlayer)
         try {
           const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
           let restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
@@ -171,7 +182,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         }
       }
       if (!salaryResult.error) {
-        const rows = (salaryResult.data ?? []) as Array<{ player_id: string; salary: number }>
+        const rows = (salaryResult.data ?? []).filter((row: any) => (transferState.playerClubOverrides[row.player_id] ?? row.club_id) === career.club.id) as Array<{ player_id: string; club_id: string; salary: number; contract_until: string | null; players: { first_name: string; last_name: string } }>
         let total = rows.reduce((sum, row) => sum + Number(row.salary ?? 0), 0)
         try {
           const savedContracts = JSON.parse(localStorage.getItem(CONTRACTS_KEY) ?? '{}')
@@ -197,8 +208,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         }
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
-          const { data: opponentSquad } = await supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', opponentId).order('squad_number')
-          if (active) setOpponentPlayers((opponentSquad ?? []).map(normalizePlayer))
+          const { data: opponentSquad } = await supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').order('squad_number')
+          const effectiveOpponent = (opponentSquad ?? []).filter((row: any) => (transferState.playerClubOverrides[row.players?.id ?? row.players?.[0]?.id] ?? row.club_id) === opponentId)
+          if (active) setOpponentPlayers(effectiveOpponent.map(normalizePlayer))
         } else {
           setOpponentPlayers([])
         }
@@ -230,7 +242,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
     loadDashboard()
     return () => { active = false }
-  }, [career.club.id, clubs, playedMatches, clock?.currentDate])
+  }, [career.club.id, clubs, playedMatches, clock?.currentDate, transferState.playerClubOverrides])
 
   useEffect(() => {
     try {
@@ -273,6 +285,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.setItem(CLOCK_KEY, JSON.stringify(nextClock))
   }
 
+  if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? '2026-01-11'} state={transferState} onTransfer={(record, nextState, nextBalance) => { const transaction = createTransaction(record.date, 'transfer_out', `Compra · ${record.playerName}`, -record.fee, undefined, `transfer:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setTransferState(nextState); localStorage.setItem(TRANSFERS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); setView('overview') }} back={() => setView('overview')} />
   if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? '2026-01-11'} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => setView('overview')} />
   if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? '2026-01-11', 'training', 'Treinamento do elenco', -cost, undefined, `training:${nextFixture?.id ?? (clock?.currentDate ?? 'unknown')}`); const nextBalance = addFinanceTransaction(transaction) ?? financeBalance; const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
@@ -376,7 +389,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       </div>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Finanças</p><h2 className="mt-2 text-2xl font-bold">Movimentação da carreira</h2></div><Banknote className="text-emerald-300/50" size={24} /></div><div className="mt-6 grid gap-3 md:grid-cols-3"><Info label="Saldo" value={money(financeBalance)} /><Info label="Receitas" value={money(financeTransactions.filter(t => t.amount > 0).reduce((sum,t) => sum + t.amount, 0))} /><Info label="Despesas" value={money(financeTransactions.filter(t => t.amount < 0).reduce((sum,t) => sum + Math.abs(t.amount), 0))} /></div><div className="mt-5 space-y-2">{financeTransactions.slice(-5).reverse().map(t => <div key={t.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{t.description}</p><p className="text-xs text-white/30">{t.date}</p></div><span className={`text-sm font-bold ${t.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{t.amount >= 0 ? '+' : ''}{money(t.amount)}</span></div>)}</div></section>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3 text-center">P</th><th className="px-4 py-3 text-center">J</th><th className="px-4 py-3 text-center">V</th><th className="px-4 py-3 text-center">E</th><th className="px-4 py-3 text-center">D</th><th className="px-4 py-3 text-center">GP</th><th className="px-4 py-3 text-center">GC</th><th className="px-4 py-3 text-center">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 text-center font-bold">{team.points}</td><td className="px-4 py-3 text-center text-white/40">{team.played}</td><td className="px-4 py-3 text-center text-white/40">{team.wins}</td><td className="px-4 py-3 text-center text-white/40">{team.draws}</td><td className="px-4 py-3 text-center text-white/40">{team.losses}</td><td className="px-4 py-3 text-center text-white/40">{team.gf}</td><td className="px-4 py-3 text-center text-white/40">{team.ga}</td><td className="px-4 py-3 text-center text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
-      <div className="mt-4 grid gap-4 md:grid-cols-2"><button onClick={() => setView('training')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Dumbbell size={20} /></div><div><p className="font-semibold">Treinamento</p><p className="mt-1 text-xs text-white/30">Prepare o elenco para o próximo jogo.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => setView('tactics')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Shield size={20} /></div><div><p className="font-semibold">Escalação e Táticas</p><p className="mt-1 text-xs text-white/30">Escolha a formação e os 11 titulares.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button></div>
+      <div className="mt-4 grid gap-4 md:grid-cols-3"><button onClick={() => setView('market')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><ShoppingBag size={20} /></div><div><p className="font-semibold">Mercado de transferências</p><p className="mt-1 text-xs text-white/30">Busque jogadores e faça propostas.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => setView('training')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Dumbbell size={20} /></div><div><p className="font-semibold">Treinamento</p><p className="mt-1 text-xs text-white/30">Prepare o elenco para o próximo jogo.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => setView('tactics')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Shield size={20} /></div><div><p className="font-semibold">Escalação e Táticas</p><p className="mt-1 text-xs text-white/30">Escolha a formação e os 11 titulares.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button></div>
     </>}
   </section></main>
 }
