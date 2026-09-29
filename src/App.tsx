@@ -84,7 +84,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
-  const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; gf: number; ga: number }[]>([])
+  const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; wins: number; draws: number; losses: number; gf: number; ga: number }[]>([])
   const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
     try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
   })
@@ -119,16 +119,16 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
           setOpponentPlayers([])
         }
       }
-      const stats = new Map<string, { id: string; name: string; points: number; played: number; gf: number; ga: number }>()
+      const stats = new Map<string, { id: string; name: string; points: number; played: number; wins: number; draws: number; losses: number; gf: number; ga: number }>()
       const leagueClubs = clubs.length > 0 ? clubs : (clubsResult.data ?? []) as Club[]
-      for (const club of leagueClubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
+      for (const club of leagueClubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 })
 
       for (const match of tableResult.data ?? []) {
         if (match.home_score === null || match.away_score === null) continue
         const home = stats.get(match.home_club_id); const away = stats.get(match.away_club_id)
         if (!home || !away) continue
         home.played++; away.played++; home.gf += match.home_score; home.ga += match.away_score; away.gf += match.away_score; away.ga += match.home_score
-        if (match.home_score > match.away_score) home.points += 3; else if (match.home_score < match.away_score) away.points += 3; else { home.points++; away.points++ }
+        if (match.home_score > match.away_score) { home.points += 3; home.wins++; away.losses++ } else if (match.home_score < match.away_score) { away.points += 3; away.wins++; home.losses++ } else { home.points++; away.points++; home.draws++; away.draws++ }
       }
 
       for (const match of Object.values(playedMatches)) {
@@ -136,7 +136,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
         const away = stats.get(match.away_club_id)
         if (!home || !away) continue
         home.played++; away.played++; home.gf += match.homeScore; home.ga += match.awayScore; away.gf += match.awayScore; away.ga += match.homeScore
-        if (match.homeScore > match.awayScore) home.points += 3; else if (match.homeScore < match.awayScore) away.points += 3; else { home.points++; away.points++ }
+        if (match.homeScore > match.awayScore) { home.points += 3; home.wins++; away.losses++ } else if (match.homeScore < match.awayScore) { away.points += 3; away.wins++; home.losses++ } else { home.points++; away.points++; home.draws++; away.draws++ }
       }
 
       setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
@@ -188,7 +188,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
         <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value="Liga Nacional" /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /></div><button onClick={() => { if (nextFixture) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); setView('match') } }} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Preparar partida <ArrowRight size={16} /></button></section>
         <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Elenco</p><h2 className="mt-2 text-2xl font-bold">{players.length} jogadores</h2></div><Users className="text-emerald-300/50" size={24} /></div><div className="mt-6 space-y-2">{players.slice(0, 5).map(player => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div><span className="text-xs font-semibold text-white/40">#{player.squad_number}</span></div>)}</div><button onClick={() => setView('squad')} className="mt-5 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Ver elenco completo <ChevronRight size={16} /></button></section>
       </div>
-      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-hidden rounded-xl border border-white/5"><table className="w-full text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3">P</th><th className="px-4 py-3">J</th><th className="px-4 py-3">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 font-bold">{team.points}</td><td className="px-4 py-3 text-white/40">{team.played}</td><td className="px-4 py-3 text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
+      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3 text-center">P</th><th className="px-4 py-3 text-center">J</th><th className="px-4 py-3 text-center">V</th><th className="px-4 py-3 text-center">E</th><th className="px-4 py-3 text-center">D</th><th className="px-4 py-3 text-center">GP</th><th className="px-4 py-3 text-center">GC</th><th className="px-4 py-3 text-center">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 text-center font-bold">{team.points}</td><td className="px-4 py-3 text-center text-white/40">{team.played}</td><td className="px-4 py-3 text-center text-white/40">{team.wins}</td><td className="px-4 py-3 text-center text-white/40">{team.draws}</td><td className="px-4 py-3 text-center text-white/40">{team.losses}</td><td className="px-4 py-3 text-center text-white/40">{team.gf}</td><td className="px-4 py-3 text-center text-white/40">{team.ga}</td><td className="px-4 py-3 text-center text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
       <div className="mt-4 grid gap-4 md:grid-cols-2"><Action title="Treinamento" text="Prepare o elenco para o próximo jogo." icon={<Dumbbell size={20} />} /><button onClick={() => setView('tactics')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Shield size={20} /></div><div><p className="font-semibold">Escalação e Táticas</p><p className="mt-1 text-xs text-white/30">Escolha a formação e os 11 titulares.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button></div>
     </>}
   </section></main>
