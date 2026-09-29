@@ -273,6 +273,10 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
   const [result, setResult] = useState<MatchResult | null>(null)
   const [currentMinute, setCurrentMinute] = useState(0)
   const [simulating, setSimulating] = useState(false)
+  const [matchTeams] = useState(() => ({
+    home: fixture.home_club?.name ?? 'Mandante',
+    away: fixture.away_club?.name ?? 'Visitante',
+  }))
 
   async function simulate() {
     setSimulating(true)
@@ -304,12 +308,12 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
 
       <div className="mt-10 rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-10">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-center">
-          <div><p className="text-lg font-bold">{fixture.home_club?.name ?? 'Mandante'}</p><p className="mt-2 text-xs text-white/30">CASA</p></div>
+          <div><p className="text-lg font-bold">{matchTeams.home}</p><p className="mt-2 text-xs text-white/30">CASA</p></div>
           <div>
             <p className="text-5xl font-bold tracking-tight">{homeScore} <span className="text-white/20">×</span> {awayScore}</p>
             <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/60">{simulating ? currentMinute + "'" : finished ? "FIM DE JOGO" : "PRÉ-JOGO"}</p>
           </div>
-          <div><p className="text-lg font-bold">{fixture.away_club?.name ?? 'Visitante'}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
+          <div><p className="text-lg font-bold">{matchTeams.away}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
         </div>
 
         {result && <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
