@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/match'
+import { addContractYears, calculateRenewalSalary, daysUntilContractEnd, getContractStatus } from '../engine/contracts'
 import type { Club, Player } from '../types/game'
 
 type Contract = {
@@ -10,6 +11,7 @@ type Contract = {
   market_value: number | null
   joined_at: string | null
 }
+type SavedContract = { contract_until: string | null; salary: number; market_value: number }
 
 function money(value: number | null) {
   if (value === null || value === undefined) return '—'
@@ -28,9 +30,11 @@ function Info({ label, value }: { label: string; value: string }) {
   </div>
 }
 
-export default function PlayerProfile({ player, club, close }: { player: Player; club: Club; close: () => void }) {
+export default function PlayerProfile({ player, club, today, close, onContractChange }: { player: Player; club: Club; today: string; close: () => void; onContractChange?: (salary: number) => void }) {
   const [contract, setContract] = useState<Contract | null>(null)
   const [loading, setLoading] = useState(true)
+  const [renewing, setRenewing] = useState(false)
+  const [years, setYears] = useState(2)
 
   useEffect(() => {
     let active = true
@@ -43,13 +47,38 @@ export default function PlayerProfile({ player, club, close }: { player: Player;
         .maybeSingle()
 
       if (active) {
-        setContract(error ? null : data)
+        let next = error ? null : data as Contract
+        try {
+          const saved = JSON.parse(localStorage.getItem('futebol-manager:contracts') ?? '{}')
+          const override = saved[player.id] as SavedContract | undefined
+          if (override) next = { ...(next ?? { contract_until: null, salary: 0, market_value: 0, joined_at: null }), contract_until: override.contract_until, salary: override.salary, market_value: override.market_value }
+        } catch {}
+        setContract(next)
         setLoading(false)
       }
     }
     loadContract()
     return () => { active = false }
   }, [club.id, player.id])
+
+  const status = getContractStatus(contract?.contract_until ?? null, today)
+  const remaining = daysUntilContractEnd(contract?.contract_until ?? null, today)
+  const renewalSalary = calculateRenewalSalary(Number(contract?.salary ?? 0), Number(contract?.market_value ?? 0), years)
+
+  function renew() {
+    if (!contract || renewing) return
+    setRenewing(true)
+    const base = contract.contract_until && contract.contract_until > today ? contract.contract_until : today
+    const until = addContractYears(base, years)
+    const saved = JSON.parse(localStorage.getItem('futebol-manager:contracts') ?? '{}')
+    saved[player.id] = { contract_until: until, salary: renewalSalary, market_value: contract.market_value ?? 0 }
+    localStorage.setItem('futebol-manager:contracts', JSON.stringify(saved))
+    setContract({ ...contract, contract_until: until, salary: renewalSalary })
+    onContractChange?.(renewalSalary)
+    setRenewing(false)
+  }
+
+  const statusLabel = status === 'expired' ? 'Contrato vencido' : status === 'critical' ? `Vence em ${remaining} dias` : status === 'attention' ? `Vence em ${remaining} dias` : remaining === null ? 'Sem data definida' : `Válido por ${remaining} dias`
 
   return <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-6" onClick={close}>
     <section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-3xl border border-white/8 bg-[#10141b] p-6 shadow-2xl md:rounded-3xl md:p-8" onClick={event => event.stopPropagation()}>
@@ -75,6 +104,10 @@ export default function PlayerProfile({ player, club, close }: { player: Player;
         <Info label="Contrato até" value={loading ? 'Carregando...' : date(contract?.contract_until ?? null)} />
         <Info label="No clube desde" value={loading ? 'Carregando...' : date(contract?.joined_at ?? null)} />
       </div>
+
+      <div className={`mt-5 rounded-xl border px-4 py-3 text-sm ${status === 'expired' || status === 'critical' ? 'border-amber-400/20 bg-amber-400/5 text-amber-200' : 'border-white/6 bg-black/10 text-white/45'}`}><div className="flex items-center justify-between gap-3"><span>{statusLabel}</span>{status !== 'safe' && <span className="text-xs font-semibold">Renovação necessária</span>}</div></div>
+
+      <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Renovar contrato</p><p className="mt-2 text-sm text-white/40">Nova duração e salário proposto para esta carreira.</p></div><span className="text-sm font-bold text-emerald-300">{money(renewalSalary)}/mês</span></div><div className="mt-4 flex flex-col gap-3 sm:flex-row"><select value={years} onChange={e => setYears(Number(e.target.value))} className="rounded-xl border border-white/8 bg-[#0d1015] px-4 py-3 text-sm outline-none"><option value={1}>1 ano</option><option value={2}>2 anos</option><option value={3}>3 anos</option><option value={4}>4 anos</option></select><button onClick={renew} disabled={renewing || loading} className="flex-1 rounded-xl bg-emerald-400 px-4 py-3 text-sm font-bold text-[#06100c] disabled:opacity-40">{renewing ? 'Renovando...' : `Renovar por ${years} anos`}</button></div></div>
 
       <div className="mt-7">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Atributos</p>
