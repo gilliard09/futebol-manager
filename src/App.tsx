@@ -351,8 +351,31 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
         </div>
       </section>}
 
-      {finished && <div className="mt-6 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Fim de jogo. O resultado e as estatísticas foram salvos na carreira.</div>}
-      {finished && <button onClick={back} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>}
+      {finished && result && <section className="mt-4 space-y-4">
+        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Análise do jogo</p>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/30">🎯 Eficiência clínica</p><p className="mt-2 text-sm font-semibold">{result.analysis.efficiencyText}</p></div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/30">⭐ Destaque da partida</p><p className="mt-2 text-sm font-semibold">{result.analysis.standout.name} ({result.analysis.standout.position}) · nota {result.analysis.standout.rating.toFixed(1)}{result.analysis.standout.goals ? ' · ' + result.analysis.standout.goals + 'G' : ''}</p></div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/30">⚡ Alerta de fadiga</p><p className="mt-2 text-sm font-semibold">{result.analysis.fatigueText}</p></div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Info label="xG" value={result.analysis.homeXg.toFixed(1) + ' / ' + result.analysis.awayXg.toFixed(1)} />
+            <Info label="Resultado" value={result.homeScore + ' × ' + result.awayScore} />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Notas dos jogadores</p>
+          <div className="mt-5 grid gap-6 md:grid-cols-2">
+            {([['home', matchTeams.home], ['away', matchTeams.away]] as const).map(([team, teamName]) => <div key={team}>
+              <p className="mb-3 text-sm font-bold">{teamName}</p>
+              <div className="space-y-2">{result.playerRatings.filter(p => p.team === team).sort((a,b) => b.rating-a.rating).map(player => <div key={player.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.name}</p><p className="text-xs text-white/30">{player.position}{player.goals ? ' · ' + player.goals + 'G' : ''}{player.assists ? ' · ' + player.assists + 'A' : ''}</p></div><span className="text-sm font-bold text-emerald-300">{player.rating.toFixed(1)}</span></div>)}</div>
+            </div>)}
+          </div>
+        </div>
+        <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Fim de jogo. O resultado e as estatísticas foram salvos na carreira.</div>
+      </section>}
+      {finished && <button onClick={back} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>
     </section>
   </main>
 }
