@@ -164,11 +164,14 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'match' && activeMatchFixture) return <Match formation={formation} fixture={activeMatchFixture} homePlayers={home ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={home ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={() => setView('overview')} onComplete={(result) => {
-    const nextMatches = { ...playedMatches, [nextFixture.id]: { ...result, home_club_id: nextFixture.home_club_id, away_club_id: nextFixture.away_club_id } }
-    localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
-    setPlayedMatches(nextMatches)
-  }} />
+  if (view === 'match' && activeMatchFixture) {
+    const matchHome = activeMatchFixture.home_club_id === career.club.id
+    return <Match formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={() => { setActiveMatchFixture(null); setView('overview') }} onComplete={(result) => {
+      const nextMatches = { ...playedMatches, [activeMatchFixture.id]: { ...result, home_club_id: activeMatchFixture.home_club_id, away_club_id: activeMatchFixture.away_club_id } }
+      localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
+      setPlayedMatches(nextMatches)
+    }} />
+  }
 
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
