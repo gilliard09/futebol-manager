@@ -631,6 +631,10 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back }: {
   const [phase, setPhase] = useState<'pregame' | 'live' | 'postgame'>('pregame')
   const [result, setResult] = useState<MatchResult | null>(null)
   const [currentMinute, setCurrentMinute] = useState(0)
+  const [pregameTab, setPregameTab] = useState<'preview' | 'lineup'>('preview')
+  const [postgameTab, setPostgameTab] = useState<'events' | 'stats' | 'round'>('events')
+  const [roundResults, setRoundResults] = useState<Fixture[]>([])
+  const [loadingRound, setLoadingRound] = useState(false)
   const [matchTeams] = useState(() => ({
     home: fixture.home_club?.name ?? 'Mandante',
     away: fixture.away_club?.name ?? 'Visitante',
@@ -647,80 +651,127 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back }: {
       setCurrentMinute(minute)
     }
     setPhase('postgame')
+    setPostgameTab('events')
+  }
+
+  async function showRoundResults() {
+    setPostgameTab('round')
+    if (roundResults.length || loadingRound) return
+    setLoadingRound(true)
+    const { data } = await supabase
+      .from('fixtures')
+      .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)')
+      .eq('competition_id', fixture.competition_id)
+      .eq('round', fixture.round)
+      .eq('status', 'completed')
+      .order('scheduled_at')
+    setRoundResults((data ?? []).map(normalizeFixture))
+    setLoadingRound(false)
   }
 
   const visibleEvents = result?.events.filter(event => event.minute <= currentMinute) ?? []
-  const userTeam = fixture.home_club_id === fixture.home_club_id ? 'home' : 'away'
   const scoreAtMinute = (team: 'home' | 'away') => visibleEvents.filter(event => event.type === 'goal' && event.team === team).length
   const homeScore = result ? scoreAtMinute('home') : 0
   const awayScore = result ? scoreAtMinute('away') : 0
   const live = result?.timeline[Math.max(0, Math.min(currentMinute, result?.timeline.length ?? 1) - 1)]
   const homeStats = live?.home ?? (phase === 'postgame' ? result?.homeStats : undefined)
   const awayStats = live?.away ?? (phase === 'postgame' ? result?.awayStats : undefined)
+  const homeStar = [...homePlayers].sort((a, b) => playerOverall(b) - playerOverall(a))[0]
+  const awayStar = [...awayPlayers].sort((a, b) => playerOverall(b) - playerOverall(a))[0]
+  const stadium = fixture.home_club?.name ? `Estádio ${fixture.home_club.name.replace(/ FC$/, '')}` : 'Estádio Municipal'
+  const refereeNames = ['Carlos Almeida', 'Rafael Martins', 'Bruno Ferreira', 'Marcos Ribeiro', 'André Costa']
+  const referee = refereeNames[fixture.round % refereeNames.length]
+
+  function LineupList({ title, players }: { title: string; players: Player[] }) {
+    return <div className="rounded-2xl border border-white/6 bg-black/10 p-5">
+      <div className="flex items-center justify-between"><p className="text-sm font-bold">{title}</p><span className="text-xs text-white/25">{players.length} jogadores</span></div>
+      <div className="mt-4 space-y-2">{players.slice(0, 11).map((player, index) => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-3 py-3"><div className="flex items-center gap-3"><span className="w-6 text-xs font-bold text-emerald-300">{index + 1}</span><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div></div><span className="text-sm font-bold text-white/60">{playerOverall(player)}</span></div>)}</div>
+    </div>
+  }
 
   return <main className="min-h-screen">
     <Top label="PARTIDA" />
-    <section className="mx-auto max-w-4xl px-6 py-12 md:px-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Liga Nacional · Rodada {fixture.round}</p>
-      <div className="mt-10 rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-10">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-center">
-          <div><p className="text-lg font-bold">{matchTeams.home}</p><p className="mt-2 text-xs text-white/30">CASA</p></div>
-          <div><p className="text-5xl font-bold tracking-tight">{homeScore} <span className="text-white/20">×</span> {awayScore}</p><p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/60">{phase === 'live' ? currentMinute + "'" : phase === 'postgame' ? 'FIM DE JOGO' : 'PRÉ-JOGO'}</p></div>
-          <div><p className="text-lg font-bold">{matchTeams.away}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
-        </div>
-        {homeStats && awayStats && <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-6">
-          <Info label="Posse" value={homeStats.possession + '% / ' + awayStats.possession + '%'} />
-          <Info label="Finalizações" value={homeStats.shots + ' / ' + awayStats.shots} />
-          <Info label="No alvo" value={homeStats.shotsOnTarget + ' / ' + awayStats.shotsOnTarget} />
-          <Info label="Chances" value={homeStats.chances + ' / ' + awayStats.chances} />
-          <Info label="Desarmes" value={homeStats.tackles + ' / ' + awayStats.tackles} />
-          <Info label="Escanteios" value={homeStats.corners + ' / ' + awayStats.corners} />
-        </div>}
-        {phase === 'pregame' && <button onClick={simulate} className="mx-auto mt-10 flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c]">Começar partida <ArrowRight size={17} /></button>}
-        {phase === 'live' && <p className="mt-5 text-center text-xs text-white/30">A partida está acontecendo. Os lances aparecem conforme o relógio avança.</p>}
+    <section className="mx-auto max-w-5xl px-6 py-8 md:px-10">
+      <div className="text-center">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">{fixture.competition_id ? 'Competição' : 'Partida'} · Rodada {fixture.round}</p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight">{matchTeams.home} <span className="text-white/20">×</span> {matchTeams.away}</h1>
+        <p className="mt-2 text-sm text-white/35">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</p>
       </div>
 
-      {result && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-        <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Lance a lance</p><span className="text-xs text-white/25">{visibleEvents.length} eventos</span></div>
-        <div className="mt-5 max-h-[480px] space-y-2 overflow-y-auto pr-1">
-          {visibleEvents.length ? visibleEvents.slice().reverse().map((event, index) => <div key={index} className={`flex items-center gap-4 rounded-xl border px-4 py-3 ${event.type === 'goal' ? 'border-emerald-400/20 bg-emerald-400/5' : 'border-white/5 bg-black/10'}`}>
-            <span className="w-8 text-xs font-bold text-white/25">{event.minute}'</span><div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div>
-          </div>) : <p className="text-sm text-white/35">O jogo está começando...</p>}
+      {phase === 'pregame' && <section className="mt-8">
+        <div className="rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-8">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-center">
+            <div><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]"><Shield size={28} className="text-emerald-300/70" /></div><p className="mt-4 text-sm font-bold">{matchTeams.home}</p><p className="mt-1 text-xs text-white/30">CASA</p></div>
+            <div><p className="text-4xl font-bold text-white/25">×</p><p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-white/30">PRÉ-JOGO</p></div>
+            <div><div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]"><Shield size={28} className="text-emerald-300/70" /></div><p className="mt-4 text-sm font-bold">{matchTeams.away}</p><p className="mt-1 text-xs text-white/30">FORA</p></div>
+          </div>
+          <button onClick={simulate} className="mx-auto mt-8 flex items-center gap-3 rounded-xl bg-emerald-400 px-7 py-3.5 text-sm font-bold text-[#06100c]">Começar partida <ArrowRight size={17} /></button>
         </div>
+
+        <div className="mt-4 flex rounded-xl border border-white/6 bg-white/[0.02] p-1">
+          <button onClick={() => setPregameTab('preview')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] ${pregameTab === 'preview' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Prévia</button>
+          <button onClick={() => setPregameTab('lineup')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] ${pregameTab === 'lineup' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Escalação</button>
+        </div>
+
+        {pregameTab === 'preview' && <div className="mt-4 space-y-4">
+          <section className="grid gap-3 md:grid-cols-4">
+            <Info label="Dia do jogo" value={formatSeasonDate(toDateKey(fixture.scheduled_at))} />
+            <Info label="Competição" value="Liga Nacional" />
+            <Info label="Rodada" value={`Rodada ${fixture.round}`} />
+            <Info label="Estádio" value={stadium} />
+          </section>
+          <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center gap-2"><MapPin size={16} className="text-emerald-300/60" /><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Arbitragem</p></div><p className="mt-3 text-sm font-semibold">{referee}</p></div>
+          <section><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Destaques da partida</p><div className="mt-3 grid gap-3 md:grid-cols-2">{homeStar && <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs text-white/30">{matchTeams.home}</p><div className="mt-3 flex items-end justify-between"><div><p className="text-lg font-bold">{homeStar.first_name} {homeStar.last_name}</p><p className="mt-1 text-xs text-white/35">{homeStar.position}</p></div><span className="text-3xl font-bold text-emerald-300">{playerOverall(homeStar)}</span></div></div>}{awayStar && <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs text-white/30">{matchTeams.away}</p><div className="mt-3 flex items-end justify-between"><div><p className="text-lg font-bold">{awayStar.first_name} {awayStar.last_name}</p><p className="mt-1 text-xs text-white/35">{awayStar.position}</p></div><span className="text-3xl font-bold text-emerald-300">{playerOverall(awayStar)}</span></div></div>}</div></section>
+        </div>}
+
+        {pregameTab === 'lineup' && <div className="mt-4 grid gap-4 md:grid-cols-2"><LineupList title={matchTeams.home} players={homePlayers} /><LineupList title={matchTeams.away} players={awayPlayers} /></div>}
       </section>}
 
-      {phase === 'postgame' && result && <section className="mt-4 space-y-4">
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Análise do jogo</p>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/30">Eficiência clínica</p><p className="mt-2 text-sm font-semibold">{result.analysis.efficiencyText}</p></div>
-            <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/30">Destaque da partida</p><p className="mt-2 text-sm font-semibold">{result.analysis.standout.name} ({result.analysis.standout.position}) · nota {result.analysis.standout.rating.toFixed(1)}{result.analysis.standout.goals ? ' · ' + result.analysis.standout.goals + 'G' : ''}</p></div>
-            <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/30">Alerta de fadiga</p><p className="mt-2 text-sm font-semibold">{result.analysis.fatigueText}</p></div>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3"><Info label="xG" value={result.analysis.homeXg.toFixed(1) + ' / ' + result.analysis.awayXg.toFixed(1)} /><Info label="Resultado" value={result.homeScore + ' × ' + result.awayScore} /></div>
+      {phase !== 'pregame' && <section className="mt-8 rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-8">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-center">
+          <div><p className="text-lg font-bold">{matchTeams.home}</p><p className="mt-2 text-xs text-white/30">CASA</p></div>
+          <div><p className="text-5xl font-bold tracking-tight">{homeScore} <span className="text-white/20">×</span> {awayScore}</p><p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/60">{phase === 'live' ? currentMinute + "'" : 'FIM DE JOGO'}</p></div>
+          <div><p className="text-lg font-bold">{matchTeams.away}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
         </div>
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Notas dos jogadores</p>
-          <div className="mt-5 grid gap-6 md:grid-cols-2">
-            {([['home', matchTeams.home], ['away', matchTeams.away]] as const).map(([team, teamName]) => <div key={team}><p className="mb-3 text-sm font-bold">{teamName}</p><div className="space-y-2">{result.playerRatings.filter(p => p.team === team).sort((a,b) => b.rating-a.rating).map(player => <div key={player.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.name}</p><p className="text-xs text-white/30">{player.position}{player.goals ? ' · ' + player.goals + 'G' : ''}{player.assists ? ' · ' + player.assists + 'A' : ''}</p></div><span className="text-sm font-bold text-emerald-300">{player.rating.toFixed(1)}</span></div>)}</div></div>)}
-          </div>
-        </div>
-        <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Fim de jogo. O resultado ficará salvo quando você voltar ao clube.</div>
-        <button onClick={() => {
-          const ratings = result.playerRatings.filter(player => player.team === 'home' || player.team === 'away')
-          const homeNext = applyMatchFatigue(homePlayers, ratings.filter(player => player.team === 'home'))
-          const awayNext = applyMatchFatigue(awayPlayers, ratings.filter(player => player.team === 'away'))
-          localStorage.setItem(TRAINING_KEY, JSON.stringify({
-            ...JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}'),
-            players: Object.fromEntries([...homeNext, ...awayNext].map(player => [player.id, player])),
-            lastMatchId: fixture.id,
-            lastMatchAt: new Date().toISOString(),
-          }))
-          back(result)
-        }} className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>
+        {phase === 'live' && <p className="mt-6 text-center text-xs text-white/30">A partida está acontecendo. Os lances aparecem conforme o relógio avança.</p>}
       </section>}
+
+      {result && <section className="mt-4">
+        <div className="flex rounded-xl border border-white/6 bg-white/[0.02] p-1">
+          <button onClick={() => setPostgameTab('events')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] ${postgameTab === 'events' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Lances</button>
+          <button disabled={postgameTab === 'events'} onClick={() => setPostgameTab('stats')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] ${postgameTab === 'stats' ? 'bg-white/8 text-white' : 'text-white/35'} disabled:opacity-40`}>Estatísticas</button>
+          <button disabled={postgameTab !== 'stats'} onClick={showRoundResults} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] ${postgameTab === 'round' ? 'bg-white/8 text-white' : 'text-white/35'} disabled:opacity-40`}>Resultados da rodada</button>
+        </div>
+
+        {postgameTab === 'events' && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Lance a lance</p><span className="text-xs text-white/25">{visibleEvents.length} eventos</span></div>
+          <div className="mt-5 max-h-[480px] space-y-2 overflow-y-auto pr-1">{visibleEvents.length ? visibleEvents.slice().reverse().map((event, index) => <div key={index} className={`flex items-center gap-4 rounded-xl border px-4 py-3 ${event.type === 'goal' ? 'border-emerald-400/20 bg-emerald-400/5' : 'border-white/5 bg-black/10'}`}><span className="w-8 text-xs font-bold text-white/25">{event.minute}'</span><div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div></div>) : <p className="text-sm text-white/35">O jogo está começando...</p>}</div>
+          {phase === 'postgame' && <button onClick={() => setPostgameTab('stats')} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c]">Ver estatísticas <ArrowRight size={16} /></button>}
+        </section>}
+
+        {postgameTab === 'stats' && phase === 'postgame' && <section className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">{[['Posse', result.homeStats.possession + '% / ' + result.awayStats.possession + '%'],['Finalizações', result.homeStats.shots + ' / ' + result.awayStats.shots],['No alvo', result.homeStats.shotsOnTarget + ' / ' + result.awayStats.shotsOnTarget],['Chances', result.homeStats.chances + ' / ' + result.awayStats.chances],['Desarmes', result.homeStats.tackles + ' / ' + result.awayStats.tackles],['Escanteios', result.homeStats.corners + ' / ' + result.awayStats.corners]].map(([label,value]) => <Info key={label} label={label} value={value} />)}</div>
+          <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Análise do jogo</p><div className="mt-5 grid gap-3 md:grid-cols-3"><Info label="Eficiência clínica" value={result.analysis.efficiencyText} /><Info label="Destaque" value={result.analysis.standout.name + ' · nota ' + result.analysis.standout.rating.toFixed(1)} /><Info label="Fadiga" value={result.analysis.fatigueText} /></div><div className="mt-4 grid grid-cols-2 gap-3"><Info label="xG" value={result.analysis.homeXg.toFixed(1) + ' / ' + result.analysis.awayXg.toFixed(1)} /><Info label="Resultado" value={result.homeScore + ' × ' + result.awayScore} /></div></div>
+          <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Notas dos jogadores</p><div className="mt-5 grid gap-6 md:grid-cols-2">{([['home', matchTeams.home], ['away', matchTeams.away]] as const).map(([team, teamName]) => <div key={team}><p className="mb-3 text-sm font-bold">{teamName}</p><div className="space-y-2">{result.playerRatings.filter(p => p.team === team).sort((a,b) => b.rating-a.rating).map(player => <div key={player.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.name}</p><p className="text-xs text-white/30">{player.position}{player.goals ? ' · ' + player.goals + 'G' : ''}{player.assists ? ' · ' + player.assists + 'A' : ''}</p></div><span className="text-sm font-bold text-emerald-300">{player.rating.toFixed(1)}</span></div>)}</div></div>)}</div></div>
+          <button onClick={showRoundResults} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-5 py-3.5 text-sm font-bold text-white/70 hover:text-white">Resultados da rodada <ArrowRight size={16} /></button>
+        </section>}
+
+        {postgameTab === 'round' && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Rodada {fixture.round}</p><h2 className="mt-2 text-2xl font-bold">Resultados da rodada</h2></div><Trophy size={22} className="text-emerald-300/50" /></div>{loadingRound ? <p className="mt-8 text-center text-sm text-white/35">Carregando resultados...</p> : <div className="mt-5 space-y-2">{roundResults.map(item => <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === fixture.id ? 'border-emerald-400/20 bg-emerald-400/5' : 'border-white/5 bg-black/10'}`}><div className="min-w-0 text-sm font-semibold"><p className="truncate">{item.home_club?.short_name ?? 'Casa'} <span className="px-2 text-white/20">×</span> {item.away_club?.short_name ?? 'Fora'}</p></div><span className="shrink-0 text-sm font-bold">{item.home_score ?? 0} × {item.away_score ?? 0}</span></div>)}</div>}</section>}
+      </section>}
+
+      {phase === 'postgame' && <button onClick={() => {
+        const ratings = result?.playerRatings.filter(player => player.team === 'home' || player.team === 'away') ?? []
+        const homeNext = applyMatchFatigue(homePlayers, ratings.filter(player => player.team === 'home'))
+        const awayNext = applyMatchFatigue(awayPlayers, ratings.filter(player => player.team === 'away'))
+        localStorage.setItem(TRAINING_KEY, JSON.stringify({
+          ...JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}'),
+          players: Object.fromEntries([...homeNext, ...awayNext].map(player => [player.id, player])),
+          lastMatchId: fixture.id,
+          lastMatchAt: new Date().toISOString(),
+        }))
+        if (result) back(result)
+      }} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>}
     </section>
   </main>
-}
-function Action({ title, text, icon }: { title: string; text: string; icon: ReactNode }) { return <button className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300">{icon}</div><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/30">{text}</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button> }
+}function Action({ title, text, icon }: { title: string; text: string; icon: ReactNode }) { return <button className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300">{icon}</div><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/30">{text}</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button> }
 function DashboardCard({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) { return <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-5"><div className="flex items-center gap-2 text-white/35">{icon}<span className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</span></div><p className="mt-7 text-2xl font-bold tracking-tight">{value}</p><p className="mt-1 text-xs text-white/30">{detail}</p></div> }
