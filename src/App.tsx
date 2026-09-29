@@ -5,7 +5,7 @@ import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Sc
 import { playerOverall, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
-import { TRAINING_FOCUSES, type TrainingFocus, trainSquad } from './engine/training'
+import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -99,7 +99,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [activeMatchFixture, setActiveMatchFixture] = useState<Fixture | null>(null)
   const [loading, setLoading] = useState(true)
   const [salaryTotal, setSalaryTotal] = useState(0)
-  const [trainingOpen, setTrainingOpen] = useState(false)
+
 
   useEffect(() => {
     let active = true
@@ -465,6 +465,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back }: {
   }
 
   const visibleEvents = result?.events.filter(event => event.minute <= currentMinute) ?? []
+  const userTeam = fixture.home_club_id === fixture.home_club_id ? 'home' : 'away'
   const scoreAtMinute = (team: 'home' | 'away') => visibleEvents.filter(event => event.type === 'goal' && event.team === team).length
   const homeScore = result ? scoreAtMinute('home') : 0
   const awayScore = result ? scoreAtMinute('away') : 0
@@ -520,7 +521,18 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back }: {
           </div>
         </div>
         <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Fim de jogo. O resultado ficará salvo quando você voltar ao clube.</div>
-        <button onClick={() => back(result)} className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>
+        <button onClick={() => {
+          const ratings = result.playerRatings.filter(player => player.team === 'home' || player.team === 'away')
+          const homeNext = applyMatchFatigue(homePlayers, ratings.filter(player => player.team === 'home'))
+          const awayNext = applyMatchFatigue(awayPlayers, ratings.filter(player => player.team === 'away'))
+          localStorage.setItem(TRAINING_KEY, JSON.stringify({
+            ...JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}'),
+            players: Object.fromEntries([...homeNext, ...awayNext].map(player => [player.id, player])),
+            lastMatchId: fixture.id,
+            lastMatchAt: new Date().toISOString(),
+          }))
+          back(result)
+        }} className="flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>
       </section>}
     </section>
   </main>
