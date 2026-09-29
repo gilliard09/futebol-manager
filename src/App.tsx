@@ -146,7 +146,6 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
     const nextMatches = { ...playedMatches, [nextFixture.id]: { ...result, home_club_id: nextFixture.home_club_id, away_club_id: nextFixture.away_club_id } }
     localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
     setPlayedMatches(nextMatches)
-    setView('overview')
   }} />
 
 
