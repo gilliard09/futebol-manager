@@ -88,6 +88,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
     try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
   })
   const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match'>('overview')
+  const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -138,13 +139,23 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
     return () => { active = false }
   }, [career.club.id, clubs, playedMatches])
 
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}')
+      const ids = Object.values(saved.lineup ?? {}) as string[]
+      setSelectedStarters(players.filter(player => ids.includes(player.id)))
+    } catch {
+      setSelectedStarters([])
+    }
+  }, [players])
+
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
   const home = nextFixture?.home_club_id === career.club.id
   const avg = players.length ? Math.round(players.reduce((sum, p) => sum + (p.position === 'GK' ? p.goalkeeping : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? players : opponentPlayers} awayPlayers={home ? opponentPlayers : players} back={() => setView('overview')} onComplete={(result) => {
+  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={home ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} back={() => setView('overview')} onComplete={(result) => {
     const nextMatches = { ...playedMatches, [nextFixture.id]: { ...result, home_club_id: nextFixture.home_club_id, away_club_id: nextFixture.away_club_id } }
     localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
     setPlayedMatches(nextMatches)
