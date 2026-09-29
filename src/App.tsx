@@ -15,7 +15,7 @@ import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
-import { buildStandings } from './engine/competitions'
+import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage } from './engine/competitions'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -71,7 +71,7 @@ export default function App() {
     let active = true
     async function loadClubs() {
       setLoading(true); setError(null)
-      const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium').order('name')
+      const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url').order('name')
       if (!active) return
       if (error) setError(error.message); else setClubs(data ?? [])
       setLoading(false)
@@ -358,6 +358,39 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           .eq('status', 'scheduled')
 
         if (updateError) console.error('Não foi possível persistir o resultado da fixture', fixtureId, updateError)
+      }
+
+      if (activeMatchFixture.competition_id && activeMatchFixture.round > 0) {
+        const { data: competitionRows } = await supabase
+          .from('fixtures')
+          .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score')
+          .eq('competition_id', activeMatchFixture.competition_id)
+          .order('round')
+          .order('scheduled_at')
+
+        const allFixtures = (competitionRows ?? []).map(normalizeFixture)
+        const currentRound = activeMatchFixture.round
+        const stage = getCompetitionStage(currentRound)
+        if (stage.legs === 2 && currentRound % 2 === 0) {
+          const generated = resolveCompletedKnockoutStage(allFixtures, currentRound)
+          if (generated?.length) {
+            const existingNext = new Set(allFixtures.map(fixture => `${fixture.round}:${fixture.home_club_id}:${fixture.away_club_id}`))
+            const rows = generated.filter(fixture => !existingNext.has(`${fixture.round}:${fixture.homeClubId}:${fixture.awayClubId}`)).map(fixture => ({
+              competition_id: activeMatchFixture.competition_id,
+              round: fixture.round,
+              scheduled_at: fixture.scheduledAt,
+              status: 'scheduled',
+              home_club_id: fixture.homeClubId,
+              away_club_id: fixture.awayClubId,
+              home_score: null,
+              away_score: null,
+            }))
+            if (rows.length) {
+              const { error: insertError } = await supabase.from('fixtures').insert(rows)
+              if (insertError) console.error('Não foi possível criar a próxima fase da Copa', insertError)
+            }
+          }
+        }
       }
 
       localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
