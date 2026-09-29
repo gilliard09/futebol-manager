@@ -86,8 +86,12 @@ export function playerOverall(player: Player) {
   return Math.round(rating(player))
 }
 
+function performanceRating(player: Player, role = player.position) {
+  return rating(player, role) * (1 - Math.min(0.2, (player.fatigue ?? 0) * 0.002))
+}
+
 function sector(lineup: LineupPlayer[], roles: string[]) {
-  return average(lineup.filter(item => roles.includes(item.role)).map(item => rating(item.player, item.role)))
+  return average(lineup.filter(item => roles.includes(item.role)).map(item => performanceRating(item.player, item.role)))
 }
 
 function tacticalFit(lineup: LineupPlayer[], tactic: string, formation: Formation) {
@@ -141,7 +145,7 @@ function chooseWeighted(players: LineupPlayer[], preferredRoles: string[], rando
   const total = source.reduce((sum, item) => sum + Math.max(1, rating(item.player, item.role)), 0)
   let target = random() * total
   for (const item of source) {
-    target -= Math.max(1, rating(item.player, item.role))
+    target -= Math.max(1, performanceRating(item.player, item.role))
     if (target <= 0) return item
   }
   return source[source.length - 1]
@@ -166,7 +170,7 @@ function buildPlayerRatings(
     const tackles = playerEvents.filter(event => event.type === 'tackle').length
     const chances = playerEvents.filter(event => event.type === 'chance').length
     const fatigue = clamp(28 + (100 - item.player.physical) * 0.62 + (tactic === 'offensive' ? 9 : tactic === 'defensive' ? 4 : 6))
-    const baseRating = 5.5 + (playerOverall(item.player) - 50) * 0.055
+    const baseRating = 5.5 + (performanceRating(item.player, item.role) - 50) * 0.055
     const raw = baseRating + goals * 0.85 + assists * 0.45 + tackles * 0.12 + chances * 0.16 - cards * 0.45 - Math.max(0, fatigue - 55) * 0.018
     return {
       playerId: item.player.id,
