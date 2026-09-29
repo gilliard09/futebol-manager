@@ -402,6 +402,8 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
   const [focus, setFocus] = useState<TrainingFocus>('balanced')
   const [saving, setSaving] = useState(false)
   const [report, setReport] = useState<TrainingReport | null>(null)
+  const [pendingPlayers, setPendingPlayers] = useState<Player[] | null>(null)
+  const [pendingCareer, setPendingCareer] = useState<ManagerProfile | null>(null)
   const selected = TRAINING_FOCUSES[focus]
   const affordable = club.budget >= selected.cost
   const trainingState = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
@@ -422,10 +424,10 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
     if (!career) { setSaving(false); return }
     const nextCareer = { ...career, club: { ...club, budget: Math.max(0, club.budget - selected.cost) } }
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
-    setTimeout(() => { setReport(changes); onComplete(nextPlayers, nextCareer) }, 250)
+    setTimeout(() => { setPendingPlayers(nextPlayers); setPendingCareer(nextCareer); setReport(changes); setSaving(false) }, 250)
   }
 
-  if (report) return <TrainingReportView report={report} close={() => onComplete(players, { name: '', nationality: '', club, season: '' })} />
+  if (report && pendingPlayers && pendingCareer) return <TrainingReportView report={report} close={() => onComplete(pendingPlayers, pendingCareer)} />
   return <main className="min-h-screen"><Top label="TREINAMENTO" back={back} /><section className="px-6 py-8 md:px-10">
     <p className="text-sm text-white/35">{club.name}</p>
     <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Prepare o elenco</h1>
