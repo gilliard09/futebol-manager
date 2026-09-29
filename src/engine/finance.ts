@@ -17,7 +17,11 @@ export type MonthlyFinance = {
 }
 
 export function applyTransaction(balance: number, transaction: Pick<FinanceTransaction, 'amount'>) {
-  return balance + transaction.amount
+  return Math.max(0, balance + transaction.amount)
+}
+
+export function hasTransaction(transactions: FinanceTransaction[], id: string) {
+  return transactions.some(transaction => transaction.id === id)
 }
 
 export function calculateMonthSummary(transactions: FinanceTransaction[], month: string, openingBalance: number): MonthlyFinance {
