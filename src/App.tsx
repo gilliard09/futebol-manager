@@ -171,8 +171,55 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
-    const finishMatch = (result: MatchResult) => {
-      const nextMatches = { ...playedMatches, [activeMatchFixture.id]: { ...result, home_club_id: activeMatchFixture.home_club_id, away_club_id: activeMatchFixture.away_club_id } }
+    const finishMatch = async (result: MatchResult) => {
+      const nextMatches: Record<string, PlayedMatch> = {
+        ...playedMatches,
+        [activeMatchFixture.id]: {
+          ...result,
+          home_club_id: activeMatchFixture.home_club_id,
+          away_club_id: activeMatchFixture.away_club_id,
+        },
+      }
+
+      const { simulateMatch } = await import('./engine/match')
+      const { data: roundFixtures } = await supabase
+        .from('fixtures')
+        .select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)')
+        .eq('round', activeMatchFixture.round)
+        .eq('status', 'scheduled')
+        .order('scheduled_at')
+
+      const remainingFixtures = ((roundFixtures ?? []) as Fixture[]).filter(fixture => !nextMatches[fixture.id])
+      const clubIds = [...new Set(remainingFixtures.flatMap(fixture => [fixture.home_club_id, fixture.away_club_id]))]
+
+      if (clubIds.length) {
+        const { data: squadRows } = await supabase
+          .from('club_players')
+          .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)')
+          .in('club_id', clubIds)
+
+        const squads = new Map<string, Player[]>()
+        for (const row of squadRows ?? []) {
+          const player = { ...row.players, squad_number: row.squad_number } as Player
+          const squad = squads.get(row.club_id) ?? []
+          squad.push(player)
+          squads.set(row.club_id, squad)
+        }
+
+        for (const fixture of remainingFixtures) {
+          const homePlayers = squads.get(fixture.home_club_id) ?? []
+          const awayPlayers = squads.get(fixture.away_club_id) ?? []
+          if (!homePlayers.length || !awayPlayers.length) continue
+
+          const simulated = simulateMatch(fixture, homePlayers, awayPlayers, 'balanced', '4-3-3')
+          nextMatches[fixture.id] = {
+            ...simulated,
+            home_club_id: fixture.home_club_id,
+            away_club_id: fixture.away_club_id,
+          }
+        }
+      }
+
       localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
       setPlayedMatches(nextMatches)
       setActiveMatchFixture(null)
