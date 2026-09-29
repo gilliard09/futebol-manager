@@ -166,11 +166,16 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
-    return <Match formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={() => { setActiveMatchFixture(null); setView('overview') }} onComplete={(result) => {
-      const nextMatches = { ...playedMatches, [activeMatchFixture.id]: { ...result, home_club_id: activeMatchFixture.home_club_id, away_club_id: activeMatchFixture.away_club_id } }
-      localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
-      setPlayedMatches(nextMatches)
-    }} />
+    const finishMatch = (result?: MatchResult) => {
+      if (result) {
+        const nextMatches = { ...playedMatches, [activeMatchFixture.id]: { ...result, home_club_id: activeMatchFixture.home_club_id, away_club_id: activeMatchFixture.away_club_id } }
+        localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
+        setPlayedMatches(nextMatches)
+      }
+      setActiveMatchFixture(null)
+      setView('overview')
+    }
+    return <Match formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={finishMatch} onComplete={() => {}} />
   }
 
 
@@ -273,7 +278,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: () => void; onComplete: (result: MatchResult) => void }) {
+function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: (result?: MatchResult) => void; onComplete: (result: MatchResult) => void }) {
   const [result, setResult] = useState<MatchResult | null>(null)
   const [currentMinute, setCurrentMinute] = useState(0)
   const [simulating, setSimulating] = useState(false)
@@ -296,7 +301,6 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
     }
 
     setSimulating(false)
-    onComplete(match)
   }
 
   const visibleEvents = result?.events.filter(event => event.minute <= currentMinute) ?? []
@@ -306,7 +310,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
   const awayScore = result ? scoreAtMinute('away') : 0
 
   return <main className="min-h-screen">
-    <Top label="PARTIDA" back={back} />
+    <Top label="PARTIDA" />
     <section className="mx-auto max-w-4xl px-6 py-12 md:px-10">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Liga Nacional · Rodada {fixture.round}</p>
 
@@ -375,7 +379,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
         </div>
         <div className="rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Fim de jogo. O resultado e as estatísticas foram salvos na carreira.</div>
       </section>}
-      {finished && <button onClick={back} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>
+      {finished && <button onClick={() => back(result)} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>}
     </section>
   </main>
 }
