@@ -7,6 +7,7 @@ const club = {
   short_name: 'CLB',
   city: 'Cidade',
   country: 'Brasil',
+  stadium: 'Estádio',
   division: 1,
   budget: 1000000,
   reputation: 50,
