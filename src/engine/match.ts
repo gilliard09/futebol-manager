@@ -18,6 +18,7 @@ export type MatchStats = {
   corners: number
   fouls: number
   yellowCards: number
+  xg: number
 }
 
 export type TeamMetrics = {
@@ -40,6 +41,27 @@ export type MatchResult = {
   homeStats: MatchStats
   awayStats: MatchStats
   timeline: { minute: number; home: MatchStats; away: MatchStats }[]
+  playerRatings: PlayerMatchRating[]
+  analysis: MatchAnalysis
+}
+
+export type PlayerMatchRating = {
+  playerId: string
+  name: string
+  position: string
+  team: 'home' | 'away'
+  rating: number
+  goals: number
+  assists: number
+  fatigue: number
+}
+
+export type MatchAnalysis = {
+  homeXg: number
+  awayXg: number
+  efficiencyText: string
+  standout: PlayerMatchRating
+  fatigueText: string
 }
 
 type Random = () => number
@@ -126,7 +148,58 @@ function chooseWeighted(players: LineupPlayer[], preferredRoles: string[], rando
 }
 
 function emptyStats(): MatchStats {
-  return { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0 }
+  return { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0, xg: 0 }
+}
+
+function buildPlayerRatings(
+  lineup: LineupPlayer[],
+  team: 'home' | 'away',
+  events: MatchEvent[],
+  tactic: string,
+): PlayerMatchRating[] {
+  return lineup.map(item => {
+    const name = item.player.first_name + ' ' + item.player.last_name
+    const playerEvents = events.filter(event => event.team === team && event.player === name)
+    const goals = playerEvents.filter(event => event.type === 'goal').length
+    const assists = 0
+    const cards = playerEvents.filter(event => event.type === 'card').length
+    const tackles = playerEvents.filter(event => event.type === 'tackle').length
+    const chances = playerEvents.filter(event => event.type === 'chance').length
+    const fatigue = clamp(38 + (100 - item.player.physical) * 0.7 + (tactic === 'offensive' ? 8 : tactic === 'defensive' ? 3 : 5))
+    const raw = playerOverall(item.player) + goals * 8 + assists * 4 + tackles * 1.5 + chances * 0.8 - cards * 1.5 - fatigue * 0.08
+    return {
+      playerId: item.player.id,
+      name,
+      position: item.role,
+      team,
+      rating: Math.round(clamp(raw, 1, 10) * 10) / 10,
+      goals,
+      assists,
+      fatigue: Math.round(fatigue),
+    }
+  })
+}
+
+function buildAnalysis(
+  homeRatings: PlayerMatchRating[],
+  awayRatings: PlayerMatchRating[],
+  homeStats: MatchStats,
+  awayStats: MatchStats,
+): MatchAnalysis {
+  const all = [...homeRatings, ...awayRatings]
+  const standout = [...all].sort((a, b) => b.rating - a.rating || b.goals - a.goals)[0]
+  const homeEfficiency = homeStats.xg > 0 ? homeStats.shotsOnTarget / homeStats.xg : 0
+  const awayEfficiency = awayStats.xg > 0 ? awayStats.shotsOnTarget / awayStats.xg : 0
+  const team = homeStats.xg >= awayStats.xg ? homeStats : awayStats
+  const goals = homeStats.xg >= awayStats.xg ? homeRatings.reduce((s, p) => s + p.goals, 0) : awayRatings.reduce((s, p) => s + p.goals, 0)
+  const xg = homeStats.xg >= awayStats.xg ? homeStats.xg : awayStats.xg
+  const efficiency = homeStats.xg >= awayStats.xg ? homeEfficiency : awayEfficiency
+  const efficiencyText = goals > xg
+    ? `${goals} gol${goals === 1 ? '' : 's'} em ${xg.toFixed(1)} xG — converteu acima do esperado.`
+    : `${goals} gol${goals === 1 ? '' : 's'} em ${xg.toFixed(1)} xG — produção próxima ao esperado.`
+  const fatigue = [...all].sort((a, b) => b.fatigue - a.fatigue)[0]
+  const fatigueText = `${fatigue.name} (${fatigue.position}) terminou com índice de fadiga ${fatigue.fatigue}/100.`
+  return { homeXg: Number(homeStats.xg.toFixed(1)), awayXg: Number(awayStats.xg.toFixed(1)), efficiencyText, standout, fatigueText }
 }
 
 function simulateSide(
@@ -164,6 +237,8 @@ function simulateSide(
   stats.shots++
   const keeper = opponent.goalkeeper
   const shotQuality = clamp(50 + (attackerQuality - opponent.defense) * 0.65 + (attacker?.player.mental ?? 50) * 0.15 + random() * 22 - 11)
+  const xg = clamp(0.12 + (shotQuality - 50) / 180 + (attacker?.player.mental ?? 50) / 700, 0.04, 0.62)
+  stats.xg += xg
   const onTarget = shotQuality > 52 || random() < 0.22
 
   if (!onTarget) {
@@ -262,5 +337,10 @@ export function simulateMatch(
     snapshot.away.possession = 100 - snapshot.home.possession
   })
 
-  return { homeScore, awayScore, events: events.sort((a, b) => a.minute - b.minute), homeMetrics, awayMetrics, homeStats, awayStats, timeline }
+  const homeRatings = buildPlayerRatings(home, 'home', events, tactic)
+  const awayRatings = buildPlayerRatings(away, 'away', events, 'balanced')
+  const playerRatings = [...homeRatings, ...awayRatings]
+  const analysis = buildAnalysis(homeRatings, awayRatings, homeStats, awayStats)
+
+  return { homeScore, awayScore, events: events.sort((a, b) => a.minute - b.minute), homeMetrics, awayMetrics, homeStats, awayStats, timeline, playerRatings, analysis }
 }
