@@ -117,7 +117,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         const loaded = (squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number }))
         try {
           const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
-          setPlayers(loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player))
+          let restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
+          if (saved.lastMatchId && saved.recoveredMatchId !== saved.lastMatchId) {
+            restored = recoverPlayers(restored, 18)
+            localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...saved, players: Object.fromEntries(restored.map(player => [player.id, player])), recoveredMatchId: saved.lastMatchId }))
+          }
+          setPlayers(restored)
         } catch {
           setPlayers(loaded)
         }
