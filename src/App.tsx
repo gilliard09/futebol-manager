@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, Trophy, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
-import type { Club, Fixture, ManagerProfile, Player, Screen } from './types/game'
+import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
 import type { MatchResult } from './engine/match'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -137,8 +137,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       }
       setLoading(false)
     }
-    loadDashboard()
-    return () => { active = false }
+    loadDashboard()    return () => { active = false }
   }, [career.club.id, clubs, playedMatches])
 
   useEffect(() => {
@@ -271,40 +270,76 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
 function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: () => void; onComplete: (result: MatchResult) => void }) {
-  const [result, setResult] = useState<{ homeScore: number; awayScore: number; events: import('./engine/match').MatchEvent[] } | null>(null)
+  const [result, setResult] = useState<MatchResult | null>(null)
+  const [currentMinute, setCurrentMinute] = useState(0)
   const [simulating, setSimulating] = useState(false)
 
   async function simulate() {
     setSimulating(true)
     const { simulateMatch } = await import('./engine/match')
-    await new Promise(resolve => setTimeout(resolve, 500))
-    setResult(simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation))
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const match = simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation as Formation)
+    setResult(match)
+    setCurrentMinute(0)
+
+    for (let minute = 1; minute <= 90; minute++) {
+      await new Promise(resolve => setTimeout(resolve, 55))
+      setCurrentMinute(minute)
+    }
+
     setSimulating(false)
+    onComplete(match)
   }
+
+  const visibleEvents = result?.events.filter(event => event.minute <= currentMinute) ?? []
+  const finished = !!result && currentMinute >= 90 && !simulating
+  const scoreAtMinute = (team: 'home' | 'away') => visibleEvents.filter(event => event.type === 'goal' && event.team === team).length
+  const homeScore = result ? scoreAtMinute('home') : 0
+  const awayScore = result ? scoreAtMinute('away') : 0
 
   return <main className="min-h-screen">
     <Top label="PARTIDA" back={back} />
-    <section className="mx-auto max-w-3xl px-6 py-12 md:px-10">
+    <section className="mx-auto max-w-4xl px-6 py-12 md:px-10">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Liga Nacional · Rodada {fixture.round}</p>
+
       <div className="mt-10 rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-10">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-center">
           <div><p className="text-lg font-bold">{fixture.home_club?.name ?? 'Mandante'}</p><p className="mt-2 text-xs text-white/30">CASA</p></div>
-          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/25">×</div>
+          <div>
+            <p className="text-5xl font-bold tracking-tight">{homeScore} <span className="text-white/20">×</span> {awayScore}</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/60">{simulating ? currentMinute + "'" : finished ? "FIM DE JOGO" : "PRÉ-JOGO"}</p>
+          </div>
           <div><p className="text-lg font-bold">{fixture.away_club?.name ?? 'Visitante'}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
         </div>
-        {result && <div className="mt-10 border-t border-white/6 pt-8 text-center"><p className="text-6xl font-bold tracking-tight">{result.homeScore} <span className="text-white/20">×</span> {result.awayScore}</p><p className="mt-3 text-sm text-white/35">Partida encerrada</p></div>}
-        {!result && <button onClick={simulate} disabled={simulating} className="mx-auto mt-10 flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] disabled:opacity-40">{simulating ? 'Simulando...' : 'Simular partida'} <ArrowRight size={17} /></button>}
+
+        {result && <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <Info label="Posse" value={currentMinute >= 90 ? result.homeStats.possession + '% / ' + result.awayStats.possession + '%' : 'calculando'} />
+          <Info label="Finalizações" value={result.homeStats.shots + ' / ' + result.awayStats.shots} />
+          <Info label="No alvo" value={result.homeStats.shotsOnTarget + ' / ' + result.awayStats.shotsOnTarget} />
+          <Info label="Escanteios" value={result.homeStats.corners + ' / ' + result.awayStats.corners} />
+        </div>}
+
+        {!result && <button onClick={simulate} disabled={simulating} className="mx-auto mt-10 flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] disabled:opacity-40">{simulating ? 'Preparando...' : 'Começar partida'} <ArrowRight size={17} /></button>}
+        {simulating && <p className="mt-5 text-center text-xs text-white/30">A partida está acontecendo. Os lances aparecem conforme o relógio avança.</p>}
       </div>
+
       {result && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Lance a lance</p>
-        <div className="mt-5 space-y-2">
-          {result.events.length ? result.events.map((event, index) => <div key={index} className="flex items-center gap-4 rounded-xl border border-white/5 bg-black/10 px-4 py-3"><span className="w-8 text-xs font-bold text-white/25">{event.minute}'</span><div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div></div>) : <p className="text-sm text-white/35">Nenhum gol na partida.</p>}
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Lance a lance</p>
+          <span className="text-xs text-white/25">{visibleEvents.length} eventos</span>
+        </div>
+        <div className="mt-5 max-h-[480px] space-y-2 overflow-y-auto pr-1">
+          {visibleEvents.length ? visibleEvents.slice().reverse().map((event, index) => <div key={index} className={`flex items-center gap-4 rounded-xl border px-4 py-3 ${event.type === 'goal' ? 'border-emerald-400/20 bg-emerald-400/5' : 'border-white/5 bg-black/10'}`}>
+            <span className="w-8 text-xs font-bold text-white/25">{event.minute}'</span>
+            <div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div>
+          </div>) : <p className="text-sm text-white/35">O jogo está começando...</p>}
         </div>
       </section>}
-      {result && <button onClick={back} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>}
+
+      {finished && <div className="mt-6 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Fim de jogo. O resultado e as estatísticas foram salvos na carreira.</div>}
+      {finished && <button onClick={back} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>}
     </section>
   </main>
 }
-
 function Action({ title, text, icon }: { title: string; text: string; icon: ReactNode }) { return <button className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300">{icon}</div><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/30">{text}</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button> }
 function DashboardCard({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) { return <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-5"><div className="flex items-center gap-2 text-white/35">{icon}<span className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</span></div><p className="mt-7 text-2xl font-bold tracking-tight">{value}</p><p className="mt-1 text-xs text-white/30">{detail}</p></div> }
