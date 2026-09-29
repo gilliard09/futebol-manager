@@ -39,6 +39,7 @@ export type MatchResult = {
   awayMetrics: TeamMetrics
   homeStats: MatchStats
   awayStats: MatchStats
+  timeline: { minute: number; home: MatchStats; away: MatchStats }[]
 }
 
 type Random = () => number
@@ -197,6 +198,7 @@ export function simulateMatch(
   const homeStats = emptyStats()
   const awayStats = emptyStats()
   const events: MatchEvent[] = []
+  const timeline: { minute: number; home: MatchStats; away: MatchStats }[] = []
   const homeName = fixture.home_club?.short_name ?? 'Casa'
   const awayName = fixture.away_club?.short_name ?? 'Fora'
   let homeScore = 0
@@ -242,11 +244,23 @@ export function simulateMatch(
       stats.corners++
       events.push({ minute, type: 'corner', team, player: 'Equipe', text: 'Escanteio.' })
     }
+
+    timeline.push({
+      minute,
+      home: { ...homeStats },
+      away: { ...awayStats },
+    })
   }
 
   const totalPossession = homeStats.possession + awayStats.possession || 100
   homeStats.possession = Math.round((homeStats.possession / totalPossession) * 100)
   awayStats.possession = 100 - homeStats.possession
 
-  return { homeScore, awayScore, events: events.sort((a, b) => a.minute - b.minute), homeMetrics, awayMetrics, homeStats, awayStats }
+  timeline.forEach(snapshot => {
+    const total = snapshot.home.possession + snapshot.away.possession || 100
+    snapshot.home.possession = Math.round((snapshot.home.possession / total) * 100)
+    snapshot.away.possession = 100 - snapshot.home.possession
+  })
+
+  return { homeScore, awayScore, events: events.sort((a, b) => a.minute - b.minute), homeMetrics, awayMetrics, homeStats, awayStats, timeline }
 }
