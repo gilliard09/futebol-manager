@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildStandings, createKnockoutRound, getCompetitionStageLabel, getKnockoutWinner, resolveSingleMatch, resolveTwoLegTie, BRAZIL_CUP_RULES, BRAZIL_LEAGUE_RULES } from './competitions'
+import { buildStandings, createKnockoutRound, getCompetitionStageLabel, getKnockoutWinner, resolveSingleMatch, resolveTwoLegTie, resolveCompletedKnockoutStage, BRAZIL_CUP_RULES, BRAZIL_LEAGUE_RULES } from './competitions'
 import type { Fixture } from '../types/game'
 
 const fixture=(id:string,home:string,away:string,hs:number,as:number):Fixture=>({id,competition_id:'c',round:1,scheduled_at:'2026-01-01',status:'completed',home_club_id:home,away_club_id:away,home_score:hs,away_score:as,home_club:null,away_club:null})
