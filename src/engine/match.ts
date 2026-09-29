@@ -3,7 +3,7 @@ import { FORMATIONS } from '../types/game'
 
 export type MatchEvent = {
   minute: number
-  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'corner' | 'foul'
+  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'corner' | 'foul' | 'tackle'
   team: 'home' | 'away'
   player: string
   text: string
@@ -13,6 +13,8 @@ export type MatchStats = {
   possession: number
   shots: number
   shotsOnTarget: number
+  chances: number
+  tackles: number
   corners: number
   fouls: number
   yellowCards: number
@@ -123,7 +125,7 @@ function chooseWeighted(players: LineupPlayer[], preferredRoles: string[], rando
 }
 
 function emptyStats(): MatchStats {
-  return { possession: 50, shots: 0, shotsOnTarget: 0, corners: 0, fouls: 0, yellowCards: 0 }
+  return { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0 }
 }
 
 function simulateSide(
@@ -140,22 +142,28 @@ function simulateSide(
 ) {
   const midfieldControl = clamp(own.midfield * 0.62 + own.overall * 0.38 - opponent.midfield * 0.45)
   const attackEdge = own.attack - opponent.defense
-  const possession = clamp(50 + midfieldControl * 0.45 + (tactic === 'offensive' ? 2 : tactic === 'defensive' ? -1 : 0))
-  stats.possession += (possession - stats.possession) * 0.22
+  const possessionTarget = clamp(50 + midfieldControl * 0.45 + (tactic === 'offensive' ? 2 : tactic === 'defensive' ? -1 : 0))
+  stats.possession += (possessionTarget - stats.possession) * 0.22
 
-  const pressure = clamp(0.9 + attackEdge / 65 + (tactic === 'offensive' ? 0.32 : tactic === 'defensive' ? -0.2 : 0) + possession / 300, 0.15, 2.2)
+  const pressure = clamp(0.9 + attackEdge / 65 + (tactic === 'offensive' ? 0.32 : tactic === 'defensive' ? -0.2 : 0) + stats.possession / 300, 0.15, 2.2)
   const chanceProbability = 0.065 * pressure
   if (random() > chanceProbability) return
 
-  stats.shots++
+  stats.chances++
   const attacker = chooseWeighted(lineup, ['ST', 'LW', 'RW', 'AM'], random)
   const attackerQuality = attacker ? rating(attacker.player, attacker.role) : own.attack
+  const playerName = attacker ? attacker.player.first_name + ' ' + attacker.player.last_name : clubName
+  events.push({ minute, type: 'chance', team, player: playerName, text: playerName + ' encontra espaço e cria uma boa chance.' })
+
+  if (random() < 0.18) {
+    stats.corners++
+    events.push({ minute, type: 'corner', team, player: playerName, text: 'A defesa desvia e é escanteio.' })
+  }
+
+  stats.shots++
   const keeper = opponent.goalkeeper
   const shotQuality = clamp(50 + (attackerQuality - opponent.defense) * 0.65 + (attacker?.player.mental ?? 50) * 0.15 + random() * 22 - 11)
   const onTarget = shotQuality > 52 || random() < 0.22
-  const playerName = attacker ? attacker.player.first_name + ' ' + attacker.player.last_name : clubName
-
-  events.push({ minute, type: 'chance', team, player: playerName, text: playerName + ' encontra espaço e cria uma boa chance.' })
 
   if (!onTarget) {
     events.push({ minute, type: 'shot', team, player: playerName, text: playerName + ' finaliza para fora.' })
@@ -198,17 +206,29 @@ export function simulateMatch(
     const homeBefore = events.length
     simulateSide(minute, 'home', home, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName)
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
+
     const awayBefore = events.length
     simulateSide(minute, 'away', away, awayMetrics, homeMetrics, 'balanced', awayStats, events, random, awayName)
     if (events.slice(awayBefore).some(event => event.type === 'goal')) awayScore++
 
-    if (random() < 0.035) {
+    const tackleProbability = clamp(0.16 + ((100 - ((homeMetrics.midfield + awayMetrics.midfield) / 2)) / 400), 0.08, 0.2)
+    if (random() < tackleProbability) {
       const team = random() < 0.5 ? 'home' : 'away'
       const stats = team === 'home' ? homeStats : awayStats
-      stats.fouls++
       const side = team === 'home' ? home : away
       const player = chooseWeighted(side, ['CB', 'LB', 'RB', 'DM', 'CM'], random)
       const name = player ? player.player.first_name + ' ' + player.player.last_name : 'Jogador'
+      stats.tackles++
+      events.push({ minute, type: 'tackle', team, player: name, text: name + ' ganha a disputa e faz o desarme.' })
+    }
+
+    if (random() < 0.035) {
+      const team = random() < 0.5 ? 'home' : 'away'
+      const stats = team === 'home' ? homeStats : awayStats
+      const side = team === 'home' ? home : away
+      const player = chooseWeighted(side, ['CB', 'LB', 'RB', 'DM', 'CM'], random)
+      const name = player ? player.player.first_name + ' ' + player.player.last_name : 'Jogador'
+      stats.fouls++
       events.push({ minute, type: 'foul', team, player: name, text: name + ' comete falta.' })
       if (random() < 0.2) {
         stats.yellowCards++
@@ -216,14 +236,11 @@ export function simulateMatch(
       }
     }
 
-    if (random() < 0.022) {
+    if (random() < 0.012) {
       const team = random() < 0.5 ? 'home' : 'away'
       const stats = team === 'home' ? homeStats : awayStats
       stats.corners++
-      const side = team === 'home' ? home : away
-      const player = chooseWeighted(side, ['LW', 'RW', 'ST'], random)
-      const name = player ? player.player.first_name + ' ' + player.player.last_name : 'Jogador'
-      events.push({ minute, type: 'corner', team, player: name, text: 'Escanteio.' })
+      events.push({ minute, type: 'corner', team, player: 'Equipe', text: 'Escanteio.' })
     }
   }
 
