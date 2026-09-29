@@ -71,7 +71,7 @@ export default function App() {
     let active = true
     async function loadClubs() {
       setLoading(true); setError(null)
-      const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation').order('name')
+      const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium').order('name')
       if (!active) return
       if (error) setError(error.message); else setClubs(data ?? [])
       setLoading(false)
