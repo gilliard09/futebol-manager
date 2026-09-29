@@ -115,7 +115,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         supabase.from('fixtures').select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
         supabase.from('fixtures').select('id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation').order('name'),
-        supabase.from('club_players').select('salary').eq('club_id', career.club.id),
+        supabase.from('club_players').select('player_id,salary').eq('club_id', career.club.id),
       ])
       if (!active) return
       if (!squadResult.error) {
@@ -129,31 +129,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         }
       }
       if (!salaryResult.error) {
-        const baseSalary = (salaryResult.data ?? []).reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0)
-        let total = baseSalary
+        const rows = (salaryResult.data ?? []) as Array<{ player_id: string; salary: number }>
+        let total = rows.reduce((sum, row) => sum + Number(row.salary ?? 0), 0)
         try {
           const savedContracts = JSON.parse(localStorage.getItem(CONTRACTS_KEY) ?? '{}')
-          const dbRows = salaryResult.data ?? []
-          total = dbRows.reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0)
-          const playerIds = (squadResult.data ?? []).map((row: any) => row.players?.id).filter(Boolean)
-          for (const playerId of playerIds) {
-            const override = savedContracts[playerId]
-            if (override) {
-              const original = (squadResult.data ?? []).find((row: any) => row.players?.id === playerId)
-              void original
-            }
-          }
-          const overrideRows = Object.values(savedContracts) as Array<{ salary?: number }>
-          const dbTotal = baseSalary
-          const overriddenIds = Object.keys(savedContracts)
-          const originalRows = (salaryResult.data ?? []) as Array<any>
-          if (overriddenIds.length) {
-            const salaryByPlayer = new Map<string, number>()
-            ;(await supabase.from('club_players').select('player_id,salary').eq('club_id', career.club.id)).data?.forEach((row: any) => salaryByPlayer.set(row.player_id, Number(row.salary ?? 0)))
-            total = dbTotal
-            for (const playerId of overriddenIds) if (salaryByPlayer.has(playerId)) total += Number(savedContracts[playerId].salary ?? 0) - (salaryByPlayer.get(playerId) ?? 0)
-          }
-          void overrideRows; void originalRows
+          total = rows.reduce((sum, row) => {
+            const override = savedContracts[row.player_id]
+            return sum + Number(override?.salary ?? row.salary ?? 0)
+          }, 0)
         } catch {}
         setSalaryTotal(total)
       }
@@ -238,7 +221,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.setItem(CLOCK_KEY, JSON.stringify(nextClock))
   }
 
-  if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? '2026-01-11'} onContractChange={(salary) => setSalaryTotal(previous => previous)} back={() => setView('overview')} />
+  if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? '2026-01-11'} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => setView('overview')} />
   if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer) => { setPlayers(nextPlayers); onCareerUpdate(nextCareer); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
@@ -335,7 +318,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   </section></main>
 }
 
-function Squad({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (salary: number) => void; back: () => void }) {
+function Squad({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (oldSalary: number, newSalary: number) => void; back: () => void }) {
   const [position, setPosition] = useState('ALL')
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const positions = ['ALL', 'GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST']
