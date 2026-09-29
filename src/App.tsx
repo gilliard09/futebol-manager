@@ -27,7 +27,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (screen !== 'club') return
+    if (clubs.length > 0) return
     let active = true
     async function loadClubs() {
       setLoading(true); setError(null)
@@ -38,7 +38,7 @@ export default function App() {
     }
     loadClubs()
     return () => { active = false }
-  }, [screen])
+  }, [clubs.length])
 
   const canContinue = managerName.trim().length >= 2
 
