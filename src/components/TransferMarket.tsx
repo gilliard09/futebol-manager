@@ -3,6 +3,7 @@ import { ArrowLeft, Search, ShoppingBag, Tag, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/match'
 import { getActiveLoan } from '../engine/loans'
+import { canAddPlayer } from '../engine/roster'
 import { applyTransfer, calculateAskingPrice, canCompleteTransfer, createTransferRecord, negotiateTransfer, type TransferRecord, type TransferState } from '../engine/transfers'
 import type { Club, Player } from '../types/game'
 
@@ -25,11 +26,12 @@ type TransferMarketProps = {
   today: string
   state: TransferState
   loanState: import('../engine/loans').LoanState
+  currentSquadSize: number
   onTransfer: (record: TransferRecord, nextState: TransferState, nextBalance: number) => void
   back: () => void
 }
 
-export default function TransferMarket({ club, clubs, balance, today, state, loanState, onTransfer, back }: TransferMarketProps) {
+export default function TransferMarket({ club, clubs, balance, today, state, loanState, currentSquadSize, onTransfer, back }: TransferMarketProps) {
   const [marketPlayers, setMarketPlayers] = useState<MarketPlayer[]>([])
   const [position, setPosition] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -109,6 +111,10 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
     if (!selected || !negotiation || saving) return
     if (!negotiation.accepted) {
       setMessage(`A proposta foi recusada. O mínimo aceito é ${money(negotiation.minimum)}.`)
+      return
+    }
+    if (mode === 'buy' && !canAddPlayer(currentSquadSize)) {
+      setMessage('O elenco já atingiu o limite de 25 jogadores. Libere uma vaga antes de contratar.')
       return
     }
     if (mode === 'buy' && !canCompleteTransfer(club, offer)) {
