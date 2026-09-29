@@ -49,12 +49,13 @@ function chooseScorer(players: Player[]) {
   return [...pool].sort((a, b) => playerOverall(b) - playerOverall(a))[Math.floor(Math.random() * Math.min(pool.length, 5))]
 }
 
-export function simulateMatch(fixture: Fixture, homePlayers: Player[], awayPlayers: Player[]): MatchResult {
-  const homeStrength = teamStrength(homePlayers) + 3
+export function simulateMatch(fixture: Fixture, homePlayers: Player[], awayPlayers: Player[], tactic = 'balanced'): MatchResult {
+  const tacticalModifier = tactic === 'offensive' ? 3 : tactic === 'defensive' ? -2 : 0
+  const homeStrength = teamStrength(homePlayers) + 3 + tacticalModifier
   const awayStrength = teamStrength(awayPlayers)
 
   const homeExpected = Math.max(0.15, 1.15 + (homeStrength - awayStrength) / 35)
-  const awayExpected = Math.max(0.1, 0.95 + (awayStrength - homeStrength) / 40)
+  const awayExpected = Math.max(0.1, 0.95 + (awayStrength - homeStrength) / 40 - (tactic === 'offensive' ? 0.08 : tactic === 'defensive' ? -0.04 : 0))
 
   const homeScore = Math.min(6, Math.floor(Math.random() * (homeExpected + 1.15)))
   const awayScore = Math.min(6, Math.floor(Math.random() * (awayExpected + 1.05)))
