@@ -60,7 +60,7 @@ export default function App() {
     {screen === 'home' && <Home career={career} start={() => setScreen('manager')} continueCareer={() => setScreen('dashboard')} newCareer={newCareer} />}
     {screen === 'manager' && <Manager name={managerName} nationality={nationality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} back={() => setScreen('home')} next={() => setScreen('club')} />}
     {screen === 'club' && <ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => setScreen('manager')} confirm={confirmCareer} />}
-    {screen === 'dashboard' && career && <Dashboard career={career} clubs={clubs} newCareer={newCareer} />}
+    {screen === 'dashboard' && career && <Dashboard career={career} clubs={clubs} newCareer={newCareer} onCareerUpdate={setCareer} />}
   </div></div>
 }
 
@@ -84,7 +84,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
   return <main className="min-h-screen"><Top label="ESCOLHA SEU CLUBE" back={back} /><section className="mx-auto max-w-5xl px-6 py-12 md:px-10"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">02 / 02</span><h1 className="mt-3 text-4xl font-bold tracking-[-0.03em] md:text-5xl">Onde começa sua história?</h1><p className="mt-4 max-w-xl leading-7 text-white/45">Escolha um dos clubes disponíveis para iniciar a temporada 2026.</p>{selected && <div className="mt-6 inline-block rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm"><span className="text-white/35">Selecionado</span><p className="font-semibold text-emerald-300">{selected.name}</p></div>}{loading && <div className="py-20 text-center text-sm text-white/35">Carregando clubes...</div>}{error && <div className="mt-10 rounded-xl border border-red-400/15 bg-red-400/5 p-5 text-sm text-red-200">Não foi possível carregar os clubes. {error}</div>}{!loading && !error && <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{clubs.map(club => <button key={club.id} onClick={() => select(club)} className={`group rounded-2xl border p-5 text-left transition ${selected?.id === club.id ? 'border-emerald-400/50 bg-emerald-400/8' : 'border-white/6 bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.045]'}`}><div className="flex items-start justify-between"><div className={`flex h-11 w-11 items-center justify-center rounded-xl text-sm font-bold ${selected?.id === club.id ? 'bg-emerald-400 text-[#06100c]' : 'bg-white/6 text-white/50'}`}>{club.short_name.slice(0, 3)}</div><ChevronRight size={17} className="text-white/15 group-hover:text-white/45" /></div><h2 className="mt-5 font-semibold">{club.name}</h2><div className="mt-2 flex items-center gap-2 text-xs text-white/35"><MapPin size={13} />{club.city}</div><div className="mt-5 flex items-center justify-between border-t border-white/6 pt-4 text-xs"><span className="text-white/30">Orçamento</span><span className="font-semibold text-white/60">{money(club.budget)}</span></div></button>)}</div>}<div className="mt-10 flex justify-end"><button disabled={!selected} onClick={confirm} className="flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">Assumir o clube <ArrowRight size={17} /></button></div></section></main>
 }
 
-function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void }) {
+function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
@@ -186,7 +186,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} back={() => setView('overview')} onComplete={(nextPlayers) => { setPlayers(nextPlayers); setView('overview') }} />
+  if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer) => { setPlayers(nextPlayers); onCareerUpdate(nextCareer); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
@@ -393,7 +393,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 }
 
 
-function Training({ players, club, salaryTotal, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; back: () => void; onComplete: (players: Player[]) => void }) {
+function Training({ players, club, salaryTotal, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; back: () => void; onComplete: (players: Player[], career: ManagerProfile) => void }) {
   const [focus, setFocus] = useState<TrainingFocus>('balanced')
   const [saving, setSaving] = useState(false)
   const selected = TRAINING_FOCUSES[focus]
@@ -406,14 +406,12 @@ function Training({ players, club, salaryTotal, back, onComplete }: { players: P
     const previous = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     const map = Object.fromEntries(nextPlayers.map(player => [player.id, player]))
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString() }))
-    const nextClub = { ...club, budget: Math.max(0, club.budget - selected.cost) }
     const savedCareer = localStorage.getItem(CAREER_KEY)
-    if (savedCareer) {
-      const career = JSON.parse(savedCareer) as ManagerProfile
-      const nextCareer = { ...career, club: nextClub }
-      localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
-    }
-    setTimeout(() => onComplete(nextPlayers), 250)
+    const career = savedCareer ? JSON.parse(savedCareer) as ManagerProfile : null
+    if (!career) { setSaving(false); return }
+    const nextCareer = { ...career, club: { ...club, budget: Math.max(0, club.budget - selected.cost) } }
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    setTimeout(() => onComplete(nextPlayers, nextCareer), 250)
   }
 
   return <main className="min-h-screen"><Top label="TREINAMENTO" back={back} /><section className="px-6 py-8 md:px-10">
