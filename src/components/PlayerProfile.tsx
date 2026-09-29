@@ -30,7 +30,7 @@ function Info({ label, value }: { label: string; value: string }) {
   </div>
 }
 
-export default function PlayerProfile({ player, club, today, close, onContractChange }: { player: Player; club: Club; today: string; close: () => void; onContractChange?: (salary: number) => void }) {
+export default function PlayerProfile({ player, club, today, close, onContractChange }: { player: Player; club: Club; today: string; close: () => void; onContractChange?: (oldSalary: number, newSalary: number) => void }) {
   const [contract, setContract] = useState<Contract | null>(null)
   const [loading, setLoading] = useState(true)
   const [renewing, setRenewing] = useState(false)
@@ -74,7 +74,7 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
     saved[player.id] = { contract_until: until, salary: renewalSalary, market_value: contract.market_value ?? 0 }
     localStorage.setItem('futebol-manager:contracts', JSON.stringify(saved))
     setContract({ ...contract, contract_until: until, salary: renewalSalary })
-    onContractChange?.(renewalSalary)
+    onContractChange?.(Number(contract.salary ?? 0), renewalSalary)
     setRenewing(false)
   }
 
