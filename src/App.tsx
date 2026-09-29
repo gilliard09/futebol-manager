@@ -14,6 +14,7 @@ const MATCHES_KEY = 'futebol-manager:matches'
 const TACTIC_KEY = 'futebol-manager:tactic'
 const TRAINING_KEY = 'futebol-manager:training'
 const CLOCK_KEY = 'futebol-manager:season-clock'
+const CONTRACTS_KEY = 'futebol-manager:contracts'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -127,7 +128,35 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           setPlayers(loaded)
         }
       }
-      if (!salaryResult.error) setSalaryTotal((salaryResult.data ?? []).reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0))
+      if (!salaryResult.error) {
+        const baseSalary = (salaryResult.data ?? []).reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0)
+        let total = baseSalary
+        try {
+          const savedContracts = JSON.parse(localStorage.getItem(CONTRACTS_KEY) ?? '{}')
+          const dbRows = salaryResult.data ?? []
+          total = dbRows.reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0)
+          const playerIds = (squadResult.data ?? []).map((row: any) => row.players?.id).filter(Boolean)
+          for (const playerId of playerIds) {
+            const override = savedContracts[playerId]
+            if (override) {
+              const original = (squadResult.data ?? []).find((row: any) => row.players?.id === playerId)
+              void original
+            }
+          }
+          const overrideRows = Object.values(savedContracts) as Array<{ salary?: number }>
+          const dbTotal = baseSalary
+          const overriddenIds = Object.keys(savedContracts)
+          const originalRows = (salaryResult.data ?? []) as Array<any>
+          if (overriddenIds.length) {
+            const salaryByPlayer = new Map<string, number>()
+            ;(await supabase.from('club_players').select('player_id,salary').eq('club_id', career.club.id)).data?.forEach((row: any) => salaryByPlayer.set(row.player_id, Number(row.salary ?? 0)))
+            total = dbTotal
+            for (const playerId of overriddenIds) if (salaryByPlayer.has(playerId)) total += Number(savedContracts[playerId].salary ?? 0) - (salaryByPlayer.get(playerId) ?? 0)
+          }
+          void overrideRows; void originalRows
+        } catch {}
+        setSalaryTotal(total)
+      }
       if (!fixtureResult.error) {
         const scheduled = (fixtureResult.data ?? []).filter((item: any) => !playedMatches[item.id]) as Fixture[]
         const fixture = scheduled[0] ?? null
@@ -209,7 +238,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.setItem(CLOCK_KEY, JSON.stringify(nextClock))
   }
 
-  if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
+  if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? '2026-01-11'} onContractChange={(salary) => setSalaryTotal(previous => previous)} back={() => setView('overview')} />
   if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer) => { setPlayers(nextPlayers); onCareerUpdate(nextCareer); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
@@ -306,7 +335,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   </section></main>
 }
 
-function Squad({ players, club, back }: { players: Player[]; club: Club; back: () => void }) {
+function Squad({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (salary: number) => void; back: () => void }) {
   const [position, setPosition] = useState('ALL')
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const positions = ['ALL', 'GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST']
@@ -344,7 +373,7 @@ function Squad({ players, club, back }: { players: Player[]; club: Club; back: (
       <p className="mt-4 text-xs text-white/25">{filtered.length} jogadores exibidos. Selecione um jogador para abrir a ficha.</p>
     </section>
 
-    {selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} close={() => setSelectedPlayer(null)} />}
+    {selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} today={today} onContractChange={onContractChange} close={() => setSelectedPlayer(null)} />}
   </main>
 }
 
