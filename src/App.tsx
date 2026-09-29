@@ -80,7 +80,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; gf: number; ga: number }[]>([])
-  const [view, setView] = useState<'overview' | 'squad'>('overview')
+  const [view, setView] = useState<'overview' | 'squad' | 'match'>('overview')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -118,13 +118,15 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const avg = players.length ? Math.round(players.reduce((sum, p) => sum + (p.position === 'GK' ? p.goalkeeping : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
+  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? players : []} awayPlayers={home ? [] : players} back={() => setView('overview')} />
+
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(career.club.budget)} detail="caixa do clube" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional" /><DashboardCard icon={<CalendarDays size={18} />} label="Próximo jogo" value={opponent?.short_name ?? 'A definir'} detail={nextFixture ? (home ? 'Em casa' : 'Fora') : 'Calendário indisponível'} /></div>
       <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value="Liga Nacional" /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /></div><button className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Preparar partida <ArrowRight size={16} /></button></section>
+        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value="Liga Nacional" /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /></div><button onClick={() => setView('match')} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Preparar partida <ArrowRight size={16} /></button></section>
         <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Elenco</p><h2 className="mt-2 text-2xl font-bold">{players.length} jogadores</h2></div><Users className="text-emerald-300/50" size={24} /></div><div className="mt-6 space-y-2">{players.slice(0, 5).map(player => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div><span className="text-xs font-semibold text-white/40">#{player.squad_number}</span></div>)}</div><button onClick={() => setView('squad')} className="mt-5 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Ver elenco completo <ChevronRight size={16} /></button></section>
       </div>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-hidden rounded-xl border border-white/5"><table className="w-full text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3">P</th><th className="px-4 py-3">J</th><th className="px-4 py-3">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 font-bold">{team.points}</td><td className="px-4 py-3 text-white/40">{team.played}</td><td className="px-4 py-3 text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
@@ -142,5 +144,42 @@ function Squad({ players, club, back }: { players: Player[]; club: Club; back: (
 }
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
+
+function Match({ fixture, homePlayers, awayPlayers, back }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; back: () => void }) {
+  const [result, setResult] = useState<{ homeScore: number; awayScore: number; events: import('./engine/match').MatchEvent[] } | null>(null)
+  const [simulating, setSimulating] = useState(false)
+
+  async function simulate() {
+    setSimulating(true)
+    const { simulateMatch } = await import('./engine/match')
+    await new Promise(resolve => setTimeout(resolve, 500))
+    setResult(simulateMatch(fixture, homePlayers, awayPlayers))
+    setSimulating(false)
+  }
+
+  return <main className="min-h-screen">
+    <Top label="PARTIDA" back={back} />
+    <section className="mx-auto max-w-3xl px-6 py-12 md:px-10">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Liga Nacional · Rodada {fixture.round}</p>
+      <div className="mt-10 rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-10">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-center">
+          <div><p className="text-lg font-bold">{fixture.home_club?.name ?? 'Mandante'}</p><p className="mt-2 text-xs text-white/30">CASA</p></div>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-white/25">×</div>
+          <div><p className="text-lg font-bold">{fixture.away_club?.name ?? 'Visitante'}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
+        </div>
+        {result && <div className="mt-10 border-t border-white/6 pt-8 text-center"><p className="text-6xl font-bold tracking-tight">{result.homeScore} <span className="text-white/20">×</span> {result.awayScore}</p><p className="mt-3 text-sm text-white/35">Partida encerrada</p></div>}
+        {!result && <button onClick={simulate} disabled={simulating} className="mx-auto mt-10 flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] disabled:opacity-40">{simulating ? 'Simulando...' : 'Simular partida'} <ArrowRight size={17} /></button>}
+      </div>
+      {result && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Lance a lance</p>
+        <div className="mt-5 space-y-2">
+          {result.events.length ? result.events.map((event, index) => <div key={index} className="flex items-center gap-4 rounded-xl border border-white/5 bg-black/10 px-4 py-3"><span className="w-8 text-xs font-bold text-white/25">{event.minute}'</span><div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div></div>) : <p className="text-sm text-white/35">Nenhum gol na partida.</p>}
+        </div>
+      </section>}
+      {result && <button onClick={back} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"><ArrowLeft size={16} /> Voltar ao clube</button>}
+    </section>
+  </main>
+}
+
 function Action({ title, text, icon }: { title: string; text: string; icon: ReactNode }) { return <button className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300">{icon}</div><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/30">{text}</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button> }
 function DashboardCard({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) { return <div className="rounded-2xl border border-white/6 bg-white/[0.025] p-5"><div className="flex items-center gap-2 text-white/35">{icon}<span className="text-xs font-semibold uppercase tracking-[0.16em]">{label}</span></div><p className="mt-7 text-2xl font-bold tracking-tight">{value}</p><p className="mt-1 text-xs text-white/30">{detail}</p></div> }
