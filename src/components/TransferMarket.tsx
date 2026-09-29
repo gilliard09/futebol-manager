@@ -25,7 +25,6 @@ type TransferMarketProps = {
   today: string
   state: TransferState
   loanState: import('../engine/loans').LoanState
-  today: string
   onTransfer: (record: TransferRecord, nextState: TransferState, nextBalance: number) => void
   back: () => void
 }
