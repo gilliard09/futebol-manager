@@ -185,11 +185,15 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       const { data: roundFixtures } = await supabase
         .from('fixtures')
         .select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)')
+        .eq('competition_id', activeMatchFixture.competition_id)
         .eq('round', activeMatchFixture.round)
         .eq('status', 'scheduled')
         .order('scheduled_at')
 
       const remainingFixtures = ((roundFixtures ?? []) as Fixture[]).filter(fixture => !nextMatches[fixture.id])
+      const matchesToPersist: Record<string, PlayedMatch> = {
+        [activeMatchFixture.id]: nextMatches[activeMatchFixture.id],
+      }
       const clubIds = [...new Set(remainingFixtures.flatMap(fixture => [fixture.home_club_id, fixture.away_club_id]))]
 
       if (clubIds.length) {
@@ -217,7 +221,18 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
             home_club_id: fixture.home_club_id,
             away_club_id: fixture.away_club_id,
           }
+          matchesToPersist[fixture.id] = nextMatches[fixture.id]
         }
+      }
+
+      for (const [fixtureId, match] of Object.entries(matchesToPersist)) {
+        const { error: updateError } = await supabase
+          .from('fixtures')
+          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore })
+          .eq('id', fixtureId)
+          .eq('status', 'scheduled')
+
+        if (updateError) console.error('Não foi possível persistir o resultado da fixture', fixtureId, updateError)
       }
 
       localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
