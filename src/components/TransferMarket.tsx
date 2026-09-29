@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Search, ShoppingBag, Tag, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/match'
+import { getActiveLoan } from '../engine/loans'
 import { applyTransfer, calculateAskingPrice, canCompleteTransfer, createTransferRecord, negotiateTransfer, type TransferRecord, type TransferState } from '../engine/transfers'
 import type { Club, Player } from '../types/game'
 
@@ -23,11 +24,13 @@ type TransferMarketProps = {
   balance: number
   today: string
   state: TransferState
+  loanState: import('../engine/loans').LoanState
+  today: string
   onTransfer: (record: TransferRecord, nextState: TransferState, nextBalance: number) => void
   back: () => void
 }
 
-export default function TransferMarket({ club, clubs, balance, today, state, onTransfer, back }: TransferMarketProps) {
+export default function TransferMarket({ club, clubs, balance, today, state, loanState, onTransfer, back }: TransferMarketProps) {
   const [marketPlayers, setMarketPlayers] = useState<MarketPlayer[]>([])
   const [position, setPosition] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -60,6 +63,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
       const rows = (data ?? []).flatMap((row: any) => {
         const player = Array.isArray(row.players) ? row.players[0] : row.players
         const currentClubId = state.playerClubOverrides[player.id] ?? row.club_id
+        if (getActiveLoan(player.id, today, loanState)) return []
         const seller = byId.get(currentClubId)
         if (!seller) return []
         return [{
@@ -78,7 +82,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
     }
     loadMarket()
     return () => { active = false }
-  }, [club.id, clubs, state.playerClubOverrides])
+  }, [club.id, clubs, state.playerClubOverrides, loanState, today])
 
   const myPlayers = useMemo(() => marketPlayers.filter(item => item.club.id === club.id), [marketPlayers, club.id])
 
