@@ -206,26 +206,35 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
   const slots = formations[formation]
   const overall = (p: Player) => p.position === 'GK' ? p.goalkeeping : Math.round((p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7)
 
-  function bestForPosition(position: string) {
-    const available = players.filter(p => !Object.values(lineup).includes(p.id))
-    const exact = available.filter(p => p.position === position)
-    return (exact.length ? exact : available.filter(p => {
-      if (position === 'CB') return ['CB','DM'].includes(p.position)
-      if (['LB','RB'].includes(position)) return ['LB','RB','LW','RW'].includes(p.position)
-      if (['LW','RW'].includes(position)) return ['LW','RW','AM','ST'].includes(p.position)
-      if (['CM','DM','AM'].includes(position)) return ['CM','DM','AM'].includes(p.position)
-      return false
-    })).sort((a,b) => overall(b)-overall(a))[0]
+  function canPlayPosition(player: Player, position: string) {
+    if (player.position === position) return true
+    if (position === 'CB') return ['CB', 'DM'].includes(player.position)
+    if (['LB', 'RB'].includes(position)) return ['LB', 'RB', 'LW', 'RW'].includes(player.position)
+    if (['LW', 'RW'].includes(position)) return ['LW', 'RW', 'AM', 'ST'].includes(player.position)
+    if (['CM', 'DM', 'AM'].includes(position)) return ['CM', 'DM', 'AM'].includes(player.position)
+    return false
+  }
+
+  function bestForPosition(position: string, usedIds: Set<string>) {
+    return players
+      .filter(player => !usedIds.has(player.id) && canPlayPosition(player, position))
+      .sort((a, b) => overall(b) - overall(a))[0]
   }
 
   function autoPick() {
-    const next: Record<number,string> = {}
+    const next: Record<number, string> = {}
+    const usedIds = new Set<string>()
+
     slots.forEach((position, index) => {
-      const picked = bestForPosition(position)
-      if (picked) next[index] = picked.id
+      const picked = bestForPosition(position, usedIds)
+      if (picked) {
+        next[index] = picked.id
+        usedIds.add(picked.id)
+      }
     })
+
     setLineup(next)
-    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation, lineup: next }))
+    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation, lineup: next, tactic }))
   }
 
   function changeFormation(value: keyof typeof formations) {
