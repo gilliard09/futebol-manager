@@ -406,6 +406,13 @@ function Training({ players, club, salaryTotal, back, onComplete }: { players: P
     const previous = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     const map = Object.fromEntries(nextPlayers.map(player => [player.id, player]))
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString() }))
+    const nextClub = { ...club, budget: Math.max(0, club.budget - selected.cost) }
+    const savedCareer = localStorage.getItem(CAREER_KEY)
+    if (savedCareer) {
+      const career = JSON.parse(savedCareer) as ManagerProfile
+      const nextCareer = { ...career, club: nextClub }
+      localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    }
     setTimeout(() => onComplete(nextPlayers), 250)
   }
 
