@@ -79,6 +79,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
 function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void }) {
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
+  const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
   const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; gf: number; ga: number }[]>([])
   const [view, setView] = useState<'overview' | 'squad' | 'match'>('overview')
   const [loading, setLoading] = useState(true)
@@ -94,7 +95,17 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       ])
       if (!active) return
       if (!squadResult.error) setPlayers((squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
-      if (!fixtureResult.error) setNextFixture((fixtureResult.data?.[0] as Fixture | undefined) ?? null)
+      if (!fixtureResult.error) {
+        const fixture = (fixtureResult.data?.[0] as Fixture | undefined) ?? null
+        setNextFixture(fixture)
+        if (fixture) {
+          const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
+          const { data: opponentSquad } = await supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', opponentId).order('squad_number')
+          if (active) setOpponentPlayers((opponentSquad ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
+        } else {
+          setOpponentPlayers([])
+        }
+      }
       if (!tableResult.error) {
         const stats = new Map<string, { id: string; name: string; points: number; played: number; gf: number; ga: number }>()
         for (const club of clubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
@@ -118,7 +129,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const avg = players.length ? Math.round(players.reduce((sum, p) => sum + (p.position === 'GK' ? p.goalkeeping : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? players : []} awayPlayers={home ? [] : players} back={() => setView('overview')} />
+  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? players : opponentPlayers} awayPlayers={home ? opponentPlayers : players} back={() => setView('overview')} />
 
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
