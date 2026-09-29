@@ -149,17 +149,32 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
 
       <div className="mt-6 flex gap-2 rounded-xl border border-white/6 bg-white/[0.02] p-1"><button onClick={() => { setMode('buy'); setSelected(null) }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold ${mode === 'buy' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Comprar</button><button onClick={() => { setMode('sell'); setSelected(null) }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold ${mode === 'sell' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Vender</button></div>
 
-      {mode === 'buy' && <div className="mt-6 flex flex-col gap-3 md:flex-row">
-        <label className="flex flex-1 items-center gap-3 rounded-xl border border-white/7 bg-white/[0.02] px-4">
-          <Search size={16} className="text-white/30" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar jogador ou clube" className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-white/20" />
-        </label>
-        <div className="flex gap-2 overflow-x-auto">
-          {['ALL','GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'].map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}
+      {mode === 'buy' && (
+        <div className="mt-6 flex flex-col gap-3 md:flex-row">
+          <label className="flex flex-1 items-center gap-3 rounded-xl border border-white/7 bg-white/[0.02] px-4">
+            <Search size={16} className="text-white/30" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar jogador ou clube" className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-white/20" />
+          </label>
+          <div className="flex gap-2 overflow-x-auto">
+            {['ALL','GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'].map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}
+          </div>
         </div>
-      </div>
+      )}
 
-      {mode === 'sell' && <div className="mt-5 overflow-hidden rounded-2xl border border-white/6"><div className="bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">Seu elenco · {myPlayers.length} jogadores</div>{myPlayers.map(item => <button key={item.player.id} onClick={() => openPlayer(item, 'sell')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]"><div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div><span className="text-xs text-white/40">Seu elenco</span><span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span><span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span><span className="text-xs text-white/35">{money(item.marketValue)}</span></button>)}</div>}
+      {mode === 'sell' && (
+        <div className="mt-5 overflow-hidden rounded-2xl border border-white/6">
+          <div className="bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">Seu elenco · {myPlayers.length} jogadores</div>
+          {myPlayers.map(item => (
+            <button key={item.player.id} onClick={() => openPlayer(item, 'sell')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]">
+              <div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div>
+              <span className="text-xs text-white/40">Seu elenco</span>
+              <span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span>
+              <span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span>
+              <span className="text-xs text-white/35">{money(item.marketValue)}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && <div className="mt-6 rounded-xl border border-red-400/15 bg-red-400/5 p-4 text-sm text-red-200">Não foi possível carregar o mercado. {error}</div>}
       {loading && <div className="py-20 text-center text-sm text-white/35">Carregando mercado...</div>}
