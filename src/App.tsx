@@ -261,7 +261,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== clock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
-      addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, `salary:${nextClock.currentDate.slice(0, 7)}`))
       const nextBalance = addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, `salary:${nextClock.currentDate.slice(0, 7)}`)) ?? financeBalance
       const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
       localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
