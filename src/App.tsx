@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, BriefcaseBusiness, Building2, ChevronRight, CircleUserRound, MapPin, Shield, Trophy } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, Trophy, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
-import type { Club, ManagerProfile, Screen } from './types/game'
+import type { Club, Fixture, ManagerProfile, Player, Screen } from './types/game'
 
 const CAREER_KEY = 'futebol-manager:career'
 
@@ -38,7 +38,6 @@ export default function App() {
     return () => { active = false }
   }, [screen])
 
-  const sortedClubs = useMemo(() => [...clubs].sort((a, b) => b.reputation - a.reputation), [clubs])
   const canContinue = managerName.trim().length >= 2
 
   function confirmCareer() {
@@ -62,7 +61,7 @@ export default function App() {
       <div className="mx-auto min-h-screen max-w-6xl border-x border-white/5 bg-[#0d1015]">
         {screen === 'home' && <Home career={career} start={() => setScreen('manager')} continueCareer={() => setScreen('dashboard')} newCareer={newCareer} />}
         {screen === 'manager' && <Manager name={managerName} nationality={nationality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} back={() => setScreen('home')} next={() => setScreen('club')} />}
-        {screen === 'club' && <ClubList clubs={sortedClubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => setScreen('manager')} confirm={confirmCareer} />}
+        {screen === 'club' && <ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => setScreen('manager')} confirm={confirmCareer} />}
         {screen === 'dashboard' && career && <Dashboard career={career} newCareer={newCareer} />}
       </div>
     </div>
@@ -135,11 +134,100 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
 }
 
 function Dashboard({ career, newCareer }: { career: ManagerProfile; newCareer: () => void }) {
+  const [players, setPlayers] = useState<Player[]>([])
+  const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
+  const [table, setTable] = useState<{ name: string; points: number; played: number; gf: number; ga: number }[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    async function loadDashboard() {
+      setLoading(true)
+      const [squadResult, fixtureResult, tableResult] = await Promise.all([
+        supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', career.club.id).order('squad_number'),
+        supabase.from('fixtures').select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round').limit(1),
+        supabase.from('fixtures').select('home_club_id,away_club_id,home_score,away_score,status,home_club:clubs!fixtures_home_club_id_fkey(name),away_club:clubs!fixtures_away_club_id_fkey(name)').eq('status','completed'),
+      ])
+
+      if (!active) return
+
+      if (!squadResult.error) {
+        setPlayers((squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
+      }
+
+      if (!fixtureResult.error) setNextFixture((fixtureResult.data?.[0] as Fixture | undefined) ?? null)
+
+      if (!tableResult.error) {
+        const stats = new Map<string, { name: string; points: number; played: number; gf: number; ga: number }>()
+        for (const club of clubs) stats.set(club.id, { name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
+        for (const match of tableResult.data ?? []) {
+          if (match.home_score === null || match.away_score === null) continue
+          const home = stats.get(match.home_club_id)
+          const away = stats.get(match.away_club_id)
+          if (!home || !away) continue
+          home.played++; away.played++
+          home.gf += match.home_score; home.ga += match.away_score
+          away.gf += match.away_score; away.ga += match.home_score
+          if (match.home_score > match.away_score) home.points += 3
+          else if (match.home_score < match.away_score) away.points += 3
+          else { home.points++; away.points++ }
+        }
+        setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
+      }
+
+      setLoading(false)
+    }
+    loadDashboard()
+    return () => { active = false }
+  }, [career.club.id])
+
+  const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
+  const home = nextFixture?.home_club_id === career.club.id
+
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
-    <div className="mt-8 grid gap-4 md:grid-cols-3"><DashboardCard icon={<Shield size={18} />} label="Clube" value={career.club.short_name} detail={`Reputação ${career.club.reputation}/100`} /><DashboardCard icon={<BriefcaseBusiness size={18} />} label="Orçamento" value={money(career.club.budget)} detail="Disponível para a temporada" /><DashboardCard icon={<Building2 size={18} />} label="Próximo passo" value="Preparar elenco" detail="O mercado e os treinos vêm a seguir" /></div>
-    <div className="mt-8 rounded-2xl border border-white/6 bg-white/[0.02] p-6 md:p-8"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Sua primeira semana</p><h2 className="mt-2 text-2xl font-bold">A temporada começou.</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid gap-3 sm:grid-cols-3">{['Conhecer o elenco', 'Definir a formação', 'Preparar o próximo jogo'].map((item, i) => <div key={item} className="rounded-xl border border-white/6 bg-black/10 p-4"><span className="text-xs text-white/25">0{i + 1}</span><p className="mt-5 text-sm font-semibold">{item}</p><p className="mt-1 text-xs text-white/30">Em breve</p></div>)}</div></div>
+
+    {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
+      <div className="mt-8 grid gap-4 md:grid-cols-4">
+        <DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail="jogadores disponíveis" />
+        <DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(career.club.budget)} detail="caixa do clube" />
+        <DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.name === career.club.short_name) >= 0 ? `#${table.findIndex(t => t.name === career.club.short_name) + 1}` : '—'} detail="Liga Nacional" />
+        <DashboardCard icon={<CalendarDays size={18} />} label="Próximo jogo" value={opponent?.short_name ?? 'A definir'} detail={nextFixture ? (home ? 'Em casa' : 'Fora') : 'Calendário indisponível'} />
+      </div>
+
+      <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div>
+          <div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value="Liga Nacional" /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /></div>
+          <button className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Preparar partida <ArrowRight size={16} /></button>
+        </section>
+
+        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Elenco</p><h2 className="mt-2 text-2xl font-bold">{players.length} jogadores</h2></div><Users className="text-emerald-300/50" size={24} /></div>
+          <div className="mt-6 space-y-2">{players.slice(0, 5).map(player => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div><span className="text-xs font-semibold text-white/40">#{player.squad_number}</span></div>)}</div>
+          <button className="mt-5 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Ver elenco completo <ChevronRight size={16} /></button>
+        </section>
+      </div>
+
+      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+        <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div>
+        <div className="mt-6 overflow-hidden rounded-xl border border-white/5"><table className="w-full text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3">P</th><th className="px-4 py-3">J</th><th className="px-4 py-3">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.name} className={team.name === career.club.short_name ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 font-bold">{team.points}</td><td className="px-4 py-3 text-white/40">{team.played}</td><td className="px-4 py-3 text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div>
+      </section>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Action title="Treinamento" text="Prepare o elenco para o próximo jogo." icon={<Dumbbell size={20} />} />
+        <Action title="Táticas" text="Defina a formação e o estilo da equipe." icon={<Shield size={20} />} />
+      </div>
+    </>}
   </section></main>
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div>
+}
+
+function Action({ title, text, icon }: { title: string; text: string; icon: ReactNode }) {
+  return <button className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300">{icon}</div><div><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/30">{text}</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button>
 }
 
 function DashboardCard({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) {
