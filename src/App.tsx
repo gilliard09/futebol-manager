@@ -21,6 +21,27 @@ function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
 }
 
+function normalizeFixture(row: any): Fixture {
+  return {
+    id: row.id,
+    competition_id: row.competition_id,
+    round: Number(row.round),
+    scheduled_at: row.scheduled_at,
+    status: row.status,
+    home_club_id: row.home_club_id,
+    away_club_id: row.away_club_id,
+    home_score: row.home_score,
+    away_score: row.away_score,
+    home_club: Array.isArray(row.home_club) ? (row.home_club[0] ?? null) : (row.home_club ?? null),
+    away_club: Array.isArray(row.away_club) ? (row.away_club[0] ?? null) : (row.away_club ?? null),
+  }
+}
+
+function normalizePlayer(row: any): Player {
+  const source = Array.isArray(row.players) ? row.players[0] : row.players
+  return { ...source, squad_number: row.squad_number } as Player
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('home')
   const [clubs, setClubs] = useState<Club[]>([])
@@ -121,7 +142,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       ])
       if (!active) return
       if (!squadResult.error) {
-        const loaded = (squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number }))
+        const loaded = (squadResult.data ?? []).map(normalizePlayer)
         try {
           const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
           let restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
@@ -146,7 +167,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         setContractAlerts(alerts)
       }
       if (!fixtureResult.error) {
-        const scheduled = (fixtureResult.data ?? []).filter((item: any) => !playedMatches[item.id]) as Fixture[]
+        const scheduled = (fixtureResult.data ?? []).map(normalizeFixture).filter(item => !playedMatches[item.id])
         const fixture = scheduled[0] ?? null
         setUpcomingFixtures(scheduled)
         setNextFixture(fixture)
@@ -158,7 +179,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
           const { data: opponentSquad } = await supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', opponentId).order('squad_number')
-          if (active) setOpponentPlayers((opponentSquad ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
+          if (active) setOpponentPlayers((opponentSquad ?? []).map(normalizePlayer))
         } else {
           setOpponentPlayers([])
         }
@@ -244,13 +265,13 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       const { simulateMatch } = await import('./engine/match')
       const { data: roundFixtures } = await supabase
         .from('fixtures')
-        .select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)')
+        .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)')
         .eq('competition_id', activeMatchFixture.competition_id)
         .eq('round', activeMatchFixture.round)
         .eq('status', 'scheduled')
         .order('scheduled_at')
 
-      const remainingFixtures = ((roundFixtures ?? []) as Fixture[]).filter(fixture => !nextMatches[fixture.id])
+      const remainingFixtures = (roundFixtures ?? []).map(normalizeFixture).filter(fixture => !nextMatches[fixture.id])
       const matchesToPersist: Record<string, PlayedMatch> = {
         [activeMatchFixture.id]: nextMatches[activeMatchFixture.id],
       }
@@ -264,7 +285,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
         const squads = new Map<string, Player[]>()
         for (const row of squadRows ?? []) {
-          const player = { ...row.players, squad_number: row.squad_number } as Player
+          const player = normalizePlayer(row)
           const squad = squads.get(row.club_id) ?? []
           squad.push(player)
           squads.set(row.club_id, squad)
@@ -483,7 +504,7 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
     </div>
     <div className="mt-6 grid gap-3 md:grid-cols-3">
       <Info label="Custo da sessão" value={money(selected.cost)} />
-      <Info label="Folha mensal" value={money(calculateMonthlyPayroll([salaryTotal]))} />
+      <Info label="Folha mensal" value={money(calculateMonthlyPayroll([salaryTotal ?? 0]))} />
       <Info label="Orçamento disponível" value={money(club.budget)} />
     </div>
     <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
