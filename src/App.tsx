@@ -182,7 +182,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         }
       }
       if (!salaryResult.error) {
-        const rows = (salaryResult.data ?? []).filter((row: any) => (transferState.playerClubOverrides[row.player_id] ?? row.club_id) === career.club.id) as Array<{ player_id: string; club_id: string; salary: number; contract_until: string | null; players: { first_name: string; last_name: string } }>
+        const rows = (salaryResult.data ?? []).filter((row: any) => (transferState.playerClubOverrides[row.player_id] ?? row.club_id) === career.club.id)
         let total = rows.reduce((sum, row) => sum + Number(row.salary ?? 0), 0)
         try {
           const savedContracts = JSON.parse(localStorage.getItem(CONTRACTS_KEY) ?? '{}')
