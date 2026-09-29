@@ -186,7 +186,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer) => { setPlayers(nextPlayers); onCareerUpdate(nextCareer); setView('overview') }} />
+  if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer) => { setPlayers(nextPlayers); onCareerUpdate(nextCareer); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
@@ -393,11 +393,14 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 }
 
 
-function Training({ players, club, salaryTotal, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; back: () => void; onComplete: (players: Player[], career: ManagerProfile) => void }) {
+function Training({ players, club, salaryTotal, nextFixture, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; nextFixture: Fixture | null; back: () => void; onComplete: (players: Player[], career: ManagerProfile) => void }) {
   const [focus, setFocus] = useState<TrainingFocus>('balanced')
   const [saving, setSaving] = useState(false)
   const selected = TRAINING_FOCUSES[focus]
   const affordable = club.budget >= selected.cost
+  const trainingState = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
+  const alreadyTrained = Boolean(nextFixture && trainingState.lastTrainingFixtureId === nextFixture.id)
+  const opponentName = nextFixture ? (nextFixture.home_club_id === club.id ? nextFixture.away_club?.name : nextFixture.home_club?.name) : null
 
   function complete() {
     if (!affordable || saving) return
@@ -405,7 +408,7 @@ function Training({ players, club, salaryTotal, back, onComplete }: { players: P
     const nextPlayers = trainSquad(players, focus)
     const previous = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     const map = Object.fromEntries(nextPlayers.map(player => [player.id, player]))
-    localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString() }))
+    localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString(), lastTrainingFixtureId: nextFixture?.id ?? null }))
     const savedCareer = localStorage.getItem(CAREER_KEY)
     const career = savedCareer ? JSON.parse(savedCareer) as ManagerProfile : null
     if (!career) { setSaving(false); return }
@@ -417,7 +420,7 @@ function Training({ players, club, salaryTotal, back, onComplete }: { players: P
   return <main className="min-h-screen"><Top label="TREINAMENTO" back={back} /><section className="px-6 py-8 md:px-10">
     <p className="text-sm text-white/35">{club.name}</p>
     <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Prepare o elenco</h1>
-    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Escolha o foco da sessão. Jogadores jovens têm maior capacidade de evolução, mas ninguém ultrapassa o próprio potencial.</p>
+    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Escolha o foco da sessão. Jogadores jovens têm maior capacidade de evolução, mas ninguém ultrapassa o próprio potencial.</p>{nextFixture && <div className="mt-5 rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 text-xs text-white/45">Próximo jogo: <span className="font-semibold text-white/70">{club.name} {nextFixture.home_club_id === club.id ? '×' : 'fora de casa'} {opponentName ?? 'adversário'}</span> · Rodada {nextFixture.round}</div>}
     <div className="mt-8 grid gap-3 md:grid-cols-2">
       {(Object.entries(TRAINING_FOCUSES) as [TrainingFocus, typeof selected][]).map(([key, item]) => <button key={key} onClick={() => setFocus(key)} className={`rounded-2xl border p-5 text-left ${focus === key ? 'border-emerald-400/40 bg-emerald-400/8' : 'border-white/6 bg-white/[0.02]'}`}>
         <div className="flex items-center justify-between"><p className="font-semibold">{item.label}</p><span className="text-xs font-bold text-emerald-300">{money(item.cost)}</span></div>
@@ -432,7 +435,7 @@ function Training({ players, club, salaryTotal, back, onComplete }: { players: P
     <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
       <p className="text-sm font-semibold">O que acontece?</p>
       <p className="mt-2 text-xs leading-6 text-white/35">Os atributos relacionados ao foco podem subir 1 ponto, respeitando o potencial do atleta. A sessão também melhora ligeiramente forma e moral.</p>
-      <button disabled={!affordable || saving} onClick={complete} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{saving ? 'Treinando...' : affordable ? 'Realizar treinamento' : 'Orçamento insuficiente'} <ArrowRight size={16} /></button>
+      <button disabled={!affordable || alreadyTrained || saving} onClick={complete} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{saving ? 'Treinando...' : alreadyTrained ? 'Treinamento desta rodada já realizado' : affordable ? 'Realizar treinamento' : 'Orçamento insuficiente'} <ArrowRight size={16} /></button>
     </div>
   </section></main>
 }
