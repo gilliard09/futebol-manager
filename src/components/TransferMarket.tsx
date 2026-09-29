@@ -89,7 +89,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
       const matchesSearch = !term || `${item.player.first_name} ${item.player.last_name}`.toLowerCase().includes(term) || item.club.name.toLowerCase().includes(term)
       return matchesPosition && matchesSearch
     }).sort((a, b) => playerOverall(b.player) - playerOverall(a.player))
-  }, [marketPlayers, position, search])
+  }, [marketPlayers, position, search, club.id])
 
   const selectedAsking = selected ? calculateAskingPrice(selected.player, selected.marketValue) : 0
   const negotiation = selected ? negotiateTransfer(selectedAsking, offer) : null
@@ -159,7 +159,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
         </div>
       </div>
 
-      {mode === 'buy' && <div className="mt-5 overflow-hidden rounded-2xl border border-white/6"><div className="bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">Seu elenco · {myPlayers.length} jogadores</div>{myPlayers.map(item => <button key={item.player.id} onClick={() => openPlayer(item, 'sell')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]"><div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div><span className="text-xs text-white/40">Seu elenco</span><span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span><span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span><span className="text-xs text-white/35">{money(item.marketValue)}</span></button>)}</div>}
+      {mode === 'sell' && <div className="mt-5 overflow-hidden rounded-2xl border border-white/6"><div className="bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">Seu elenco · {myPlayers.length} jogadores</div>{myPlayers.map(item => <button key={item.player.id} onClick={() => openPlayer(item, 'sell')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]"><div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div><span className="text-xs text-white/40">Seu elenco</span><span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span><span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span><span className="text-xs text-white/35">{money(item.marketValue)}</span></button>)}</div>}
 
       {error && <div className="mt-6 rounded-xl border border-red-400/15 bg-red-400/5 p-4 text-sm text-red-200">Não foi possível carregar o mercado. {error}</div>}
       {loading && <div className="py-20 text-center text-sm text-white/35">Carregando mercado...</div>}
@@ -167,7 +167,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
         <div className="hidden grid-cols-[1.8fr_1fr_70px_70px_110px] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 md:grid">
           <span>Jogador</span><span>Clube</span><span>Pos.</span><span>GER</span><span>Valor</span>
         </div>
-        {filtered.map(item => <button key={item.player.id} onClick={() => openPlayer(item)} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]">
+        {filtered.map(item => <button key={item.player.id} onClick={() => openPlayer(item, 'buy')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]">
           <div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div>
           <span className="text-xs text-white/40">{item.club.short_name}</span>
           <span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span>
