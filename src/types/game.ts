@@ -43,7 +43,7 @@ export type Fixture = {
   away_club_id: string
   home_score: number | null
   away_score: number | null
-  home_club: { name: string; short_name: string; city?: string; stadium?: string } | null
+  home_club: { name: string; short_name: string; city?: string; stadium?: string; logo_url?: string } | null
   away_club: { name: string; short_name: string; city?: string; stadium?: string } | null
 }
 
