@@ -37,11 +37,11 @@ export function estimateAttendance(reputation: number, capacity = 12000) {
 }
 
 export function calculateMonthlySalaryExpense(monthlyPayroll: number) {
-  return -(Math.max(0, monthlyPayroll))
+  return monthlyPayroll > 0 ? -monthlyPayroll : 0
 }
 
 export function calculateTrainingExpense(cost: number) {
-  return -(Math.max(0, cost))
+  return cost > 0 ? -cost : 0
 }
 
 export function createTransaction(date: string, type: FinanceTransactionType, description: string, amount: number, id = crypto.randomUUID()): FinanceTransaction {
