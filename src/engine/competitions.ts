@@ -125,46 +125,69 @@ export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound:
   const nextRound = getNextKnockoutRound(currentRound)
   if (!nextRound) return null
 
-  const stageFixtures = fixtures
-    .filter(fixture => fixture.round === currentRound && fixture.status === 'completed' && fixture.home_score != null && fixture.away_score != null)
-    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+  const isTwoLegCompletion = currentRound === 2 || currentRound === 4 || currentRound === 6
+  if (!isTwoLegCompletion) return null
 
-  if (stageFixtures.length === 0 || stageFixtures.length % 2 !== 0) return null
+  const firstRound = currentRound - 1
+  const completed = fixtures
+    .filter(fixture =>
+      (fixture.round === firstRound || fixture.round === currentRound) &&
+      fixture.status === 'completed' &&
+      fixture.home_score != null &&
+      fixture.away_score != null,
+    )
+    .sort((a, b) => a.round - b.round || a.scheduled_at.localeCompare(b.scheduled_at))
+
+  if (completed.length === 0 || completed.length % 2 !== 0) return null
+
+  const ties = new Map<string, Fixture[]>()
+  for (const fixture of completed) {
+    const key = [fixture.home_club_id, fixture.away_club_id].sort().join(':')
+    const tie = ties.get(key) ?? []
+    tie.push(fixture)
+    ties.set(key, tie)
+  }
+
+  if (ties.size !== completed.length / 2) return null
 
   const winners: string[] = []
-  for (let index = 0; index < stageFixtures.length; index += 2) {
-    const firstLeg = stageFixtures[index]
-    const secondLeg = stageFixtures[index + 1]
+  for (const tie of ties.values()) {
+    if (tie.length !== 2) return null
+    const firstLeg = tie.find(fixture => fixture.round === firstRound)
+    const secondLeg = tie.find(fixture => fixture.round === currentRound)
+    if (!firstLeg || !secondLeg) return null
 
-    const firstClubs = new Set([firstLeg.home_club_id, firstLeg.away_club_id])
-    const sameTie = firstClubs.has(secondLeg.home_club_id) && firstClubs.has(secondLeg.away_club_id)
-    if (!sameTie) return null
-
-    const aggregate = resolveTwoLegTie(
-      firstLeg,
-      secondLeg,
-      deterministicPenaltyWinner(firstLeg.home_club_id, firstLeg.away_club_id, firstLeg.id + secondLeg.id),
+    const penaltyWinner = deterministicPenaltyWinner(
+      firstLeg.home_club_id,
+      firstLeg.away_club_id,
+      firstLeg.id + secondLeg.id,
     )
-
-    if (!aggregate) return null
-    winners.push(aggregate)
+    const winner = resolveTwoLegTie(firstLeg, secondLeg, penaltyWinner)
+    if (!winner) return null
+    winners.push(winner)
   }
+
+  if (winners.length < 2 || winners.length % 2 !== 0) return null
 
   const pairings: Array<{ homeClubId: string; awayClubId: string }> = []
   for (let index = 0; index < winners.length; index += 2) {
-    if (!winners[index + 1]) return null
     pairings.push({ homeClubId: winners[index], awayClubId: winners[index + 1] })
   }
 
-  const lastDate = stageFixtures.reduce((latest, fixture) => Math.max(latest, new Date(fixture.scheduled_at).getTime()), 0)
+  const lastDate = completed.reduce(
+    (latest, fixture) => Math.max(latest, new Date(fixture.scheduled_at).getTime()),
+    0,
+  )
   const firstLegDate = new Date(lastDate)
   firstLegDate.setDate(firstLegDate.getDate() + 7)
 
   const result: NextKnockoutFixture[] = []
   const nextStage = getCompetitionStage(nextRound)
+
   pairings.forEach((pair, index) => {
     const first = new Date(firstLegDate)
     first.setHours(19 + (index % 3), 0, 0, 0)
+
     result.push({
       round: nextRound,
       homeClubId: pair.homeClubId,
