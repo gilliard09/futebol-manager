@@ -101,8 +101,8 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       setLoading(true)
       const [squadResult, fixtureResult, tableResult, clubsResult] = await Promise.all([
         supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', career.club.id).order('squad_number'),
-        supabase.from('fixtures').select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
-        supabase.from('fixtures').select('home_club_id,away_club_id,home_score,away_score,status').eq('status','completed'),
+        supabase.from('fixtures').select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
+        supabase.from('fixtures').select('competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation').order('name'),
       ])
       if (!active) return
@@ -131,7 +131,9 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
         if (match.home_score > match.away_score) { home.points += 3; home.wins++; away.losses++ } else if (match.home_score < match.away_score) { away.points += 3; away.wins++; home.losses++ } else { home.points++; away.points++; home.draws++; away.draws++ }
       }
 
-      for (const match of Object.values(playedMatches)) {
+      const persistedFixtureIds = new Set((tableResult.data ?? []).map((match: any) => match.id).filter(Boolean))
+      for (const [fixtureId, match] of Object.entries(playedMatches)) {
+        if (persistedFixtureIds.has(fixtureId)) continue
         const home = stats.get(match.home_club_id)
         const away = stats.get(match.away_club_id)
         if (!home || !away) continue
