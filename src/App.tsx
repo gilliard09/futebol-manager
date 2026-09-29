@@ -99,10 +99,11 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
     let active = true
     async function loadDashboard() {
       setLoading(true)
-      const [squadResult, fixtureResult, tableResult] = await Promise.all([
+      const [squadResult, fixtureResult, tableResult, clubsResult] = await Promise.all([
         supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', career.club.id).order('squad_number'),
         supabase.from('fixtures').select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
         supabase.from('fixtures').select('home_club_id,away_club_id,home_score,away_score,status').eq('status','completed'),
+        supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation').order('name'),
       ])
       if (!active) return
       if (!squadResult.error) setPlayers((squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
@@ -119,7 +120,8 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
         }
       }
       const stats = new Map<string, { id: string; name: string; points: number; played: number; gf: number; ga: number }>()
-      for (const club of clubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
+      const leagueClubs = clubs.length > 0 ? clubs : (clubsResult.data ?? []) as Club[]
+      for (const club of leagueClubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
 
       for (const match of tableResult.data ?? []) {
         if (match.home_score === null || match.away_score === null) continue
