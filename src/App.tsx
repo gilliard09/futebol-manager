@@ -80,7 +80,8 @@ export default function App() {
   }
 
   function newCareer() {
-    localStorage.removeItem(CAREER_KEY); setCareer(null); setManagerName(''); setSelectedClub(null); setScreen('manager')
+    localStorage.removeItem(CAREER_KEY)
+    localStorage.removeItem(FINANCE_KEY) setCareer(null); setManagerName(''); setSelectedClub(null); setScreen('manager')
   }
 
   return <div className="min-h-screen bg-[#090b0f] text-white"><div className="mx-auto min-h-screen max-w-6xl border-x border-white/5 bg-[#0d1015]">
