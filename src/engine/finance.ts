@@ -6,6 +6,7 @@ export type FinanceTransaction = {
   type: FinanceTransactionType
   description: string
   amount: number
+  eventId?: string
 }
 
 export type MonthlyFinance = {
@@ -20,8 +21,8 @@ export function applyTransaction(balance: number, transaction: Pick<FinanceTrans
   return Math.max(0, balance + transaction.amount)
 }
 
-export function hasTransaction(transactions: FinanceTransaction[], id: string) {
-  return transactions.some(transaction => transaction.id === id)
+export function hasTransaction(transactions: FinanceTransaction[], eventId: string) {
+  return transactions.some(transaction => transaction.eventId === eventId)
 }
 
 export function calculateMonthSummary(transactions: FinanceTransaction[], month: string, openingBalance: number): MonthlyFinance {
@@ -48,6 +49,6 @@ export function calculateTrainingExpense(cost: number) {
   return cost > 0 ? -cost : 0
 }
 
-export function createTransaction(date: string, type: FinanceTransactionType, description: string, amount: number, id = crypto.randomUUID()): FinanceTransaction {
-  return { id, date, type, description, amount }
+export function createTransaction(date: string, type: FinanceTransactionType, description: string, amount: number, id = crypto.randomUUID(), eventId?: string): FinanceTransaction {
+  return { id, date, type, description, amount, eventId }
 }
