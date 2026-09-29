@@ -165,8 +165,9 @@ function buildPlayerRatings(
     const cards = playerEvents.filter(event => event.type === 'card').length
     const tackles = playerEvents.filter(event => event.type === 'tackle').length
     const chances = playerEvents.filter(event => event.type === 'chance').length
-    const fatigue = clamp(38 + (100 - item.player.physical) * 0.7 + (tactic === 'offensive' ? 8 : tactic === 'defensive' ? 3 : 5))
-    const raw = playerOverall(item.player) + goals * 8 + assists * 4 + tackles * 1.5 + chances * 0.8 - cards * 1.5 - fatigue * 0.08
+    const fatigue = clamp(28 + (100 - item.player.physical) * 0.62 + (tactic === 'offensive' ? 9 : tactic === 'defensive' ? 4 : 6))
+    const baseRating = 5.5 + (playerOverall(item.player) - 50) * 0.055
+    const raw = baseRating + goals * 0.85 + assists * 0.45 + tackles * 0.12 + chances * 0.16 - cards * 0.45 - Math.max(0, fatigue - 55) * 0.018
     return {
       playerId: item.player.id,
       name,
@@ -188,15 +189,18 @@ function buildAnalysis(
 ): MatchAnalysis {
   const all = [...homeRatings, ...awayRatings]
   const standout = [...all].sort((a, b) => b.rating - a.rating || b.goals - a.goals)[0]
-  const homeEfficiency = homeStats.xg > 0 ? homeStats.shotsOnTarget / homeStats.xg : 0
-  const awayEfficiency = awayStats.xg > 0 ? awayStats.shotsOnTarget / awayStats.xg : 0
-  const team = homeStats.xg >= awayStats.xg ? homeStats : awayStats
-  const goals = homeStats.xg >= awayStats.xg ? homeRatings.reduce((s, p) => s + p.goals, 0) : awayRatings.reduce((s, p) => s + p.goals, 0)
-  const xg = homeStats.xg >= awayStats.xg ? homeStats.xg : awayStats.xg
-  const efficiency = homeStats.xg >= awayStats.xg ? homeEfficiency : awayEfficiency
-  const efficiencyText = goals > xg
+  const homeGoals = homeRatings.reduce((s, p) => s + p.goals, 0)
+  const awayGoals = awayRatings.reduce((s, p) => s + p.goals, 0)
+  const homeEfficiency = homeStats.xg > 0 ? homeGoals / homeStats.xg : 0
+  const awayEfficiency = awayStats.xg > 0 ? awayGoals / awayStats.xg : 0
+  const homeIsMoreClinical = homeEfficiency >= awayEfficiency
+  const goals = homeIsMoreClinical ? homeGoals : awayGoals
+  const xg = homeIsMoreClinical ? homeStats.xg : awayStats.xg
+  const efficiencyText = goals > xg + 0.25
     ? `${goals} gol${goals === 1 ? '' : 's'} em ${xg.toFixed(1)} xG — converteu acima do esperado.`
-    : `${goals} gol${goals === 1 ? '' : 's'} em ${xg.toFixed(1)} xG — produção próxima ao esperado.`
+    : goals + 0.25 < xg
+      ? `${goals} gol${goals === 1 ? '' : 's'} em ${xg.toFixed(1)} xG — desperdiçou boas oportunidades.`
+      : `${goals} gol${goals === 1 ? '' : 's'} em ${xg.toFixed(1)} xG — conversão próxima ao esperado.`
   const fatigue = [...all].sort((a, b) => b.fatigue - a.fatigue)[0]
   const fatigueText = `${fatigue.name} (${fatigue.position}) terminou com índice de fadiga ${fatigue.fatigue}/100.`
   return { homeXg: Number(homeStats.xg.toFixed(1)), awayXg: Number(awayStats.xg.toFixed(1)), efficiencyText, standout, fatigueText }
