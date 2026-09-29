@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, Trophy, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
@@ -401,6 +401,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 function Training({ players, club, salaryTotal, nextFixture, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; nextFixture: Fixture | null; back: () => void; onComplete: (players: Player[], career: ManagerProfile) => void }) {
   const [focus, setFocus] = useState<TrainingFocus>('balanced')
   const [saving, setSaving] = useState(false)
+  const [report, setReport] = useState<TrainingReport | null>(null)
   const selected = TRAINING_FOCUSES[focus]
   const affordable = club.budget >= selected.cost
   const trainingState = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
@@ -410,7 +411,9 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
   function complete() {
     if (!affordable || saving) return
     setSaving(true)
+    const beforePlayers = players.map(player => ({ ...player }))
     const nextPlayers = trainSquad(players, focus)
+    const changes = buildTrainingReport(beforePlayers, nextPlayers)
     const previous = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     const map = Object.fromEntries(nextPlayers.map(player => [player.id, player]))
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString(), lastTrainingFixtureId: nextFixture?.id ?? null }))
@@ -419,9 +422,10 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
     if (!career) { setSaving(false); return }
     const nextCareer = { ...career, club: { ...club, budget: Math.max(0, club.budget - selected.cost) } }
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
-    setTimeout(() => onComplete(nextPlayers, nextCareer), 250)
+    setTimeout(() => { setReport(changes); onComplete(nextPlayers, nextCareer) }, 250)
   }
 
+  if (report) return <TrainingReportView report={report} close={() => onComplete(players, { name: '', nationality: '', club, season: '' })} />
   return <main className="min-h-screen"><Top label="TREINAMENTO" back={back} /><section className="px-6 py-8 md:px-10">
     <p className="text-sm text-white/35">{club.name}</p>
     <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Prepare o elenco</h1>
@@ -443,6 +447,53 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
       <button disabled={!affordable || alreadyTrained || saving} onClick={complete} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{saving ? 'Treinando...' : alreadyTrained ? 'Treinamento desta rodada já realizado' : affordable ? 'Realizar treinamento' : 'Orçamento insuficiente'} <ArrowRight size={16} /></button>
     </div>
   </section></main>
+}
+
+
+type TrainingChange = {
+  player: Player
+  changes: Array<{ attribute: string; before: number; after: number }>
+}
+
+type TrainingReport = {
+  beforeFatigue: number
+  afterFatigue: number
+  improved: TrainingChange[]
+  unchanged: Player[]
+}
+
+const TRAINING_ATTRIBUTES: Array<{ key: keyof Player; label: string }> = [
+  { key: 'pace', label: 'Velocidade' },
+  { key: 'shooting', label: 'Finalização' },
+  { key: 'passing', label: 'Passe' },
+  { key: 'dribbling', label: 'Drible' },
+  { key: 'defending', label: 'Defesa' },
+  { key: 'physical', label: 'Físico' },
+  { key: 'mental', label: 'Mental' },
+  { key: 'goalkeeping', label: 'Goleiro' },
+]
+
+function buildTrainingReport(before: Player[], after: Player[]): TrainingReport {
+  const byId = new Map(before.map(player => [player.id, player]))
+  const improved: TrainingChange[] = []
+  const unchanged: Player[] = []
+
+  after.forEach(player => {
+    const previous = byId.get(player.id)
+    if (!previous) return
+    const changes = TRAINING_ATTRIBUTES
+      .map(({ key, label }) => ({ attribute: label, before: Number(previous[key]), after: Number(player[key]) }))
+      .filter(change => change.after > change.before)
+    if (changes.length) improved.push({ player, changes })
+    else unchanged.push(player)
+  })
+
+  const avg = (list: Player[]) => list.length ? Math.round(list.reduce((sum, player) => sum + (player.fatigue ?? 0), 0) / list.length) : 0
+  return { beforeFatigue: avg(before), afterFatigue: avg(after), improved, unchanged }
+}
+
+function TrainingReportView({ report, close }: { report: TrainingReport; close: () => void }) {
+  return <main className="min-h-screen"><Top label="RELATÓRIO DE TREINAMENTO" /><section className="px-6 py-8 md:px-10"><div><p className="text-sm text-white/35">Sessão concluída</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">O que mudou no elenco?</h1></div><div className="mt-8 grid gap-3 md:grid-cols-3"><Info label="Fadiga antes" value={`${report.beforeFatigue}%`} /><Info label="Fadiga depois" value={`${report.afterFatigue}%`} /><Info label="Jogadores que evoluíram" value={`${report.improved.length}`} /></div><section className="mt-8 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Evolução</p><p className="mt-2 text-sm text-white/40">Atributos que subiram nesta sessão.</p></div><span className="text-xs font-bold text-emerald-300">+{report.improved.reduce((sum, item) => sum + item.changes.length, 0)} pontos</span></div><div className="mt-5 space-y-2">{report.improved.length ? report.improved.map(item => <div key={item.player.id} className="flex flex-col gap-2 rounded-xl border border-emerald-400/10 bg-emerald-400/[0.03] px-4 py-3 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.position} · GER {playerOverall(item.player)}</p></div><div className="flex flex-wrap gap-2">{item.changes.map(change => <span key={change.attribute} className="rounded-lg bg-emerald-400/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-300">{change.attribute} {change.before} → {change.after}</span>)}</div></div>) : <p className="py-6 text-sm text-white/35">Nenhum atributo subiu nesta sessão. Isso também faz parte do desenvolvimento: cada jogador evolui em um ritmo diferente.</p>}</div></section><section className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Mantiveram os atributos</p><p className="mt-2 text-sm text-white/40">{report.unchanged.length} jogadores não tiveram aumento de atributo nesta sessão.</p><div className="mt-4 flex flex-wrap gap-2">{report.unchanged.map(player => <span key={player.id} className="rounded-lg border border-white/6 px-3 py-2 text-xs text-white/45">{player.first_name} {player.last_name}</span>)}</div></section><button onClick={close} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Voltar ao clube <ArrowRight size={16} /></button></section></main>
 }
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
