@@ -58,6 +58,11 @@ export type LineupPlayer = {
   slot: number
 }
 
+export type PlayedMatch = import('../engine/match').MatchResult & {
+  home_club_id: string
+  away_club_id: string
+}
+
 export type ManagerProfile = {
   name: string
   nationality: string
