@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUser
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
 import type { MatchResult } from './engine/match'
+import type { PlayedMatch } from './types/game'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
@@ -84,7 +85,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
   const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; gf: number; ga: number }[]>([])
-  const [playedMatches, setPlayedMatches] = useState<Record<string, MatchResult>>(() => {
+  const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
     try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
   })
   const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match'>('overview')
