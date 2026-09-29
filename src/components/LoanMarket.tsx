@@ -30,6 +30,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
   const [months, setMonths] = useState(6)
   const [salaryShare, setSalaryShare] = useState(60)
   const [fee, setFee] = useState(0)
+  const [destinationId, setDestinationId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,6 +72,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
     setMonths(6)
     setSalaryShare(60)
     setFee(calculateLoanFee(item.player, item.marketValue, 6))
+    setDestinationId(clubs.find(clubItem => clubItem.id !== item.club.id)?.id ?? '')
   }
 
   function updateMonths(value: number) {
@@ -81,7 +83,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
   function submit() {
     if (!selected) return
     const parentClubId = selected.club.id
-    const loanClubId = mode === 'receive' ? club.id : (clubs.find(item => item.id !== club.id)?.id ?? '')
+    const loanClubId = mode === 'receive' ? club.id : destinationId
     if (!loanClubId || parentClubId === loanClubId) return
     if (mode === 'receive' && !canCompleteLoan(club, fee)) return
     const record = createLoanRecord(today, selected.player, parentClubId, loanClubId, fee, selected.salary, salaryShare, months)
@@ -90,7 +92,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
     setSelected(null)
   }
 
-  const selectedLoanClub = mode === 'receive' ? club : clubs.find(item => item.id !== club.id)
+  const selectedLoanClub = mode === 'receive' ? club : clubs.find(item => item.id === destinationId)
   const monthlyCost = selected ? calculateLoanSalaryCost(selected.salary, salaryShare, mode === 'receive') : 0
 
   return <main className="min-h-screen">
@@ -158,7 +160,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
             <p className="mt-1 text-xl font-bold text-emerald-300">{money(fee)}</p>
             <p className="mt-1 text-xs text-white/30">{mode === 'receive' ? `Você paga a taxa ao clube ${selected.club.short_name}.` : `Você recebe a taxa de ${money(fee)} do clube de destino.`}</p>
           </div>
-          {mode === 'send' && <label className="mt-4 block text-xs text-white/35">Clube de destino<select className="mt-2 w-full rounded-xl border border-white/8 bg-[#0d1015] px-4 py-3 text-sm text-white" value={selectedLoanClub?.id ?? ''} disabled>{selectedLoanClub?.name}</select></label>}
+          {mode === 'send' && <label className="mt-4 block text-xs text-white/35">Clube de destino<select className="mt-2 w-full rounded-xl border border-white/8 bg-[#0d1015] px-4 py-3 text-sm text-white" value={destinationId} onChange={e => setDestinationId(e.target.value)}>{clubs.filter(item => item.id !== club.id && item.id !== selected.club.id).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
           <button onClick={submit} disabled={mode === 'receive' && !canCompleteLoan(club, fee)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30"><Handshake size={16} /> {mode === 'receive' ? (canCompleteLoan(club, fee) ? 'Fechar empréstimo' : 'Orçamento insuficiente') : 'Emprestar jogador'}</button>
         </div>
       </section>
