@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, calculateMonthSummary, calculateTrainingExpense } from './finance'
+import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, calculateMonthSummary, calculateTrainingExpense, estimateAttendance } from './finance'
 
 describe('finance engine', () => {
   it('aplica entradas e saidas ao saldo', () => {
@@ -20,6 +20,11 @@ describe('finance engine', () => {
 
   it('calcula receita de bilheteria', () => {
     expect(calculateMatchRevenue(1000, 35)).toBe(35000)
+  })
+
+  it('estima publico a partir da reputacao', () => {
+    expect(estimateAttendance(50)).toBe(8000)
+    expect(estimateAttendance(200)).toBe(12000)
   })
 
   it('calcula despesas recorrentes sem permitir valor negativo', () => {
