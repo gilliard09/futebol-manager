@@ -4,7 +4,7 @@ export type Club = {
   short_name: string
   city: string
   country: string
-  stadium: string
+  stadium?: string
   division: number
   budget: number
   reputation: number
@@ -42,8 +42,8 @@ export type Fixture = {
   away_club_id: string
   home_score: number | null
   away_score: number | null
-  home_club: { name: string; short_name: string } | null
-  away_club: { name: string; short_name: string } | null
+  home_club: { name: string; short_name: string; city?: string; stadium?: string } | null
+  away_club: { name: string; short_name: string; city?: string; stadium?: string } | null
 }
 
 export type Formation = '4-3-3' | '4-4-2' | '4-2-3-1' | '3-5-2'
