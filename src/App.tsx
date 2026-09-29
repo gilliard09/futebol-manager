@@ -142,7 +142,8 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
       setLoading(false)
     }
-    loadDashboard()\n    return () => { active = false }
+    loadDashboard()
+    return () => { active = false }
   }, [career.club.id, clubs, playedMatches])
 
   useEffect(() => {
