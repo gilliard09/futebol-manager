@@ -190,7 +190,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
     loadDashboard()
     return () => { active = false }
-  }, [career.club.id, clubs, playedMatches])
+  }, [career.club.id, clubs, playedMatches, clock?.currentDate])
 
   useEffect(() => {
     try {
