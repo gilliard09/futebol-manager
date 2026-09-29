@@ -102,7 +102,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       const [squadResult, fixtureResult, tableResult, clubsResult] = await Promise.all([
         supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', career.club.id).order('squad_number'),
         supabase.from('fixtures').select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
-        supabase.from('fixtures').select('competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional'),
+        supabase.from('fixtures').select('id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation').order('name'),
       ])
       if (!active) return
