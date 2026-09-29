@@ -280,8 +280,8 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: (result?: MatchResult) => void; onComplete: (result: MatchResult) => void }) {
-  const [result, setResult] = useState<MatchResult | null>(null)
+function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, initialResult, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: (result?: MatchResult) => void; initialResult?: MatchResult | null; onComplete: (result: MatchResult) => void }) {
+  const [result, setResult] = useState<MatchResult | null>(initialResult ?? null)
   const [currentMinute, setCurrentMinute] = useState(0)
   const [simulating, setSimulating] = useState(false)
   const [matchTeams] = useState(() => ({
@@ -295,6 +295,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
     await new Promise(resolve => setTimeout(resolve, 300))
     const match = simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation as Formation)
     setResult(match)
+    onComplete(match)
     setCurrentMinute(0)
 
     for (let minute = 1; minute <= 90; minute++) {
