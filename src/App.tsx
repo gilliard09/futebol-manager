@@ -118,25 +118,26 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
           setOpponentPlayers([])
         }
       }
-      if (!tableResult.error) {
-        const stats = new Map<string, { id: string; name: string; points: number; played: number; gf: number; ga: number }>()
-        for (const club of clubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
-        for (const match of tableResult.data ?? []) {
-          if (match.home_score === null || match.away_score === null) continue
-          const home = stats.get(match.home_club_id); const away = stats.get(match.away_club_id)
-          if (!home || !away) continue
-          home.played++; away.played++; home.gf += match.home_score; home.ga += match.away_score; away.gf += match.away_score; away.ga += match.home_score
-          if (match.home_score > match.away_score) home.points += 3; else if (match.home_score < match.away_score) away.points += 3; else { home.points++; away.points++ }
-        }
-        for (const match of Object.values(playedMatches)) {
-          const home = stats.get(match.home_club_id)
-          const away = stats.get(match.away_club_id)
-          if (!home || !away) continue
-          home.played++; away.played++; home.gf += match.homeScore; home.ga += match.awayScore; away.gf += match.awayScore; away.ga += match.homeScore
-          if (match.homeScore > match.awayScore) home.points += 3; else if (match.homeScore < match.awayScore) away.points += 3; else { home.points++; away.points++ }
-        }
-        setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
+      const stats = new Map<string, { id: string; name: string; points: number; played: number; gf: number; ga: number }>()
+      for (const club of clubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, gf: 0, ga: 0 })
+
+      for (const match of tableResult.data ?? []) {
+        if (match.home_score === null || match.away_score === null) continue
+        const home = stats.get(match.home_club_id); const away = stats.get(match.away_club_id)
+        if (!home || !away) continue
+        home.played++; away.played++; home.gf += match.home_score; home.ga += match.away_score; away.gf += match.away_score; away.ga += match.home_score
+        if (match.home_score > match.away_score) home.points += 3; else if (match.home_score < match.away_score) away.points += 3; else { home.points++; away.points++ }
       }
+
+      for (const match of Object.values(playedMatches)) {
+        const home = stats.get(match.home_club_id)
+        const away = stats.get(match.away_club_id)
+        if (!home || !away) continue
+        home.played++; away.played++; home.gf += match.homeScore; home.ga += match.awayScore; away.gf += match.awayScore; away.ga += match.homeScore
+        if (match.homeScore > match.awayScore) home.points += 3; else if (match.homeScore < match.awayScore) away.points += 3; else { home.points++; away.points++ }
+      }
+
+      setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
       setLoading(false)
     }
     loadDashboard()\n    return () => { active = false }
