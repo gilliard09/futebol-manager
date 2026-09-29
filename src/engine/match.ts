@@ -94,10 +94,13 @@ export function calculateTeamMetrics(lineup: LineupPlayer[], tactic = 'balanced'
 }
 
 function fallbackLineup(players: Player[], formation: Formation): LineupPlayer[] {
+  const used = new Set<string>()
   return FORMATIONS[formation].map((role, slot) => {
-    const available = players.filter(player => !FORMATIONS[formation].slice(0, slot).includes(player.position))
-    const player = players.find(p => p.position === role) ?? available[0]
-    return player ? { player, role, slot } : null
+    const candidates = players.filter(player => !used.has(player.id))
+    const player = candidates.find(p => p.position === role) ?? candidates.sort((a, b) => playerOverall(b) - playerOverall(a))[0]
+    if (!player) return null
+    used.add(player.id)
+    return { player, role, slot }
   }).filter(Boolean) as LineupPlayer[]
 }
 
@@ -146,7 +149,6 @@ function simulateSide(
 
   stats.shots++
   const attacker = chooseWeighted(lineup, ['ST', 'LW', 'RW', 'AM'], random)
-  const defender = chooseWeighted(lineup, ['CB', 'LB', 'RB', 'DM'], random)
   const attackerQuality = attacker ? rating(attacker.player, attacker.role) : own.attack
   const keeper = opponent.goalkeeper
   const shotQuality = clamp(50 + (attackerQuality - opponent.defense) * 0.65 + (attacker?.player.mental ?? 50) * 0.15 + random() * 22 - 11)
@@ -200,8 +202,7 @@ export function simulateMatch(
     simulateSide(minute, 'away', away, awayMetrics, homeMetrics, 'balanced', awayStats, events, random, awayName)
     if (events.slice(awayBefore).some(event => event.type === 'goal')) awayScore++
 
-    const foulChance = 0.035
-    if (random() < foulChance) {
+    if (random() < 0.035) {
       const team = random() < 0.5 ? 'home' : 'away'
       const stats = team === 'home' ? homeStats : awayStats
       stats.fouls++
