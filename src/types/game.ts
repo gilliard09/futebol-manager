@@ -27,6 +27,7 @@ export type Player = {
   potential: number
   form: number
   morale: number
+  fatigue?: number
   squad_number: number
 }
 
