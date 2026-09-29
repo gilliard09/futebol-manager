@@ -137,7 +137,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       }
       setLoading(false)
     }
-    loadDashboard()    return () => { active = false }
+    loadDashboard()\n    return () => { active = false }
   }, [career.club.id, clubs, playedMatches])
 
   useEffect(() => {
