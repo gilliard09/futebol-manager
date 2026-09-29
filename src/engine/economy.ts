@@ -6,7 +6,7 @@ export type CareerEconomy = {
 }
 
 export function calculateMonthlyPayroll(salaries: Array<number | null | undefined>) {
-  return salaries.reduce((total, salary) => total + Math.max(0, Number(salary ?? 0)), 0)
+  return salaries.reduce((total: number, salary) => total + Math.max(0, Number(salary ?? 0)), 0)
 }
 
 export function calculateSeasonPayroll(monthlySalary: number, months = 12) {
