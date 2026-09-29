@@ -4,6 +4,7 @@ export type Club = {
   short_name: string
   city: string
   country: string
+  stadium: string
   division: number
   budget: number
   reputation: number
