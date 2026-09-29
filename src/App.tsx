@@ -2,8 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, Trophy, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, ManagerProfile, Player, Screen } from './types/game'
+import type { MatchResult } from './engine/match'
 
 const CAREER_KEY = 'futebol-manager:career'
+const MATCHES_KEY = 'futebol-manager:matches'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -81,6 +83,9 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
   const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; gf: number; ga: number }[]>([])
+  const [playedMatches, setPlayedMatches] = useState<Record<string, MatchResult>>(() => {
+    try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
+  })
   const [view, setView] = useState<'overview' | 'squad' | 'match'>('overview')
   const [loading, setLoading] = useState(true)
 
@@ -90,13 +95,14 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
       setLoading(true)
       const [squadResult, fixtureResult, tableResult] = await Promise.all([
         supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', career.club.id).order('squad_number'),
-        supabase.from('fixtures').select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round').limit(1),
+        supabase.from('fixtures').select('id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name),away_club:clubs!fixtures_away_club_id_fkey(name,short_name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('round'),
         supabase.from('fixtures').select('home_club_id,away_club_id,home_score,away_score,status').eq('status','completed'),
       ])
       if (!active) return
       if (!squadResult.error) setPlayers((squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
       if (!fixtureResult.error) {
-        const fixture = (fixtureResult.data?.[0] as Fixture | undefined) ?? null
+        const availableFixture = (fixtureResult.data ?? []).find((item: any) => !playedMatches[item.id]) as Fixture | undefined
+        const fixture = availableFixture ?? null
         setNextFixture(fixture)
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
@@ -116,20 +122,32 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
           home.played++; away.played++; home.gf += match.home_score; home.ga += match.away_score; away.gf += match.away_score; away.ga += match.home_score
           if (match.home_score > match.away_score) home.points += 3; else if (match.home_score < match.away_score) away.points += 3; else { home.points++; away.points++ }
         }
+        for (const match of Object.values(playedMatches)) {
+          const home = stats.get(match.home_club_id)
+          const away = stats.get(match.away_club_id)
+          if (!home || !away) continue
+          home.played++; away.played++; home.gf += match.homeScore; home.ga += match.awayScore; away.gf += match.awayScore; away.ga += match.homeScore
+          if (match.homeScore > match.awayScore) home.points += 3; else if (match.homeScore < match.awayScore) away.points += 3; else { home.points++; away.points++ }
+        }
         setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
       }
       setLoading(false)
     }
     loadDashboard()
     return () => { active = false }
-  }, [career.club.id, clubs])
+  }, [career.club.id, clubs, playedMatches])
 
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
   const home = nextFixture?.home_club_id === career.club.id
   const avg = players.length ? Math.round(players.reduce((sum, p) => sum + (p.position === 'GK' ? p.goalkeeping : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? players : opponentPlayers} awayPlayers={home ? opponentPlayers : players} back={() => setView('overview')} />
+  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? players : opponentPlayers} awayPlayers={home ? opponentPlayers : players} back={() => setView('overview')} onComplete={(result) => {
+    const nextMatches = { ...playedMatches, [nextFixture.id]: { ...result, home_club_id: nextFixture.home_club_id, away_club_id: nextFixture.away_club_id } }
+    localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
+    setPlayedMatches(nextMatches)
+    setView('overview')
+  }} />
 
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
@@ -156,7 +174,7 @@ function Squad({ players, club, back }: { players: Player[]; club: Club; back: (
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, back }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; back: () => void }) {
+function Match({ fixture, homePlayers, awayPlayers, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; back: () => void; onComplete: (result: MatchResult) => void }) {
   const [result, setResult] = useState<{ homeScore: number; awayScore: number; events: import('./engine/match').MatchEvent[] } | null>(null)
   const [simulating, setSimulating] = useState(false)
 
