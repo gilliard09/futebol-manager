@@ -17,7 +17,7 @@ function lineup(base = 70): LineupPlayer[] {
 }
 
 const fixture: Fixture = {
-  id: 'fixture-test', round: 1, scheduled_at: '', status: 'scheduled',
+  id: 'fixture-test', competition_id: 'competition-test', round: 1, scheduled_at: '', status: 'scheduled',
   home_club_id: 'home', away_club_id: 'away', home_score: null, away_score: null,
   home_club: { name: 'Casa FC', short_name: 'Casa' },
   away_club: { name: 'Fora FC', short_name: 'Fora' },
