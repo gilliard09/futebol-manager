@@ -2,8 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, Trophy, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
-import type { MatchResult } from './engine/match'
+import { playerOverall, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
+import PlayerProfile from './components/PlayerProfile'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
@@ -167,7 +168,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   }, [])
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
   const home = nextFixture?.home_club_id === career.club.id
-  const avg = players.length ? Math.round(players.reduce((sum, p) => sum + (p.position === 'GK' ? p.goalkeeping : (p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7), 0) / players.length) : 0
+  const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
@@ -261,12 +262,45 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
 
 function Squad({ players, club, back }: { players: Player[]; club: Club; back: () => void }) {
   const [position, setPosition] = useState('ALL')
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
   const positions = ['ALL', 'GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST']
   const filtered = position === 'ALL' ? players : players.filter(p => p.position === position)
-  const overall = (p: Player) => p.position === 'GK' ? p.goalkeeping : Math.round((p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7)
-  return <main className="min-h-screen"><Top label="ELENCO" back={back} /><section className="px-6 py-8 md:px-10"><div><p className="text-sm text-white/35">{club.name}</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Elenco</h1><p className="mt-3 text-sm text-white/35">Conheça os jogadores que estão sob seu comando.</p></div><div className="mt-8 flex gap-2 overflow-x-auto pb-2">{positions.map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40 hover:text-white'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}</div><div className="mt-4 overflow-hidden rounded-2xl border border-white/6"><div className="hidden grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 md:grid"><span>#</span><span>Jogador</span><span>Pos.</span><span>Idade</span><span>GER</span><span>Forma</span><span>Moral</span><span>Pot.</span><span>Valor</span></div>{filtered.map(player => <div key={player.id} className="grid grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 md:grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)]"><span className="text-xs text-white/25">#{player.squad_number}</span><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.nationality}</p></div><span className="text-xs font-bold text-emerald-300">{player.position}</span><span className="hidden text-sm text-white/50 md:block">{player.age}</span><span className="hidden text-sm font-bold md:block">{overall(player)}</span><span className="hidden text-sm text-white/45 md:block">{player.form}</span><span className="hidden text-sm text-white/45 md:block">{player.morale}</span><span className="hidden text-sm text-white/45 md:block">{player.potential}</span><span className="hidden text-sm text-white/45 md:block">—</span></div>)}</div><p className="mt-4 text-xs text-white/25">{filtered.length} jogadores exibidos.</p></section></main>
-}
 
+  return <main className="min-h-screen">
+    <Top label="ELENCO" back={back} />
+    <section className="px-6 py-8 md:px-10">
+      <div>
+        <p className="text-sm text-white/35">{club.name}</p>
+        <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Elenco</h1>
+        <p className="mt-3 text-sm text-white/35">Conheça os jogadores que estão sob seu comando.</p>
+      </div>
+
+      <div className="mt-8 flex gap-2 overflow-x-auto pb-2">
+        {positions.map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40 hover:text-white'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-2xl border border-white/6">
+        <div className="hidden grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25] md:grid">
+          <span>#</span><span>Jogador</span><span>Pos.</span><span>Idade</span><span>GER</span><span>Forma</span><span>Moral</span><span>Pot.</span><span>Valor</span>
+        </div>
+        {filtered.map(player => <button key={player.id} onClick={() => setSelectedPlayer(player)} className="grid w-full grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)]">
+          <span className="text-xs text-white/25">#{player.squad_number}</span>
+          <div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.nationality}</p></div>
+          <span className="text-xs font-bold text-emerald-300">{player.position}</span>
+          <span className="hidden text-sm text-white/50 md:block">{player.age}</span>
+          <span className="hidden text-sm font-bold md:block">{playerOverall(player)}</span>
+          <span className="hidden text-sm text-white/45 md:block">{player.form}</span>
+          <span className="hidden text-sm text-white/45 md:block">{player.morale}</span>
+          <span className="hidden text-sm text-white/45 md:block">{player.potential}</span>
+          <span className="hidden text-xs text-white/35 md:block">Ver ficha</span>
+        </button>)}
+      </div>
+      <p className="mt-4 text-xs text-white/25">{filtered.length} jogadores exibidos. Selecione um jogador para abrir a ficha.</p>
+    </section>
+
+    {selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} close={() => setSelectedPlayer(null)} />}
+  </main>
+}
 
 function Tactics({ players, club, back }: { players: Player[]; club: Club; back: () => void }) {
   const formations = {
@@ -334,9 +368,9 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
       <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5">
         <div className="mb-5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Titulares</span><span className="text-xs text-white/30">{starters}/11</span></div>
-        <div className="grid gap-2">{selected.map(({position,index,player}) => <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3"><span className="w-10 text-xs font-bold text-emerald-300">{position}</span><select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"><option value="">Escolher jogador</option>{players.filter(p => !Object.values(lineup).includes(p.id) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {overall(p)}</option>)}</select></div>)}</div>
+        <div className="grid gap-2">{selected.map(({position,index,player}) => <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3"><span className="w-10 text-xs font-bold text-emerald-300">{position}</span><select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"><option value="">Escolher jogador</option>{players.filter(p => !Object.values(lineup).includes(p.id) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {playerOverall(p)}</option>)}</select></div>)}</div>
       </section>
-      <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{overall(p)}</span></div>)}</div></section>
+      <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{playerOverall(p)}</span></div>)}</div></section>
     </div>
     <div className="mt-6 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Sua escalação fica salva nesta carreira e será usada pelo motor da próxima partida.</div>
   </section></main>
