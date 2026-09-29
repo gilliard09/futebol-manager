@@ -43,6 +43,21 @@ export type Fixture = {
   away_club: { name: string; short_name: string } | null
 }
 
+export type Formation = '4-3-3' | '4-4-2' | '4-2-3-1' | '3-5-2'
+
+export const FORMATIONS: Record<Formation, string[]> = {
+  '4-3-3': ['GK', 'LB', 'CB', 'CB', 'RB', 'CM', 'DM', 'CM', 'LW', 'ST', 'RW'],
+  '4-4-2': ['GK', 'LB', 'CB', 'CB', 'RB', 'LW', 'CM', 'CM', 'RW', 'ST', 'ST'],
+  '4-2-3-1': ['GK', 'LB', 'CB', 'CB', 'RB', 'DM', 'DM', 'LW', 'AM', 'RW', 'ST'],
+  '3-5-2': ['GK', 'CB', 'CB', 'CB', 'LW', 'DM', 'CM', 'CM', 'RW', 'ST', 'ST'],
+}
+
+export type LineupPlayer = {
+  player: Player
+  role: string
+  slot: number
+}
+
 export type ManagerProfile = {
   name: string
   nationality: string
