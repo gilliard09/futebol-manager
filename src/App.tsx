@@ -227,29 +227,18 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           setOpponentPlayers([])
         }
       }
-      const stats = new Map<string, { id: string; name: string; points: number; played: number; wins: number; draws: number; losses: number; gf: number; ga: number }>()
       const leagueClubs = clubs.length > 0 ? clubs : (clubsResult.data ?? []) as Club[]
-      for (const club of leagueClubs) stats.set(club.id, { id: club.id, name: club.short_name, points: 0, played: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 })
-
-      for (const match of tableResult.data ?? []) {
-        if (match.home_score === null || match.away_score === null) continue
-        const home = stats.get(match.home_club_id); const away = stats.get(match.away_club_id)
-        if (!home || !away) continue
-        home.played++; away.played++; home.gf += match.home_score; home.ga += match.away_score; away.gf += match.away_score; away.ga += match.home_score
-        if (match.home_score > match.away_score) { home.points += 3; home.wins++; away.losses++ } else if (match.home_score < match.away_score) { away.points += 3; away.wins++; home.losses++ } else { home.points++; away.points++; home.draws++; away.draws++ }
-      }
-
-      const persistedFixtureIds = new Set((tableResult.data ?? []).map((match: any) => match.id).filter(Boolean))
-      for (const [fixtureId, match] of Object.entries(playedMatches)) {
-        if (persistedFixtureIds.has(fixtureId)) continue
-        const home = stats.get(match.home_club_id)
-        const away = stats.get(match.away_club_id)
-        if (!home || !away) continue
-        home.played++; away.played++; home.gf += match.homeScore; home.ga += match.awayScore; away.gf += match.awayScore; away.ga += match.homeScore
-        if (match.homeScore > match.awayScore) { home.points += 3; home.wins++; away.losses++ } else if (match.homeScore < match.awayScore) { away.points += 3; away.wins++; home.losses++ } else { home.points++; away.points++; home.draws++; away.draws++ }
-      }
-
-      setTable([...stats.values()].sort((a, b) => b.points - a.points || (b.gf - b.ga) - (a.gf - a.ga)))
+      const persistedFixtures = (tableResult.data ?? []).map((match: any) => ({
+        id: match.id, competition_id: match.competition_id ?? '', round: 0, scheduled_at: '', status: match.status,
+        home_club_id: match.home_club_id, away_club_id: match.away_club_id, home_score: match.home_score, away_score: match.away_score,
+        home_club: null, away_club: null,
+      }))
+      const localFixtures = Object.entries(playedMatches).filter(([fixtureId]) => !persistedFixtures.some(match => match.id === fixtureId)).map(([id, match]) => ({
+        id, competition_id: 'local', round: 0, scheduled_at: '', status: 'completed',
+        home_club_id: match.home_club_id, away_club_id: match.away_club_id, home_score: match.homeScore, away_score: match.awayScore,
+        home_club: null, away_club: null,
+      }))
+      setTable(buildStandings(leagueClubs.map(club => ({ id: club.id, name: club.short_name })), [...persistedFixtures, ...localFixtures]))
       setLoading(false)
     }
     loadDashboard()
