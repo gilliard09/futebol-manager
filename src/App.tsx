@@ -7,11 +7,13 @@ import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
+import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
 const TACTIC_KEY = 'futebol-manager:tactic'
 const TRAINING_KEY = 'futebol-manager:training'
+const CLOCK_KEY = 'futebol-manager:season-clock'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -99,6 +101,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [activeMatchFixture, setActiveMatchFixture] = useState<Fixture | null>(null)
   const [loading, setLoading] = useState(true)
   const [salaryTotal, setSalaryTotal] = useState(0)
+  const [upcomingFixtures, setUpcomingFixtures] = useState<Fixture[]>([])
+  const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
 
 
   useEffect(() => {
@@ -118,10 +122,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         try {
           const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
           let restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
-          if (saved.lastMatchId && saved.recoveredMatchId !== saved.lastMatchId) {
-            restored = recoverPlayers(restored, 18)
-            localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...saved, players: Object.fromEntries(restored.map(player => [player.id, player])), recoveredMatchId: saved.lastMatchId }))
-          }
           setPlayers(restored)
         } catch {
           setPlayers(loaded)
@@ -129,9 +129,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       }
       if (!salaryResult.error) setSalaryTotal((salaryResult.data ?? []).reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0))
       if (!fixtureResult.error) {
-        const availableFixture = (fixtureResult.data ?? []).find((item: any) => !playedMatches[item.id]) as Fixture | undefined
-        const fixture = availableFixture ?? null
+        const scheduled = (fixtureResult.data ?? []).filter((item: any) => !playedMatches[item.id]) as Fixture[]
+        const fixture = scheduled[0] ?? null
+        setUpcomingFixtures(scheduled)
         setNextFixture(fixture)
+        if (!clock && fixture) {
+          const initialClock = createSeasonClock('2026-01-11', toDateKey(fixture.scheduled_at), 3)
+          setClock(initialClock)
+          localStorage.setItem(CLOCK_KEY, JSON.stringify(initialClock))
+        }
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
           const { data: opponentSquad } = await supabase.from('club_players').select('squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').eq('club_id', opponentId).order('squad_number')
@@ -189,6 +195,19 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
   const home = nextFixture?.home_club_id === career.club.id
   const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
+  const nextMatchDate = nextFixture ? toDateKey(nextFixture.scheduled_at) : null
+  const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
+
+  function restOneDay() {
+    if (!clock || !canAdvanceDay(clock, nextMatchDate)) return
+    const nextClock = advanceSeasonDay(clock)
+    const nextPlayers = recoverPlayers(players, 8)
+    setClock(nextClock)
+    setPlayers(nextPlayers)
+    const savedTraining = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
+    localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...savedTraining, players: Object.fromEntries(nextPlayers.map(player => [player.id, player])) }))
+    localStorage.setItem(CLOCK_KEY, JSON.stringify(nextClock))
+  }
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer) => { setPlayers(nextPlayers); onCareerUpdate(nextCareer); setView('overview') }} />
@@ -261,6 +280,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
       localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
       setPlayedMatches(nextMatches)
+      if (clock) {
+        const matchClock = { ...clock, currentDate: toDateKey(activeMatchFixture.scheduled_at) }
+        setClock(matchClock)
+        localStorage.setItem(CLOCK_KEY, JSON.stringify(matchClock))
+      }
       setActiveMatchFixture(null)
       setView('overview')
     }
@@ -270,9 +294,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
-      <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(career.club.budget)} detail="caixa do clube" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional" /><DashboardCard icon={<CalendarDays size={18} />} label="Próximo jogo" value={opponent?.short_name ?? 'A definir'} detail={nextFixture ? (home ? 'Em casa' : 'Fora') : 'Calendário indisponível'} /></div>
+      <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(career.club.budget)} detail="caixa do clube" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional" /></div>
+      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Calendário da temporada</p><h2 className="mt-2 text-2xl font-bold">{clock ? formatSeasonDate(clock.currentDate) : 'Preparando calendário'}</h2><p className="mt-2 text-sm text-white/35">{nextFixture && nextMatchDate ? (matchReady ? 'Dia de jogo.' : `${daysBetween(clock!.currentDate, nextMatchDate)} dias até a próxima partida.`) : 'Nenhuma partida pendente.'}</p></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate)} className="flex items-center justify-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-white/70 hover:border-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">Descansar 1 dia <ArrowRight size={16} /></button>{nextFixture && <div className="rounded-xl border border-white/6 bg-black/10 px-4 py-3 text-sm"><span className="text-white/30">Próximo jogo</span><span className="ml-2 font-semibold">{opponent?.short_name ?? 'A definir'} · {formatSeasonDate(nextMatchDate!)}</span></div>}</div><div className="mt-5 space-y-2">{upcomingFixtures.slice(0, 5).map(item => { const itemDate = toDateKey(item.scheduled_at); const itemOpponent = item.home_club_id === career.club.id ? item.away_club : item.home_club; return <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === nextFixture?.id ? 'border-emerald-400/20 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10'}`}><div><p className="text-sm font-semibold">{itemOpponent?.short_name ?? 'Adversário'} {item.home_club_id === career.club.id ? '· Casa' : '· Fora'}</p><p className="mt-1 text-xs text-white/30">Rodada {item.round}</p></div><span className="text-xs font-semibold text-white/45">{formatSeasonDate(itemDate)}</span></div> })}</div></section>
       <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value="Liga Nacional" /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /></div><button onClick={() => { if (nextFixture) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); setView('match') } }} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Preparar partida <ArrowRight size={16} /></button></section>
+        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value="Liga Nacional" /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /><Info label="Data" value={nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'} /><Info label="Status" value={matchReady ? 'Dia de jogo' : 'Em preparação'} /></div><button disabled={!matchReady} onClick={() => { if (nextFixture && matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); setView('match') } }} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-30">{matchReady ? 'Preparar partida' : 'Avance os dias até a partida'} <ArrowRight size={16} /></button></section>
         <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Elenco</p><h2 className="mt-2 text-2xl font-bold">{players.length} jogadores</h2></div><Users className="text-emerald-300/50" size={24} /></div><div className="mt-6 space-y-2">{players.slice(0, 5).map(player => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div><span className="text-xs font-semibold text-white/40">#{player.squad_number}</span></div>)}</div><button onClick={() => setView('squad')} className="mt-5 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Ver elenco completo <ChevronRight size={16} /></button></section>
       </div>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3 text-center">P</th><th className="px-4 py-3 text-center">J</th><th className="px-4 py-3 text-center">V</th><th className="px-4 py-3 text-center">E</th><th className="px-4 py-3 text-center">D</th><th className="px-4 py-3 text-center">GP</th><th className="px-4 py-3 text-center">GC</th><th className="px-4 py-3 text-center">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 text-center font-bold">{team.points}</td><td className="px-4 py-3 text-center text-white/40">{team.played}</td><td className="px-4 py-3 text-center text-white/40">{team.wins}</td><td className="px-4 py-3 text-center text-white/40">{team.draws}</td><td className="px-4 py-3 text-center text-white/40">{team.losses}</td><td className="px-4 py-3 text-center text-white/40">{team.gf}</td><td className="px-4 py-3 text-center text-white/40">{team.ga}</td><td className="px-4 py-3 text-center text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
