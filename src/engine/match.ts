@@ -41,23 +41,30 @@ function sector(players: Player[], positions: string[]) {
   return average(values)
 }
 
-function tacticalFit(players: Player[], tactic: string) {
+function tacticalFit(players: Player[], tactic: string, formation = '4-3-3') {
   if (!players.length) return 50
   const attack = sector(players, ['ST', 'LW', 'RW', 'AM'])
   const defense = sector(players, ['GK', 'CB', 'LB', 'RB', 'DM'])
-  if (tactic === 'offensive') return Math.min(100, attack * 0.65 + defense * 0.35 + 3)
-  if (tactic === 'defensive') return Math.min(100, defense * 0.65 + attack * 0.35 + 3)
-  return average([attack, defense])
+  const midfield = sector(players, ['CM', 'DM', 'AM'])
+  const wide = sector(players, ['LB', 'RB', 'LW', 'RW'])
+  let fit = average([attack, defense, midfield])
+  if (formation === '4-3-3') fit += wide * 0.04 + attack * 0.02
+  if (formation === '4-4-2') fit += average([attack, defense]) * 0.03
+  if (formation === '4-2-3-1') fit += midfield * 0.05
+  if (formation === '3-5-2') fit += midfield * 0.05 + attack * 0.02 - defense * 0.01
+  if (tactic === 'offensive') fit += attack * 0.05 - defense * 0.02
+  if (tactic === 'defensive') fit += defense * 0.05 - attack * 0.02
+  return Math.min(100, fit)
 }
 
-export function calculateTeamMetrics(players: Player[], tactic = 'balanced'): TeamMetrics {
+export function calculateTeamMetrics(players: Player[], tactic = 'balanced', formation = '4-3-3'): TeamMetrics {
   const goalkeeper = sector(players, ['GK'])
   const defense = sector(players, ['CB', 'LB', 'RB', 'DM'])
   const midfield = sector(players, ['CM', 'AM', 'DM', 'LW', 'RW'])
   const attack = sector(players, ['ST', 'LW', 'RW', 'AM'])
   const form = average(players.map(player => player.form))
   const morale = average(players.map(player => player.morale))
-  const fit = tacticalFit(players, tactic)
+  const fit = tacticalFit(players, tactic, formation)
 
   const overall = goalkeeper * 0.15 + defense * 0.28 + midfield * 0.27 + attack * 0.20 + form * 0.05 + morale * 0.05
 
@@ -70,9 +77,9 @@ function chooseScorer(players: Player[]) {
   return [...pool].sort((a, b) => playerOverall(b) - playerOverall(a))[Math.floor(Math.random() * Math.min(pool.length, 5))]
 }
 
-export function simulateMatch(fixture: Fixture, homePlayers: Player[], awayPlayers: Player[], tactic = 'balanced'): MatchResult {
-  const homeMetrics = calculateTeamMetrics(homePlayers, tactic)
-  const awayMetrics = calculateTeamMetrics(awayPlayers, 'balanced')
+export function simulateMatch(fixture: Fixture, homePlayers: Player[], awayPlayers: Player[], tactic = 'balanced', formation = '4-3-3'): MatchResult {
+  const homeMetrics = calculateTeamMetrics(homePlayers, tactic, formation)
+  const awayMetrics = calculateTeamMetrics(awayPlayers, 'balanced', '4-3-3')
   const homeStrength = homeMetrics.overall + 3
   const awayStrength = awayMetrics.overall
 
