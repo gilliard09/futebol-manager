@@ -61,7 +61,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
         const player = Array.isArray(row.players) ? row.players[0] : row.players
         const currentClubId = state.playerClubOverrides[player.id] ?? row.club_id
         const seller = byId.get(currentClubId)
-        if (!seller || currentClubId === club.id) return []
+        if (!seller) return []
         return [{
           player: { ...player, squad_number: row.squad_number } as Player,
           club: seller,
@@ -84,7 +84,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return marketPlayers.filter(item => {
+    return marketPlayers.filter(item => item.club.id !== club.id).filter(item => {
       const matchesPosition = position === 'ALL' || item.player.position === position
       const matchesSearch = !term || `${item.player.first_name} ${item.player.last_name}`.toLowerCase().includes(term) || item.club.name.toLowerCase().includes(term)
       return matchesPosition && matchesSearch
