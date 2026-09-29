@@ -100,3 +100,89 @@ export function resolveTwoLegTie(firstLeg: Pick<Fixture, 'home_club_id' | 'away_
 export function resolveSingleMatch(homeScore: number, awayScore: number, homeClubId: string, awayClubId: string, penaltyWinner: string | null = null) {
   return getKnockoutWinner(homeScore, awayScore, homeClubId, awayClubId) ?? (penaltyWinner === homeClubId || penaltyWinner === awayClubId ? penaltyWinner : null)
 }
+
+export type NextKnockoutFixture = {
+  round: number
+  homeClubId: string
+  awayClubId: string
+  scheduledAt: string
+}
+
+function deterministicPenaltyWinner(clubA: string, clubB: string, seed: string) {
+  let hash = 0
+  for (const char of clubA + clubB + seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return hash % 2 === 0 ? clubA : clubB
+}
+
+export function getNextKnockoutRound(round: number) {
+  if (round === 2) return 3
+  if (round === 4) return 5
+  if (round === 6) return 7
+  return null
+}
+
+export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound: number) {
+  const nextRound = getNextKnockoutRound(currentRound)
+  if (!nextRound) return null
+
+  const stageFixtures = fixtures
+    .filter(fixture => fixture.round === currentRound && fixture.status === 'completed' && fixture.home_score != null && fixture.away_score != null)
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+
+  if (stageFixtures.length === 0 || stageFixtures.length % 2 !== 0) return null
+
+  const winners: string[] = []
+  for (let index = 0; index < stageFixtures.length; index += 2) {
+    const firstLeg = stageFixtures[index]
+    const secondLeg = stageFixtures[index + 1]
+
+    const firstClubs = new Set([firstLeg.home_club_id, firstLeg.away_club_id])
+    const sameTie = firstClubs.has(secondLeg.home_club_id) && firstClubs.has(secondLeg.away_club_id)
+    if (!sameTie) return null
+
+    const aggregate = resolveTwoLegTie(
+      firstLeg,
+      secondLeg,
+      deterministicPenaltyWinner(firstLeg.home_club_id, firstLeg.away_club_id, firstLeg.id + secondLeg.id),
+    )
+
+    if (!aggregate) return null
+    winners.push(aggregate)
+  }
+
+  const pairings: Array<{ homeClubId: string; awayClubId: string }> = []
+  for (let index = 0; index < winners.length; index += 2) {
+    if (!winners[index + 1]) return null
+    pairings.push({ homeClubId: winners[index], awayClubId: winners[index + 1] })
+  }
+
+  const lastDate = stageFixtures.reduce((latest, fixture) => Math.max(latest, new Date(fixture.scheduled_at).getTime()), 0)
+  const firstLegDate = new Date(lastDate)
+  firstLegDate.setDate(firstLegDate.getDate() + 7)
+
+  const result: NextKnockoutFixture[] = []
+  const nextStage = getCompetitionStage(nextRound)
+  pairings.forEach((pair, index) => {
+    const first = new Date(firstLegDate)
+    first.setHours(19 + (index % 3), 0, 0, 0)
+    result.push({
+      round: nextRound,
+      homeClubId: pair.homeClubId,
+      awayClubId: pair.awayClubId,
+      scheduledAt: first.toISOString(),
+    })
+
+    if (nextStage.legs === 2) {
+      const second = new Date(first)
+      second.setDate(second.getDate() + 7)
+      result.push({
+        round: nextRound + 1,
+        homeClubId: pair.awayClubId,
+        awayClubId: pair.homeClubId,
+        scheduledAt: second.toISOString(),
+      })
+    }
+  })
+
+  return result
+}
