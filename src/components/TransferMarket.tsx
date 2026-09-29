@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Search, ShoppingBag, Tag, X } from 'lucide-react'
+import { ArrowLeft, Search, ShoppingBag, Tag, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/match'
 import { applyTransfer, calculateAskingPrice, canCompleteTransfer, createTransferRecord, negotiateTransfer, type TransferRecord, type TransferState } from '../engine/transfers'
@@ -148,7 +148,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
       {error && <div className="mt-6 rounded-xl border border-red-400/15 bg-red-400/5 p-4 text-sm text-red-200">Não foi possível carregar o mercado. {error}</div>}
       {loading && <div className="py-20 text-center text-sm text-white/35">Carregando mercado...</div>}
       {!loading && !error && <div className="mt-5 overflow-hidden rounded-2xl border border-white/6">
-        <div className="hidden grid-cols-[1.8fr_1fr_70px_70px_110px] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25] md:grid">
+        <div className="hidden grid-cols-[1.8fr_1fr_70px_70px_110px] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 md:grid">
           <span>Jogador</span><span>Clube</span><span>Pos.</span><span>GER</span><span>Valor</span>
         </div>
         {filtered.map(item => <button key={item.player.id} onClick={() => openPlayer(item)} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]">
