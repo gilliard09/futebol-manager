@@ -90,6 +90,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match'>('overview')
   const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
   const [tactic, setTactic] = useState('balanced')
+  const [formation, setFormation] = useState('4-3-3')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -151,7 +152,11 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   }, [players])
 
   useEffect(() => {
-    try { setTactic(JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').tactic ?? 'balanced') } catch {}
+    try {
+      const saved = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}')
+      setTactic(saved.tactic ?? 'balanced')
+      setFormation(saved.formation ?? '4-3-3')
+    } catch {}
   }, [])
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
   const home = nextFixture?.home_club_id === career.club.id
@@ -159,7 +164,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
-  if (view === 'match' && nextFixture) return <Match fixture={nextFixture} homePlayers={home ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={home ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={() => setView('overview')} onComplete={(result) => {
+  if (view === 'match' && nextFixture) return <Match formation={formation} fixture={nextFixture} homePlayers={home ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={home ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={() => setView('overview')} onComplete={(result) => {
     const nextMatches = { ...playedMatches, [nextFixture.id]: { ...result, home_club_id: nextFixture.home_club_id, away_club_id: nextFixture.away_club_id } }
     localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
     setPlayedMatches(nextMatches)
@@ -265,7 +270,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, tactic, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; back: () => void; onComplete: (result: MatchResult) => void }) {
+function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onComplete }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: () => void; onComplete: (result: MatchResult) => void }) {
   const [result, setResult] = useState<{ homeScore: number; awayScore: number; events: import('./engine/match').MatchEvent[] } | null>(null)
   const [simulating, setSimulating] = useState(false)
 
@@ -273,7 +278,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, back, onComplete }: 
     setSimulating(true)
     const { simulateMatch } = await import('./engine/match')
     await new Promise(resolve => setTimeout(resolve, 500))
-    setResult(simulateMatch(fixture, homePlayers, awayPlayers, tactic))
+    setResult(simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation))
     setSimulating(false)
   }
 
