@@ -320,12 +320,19 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back, onC
           <div><p className="text-lg font-bold">{matchTeams.away}</p><p className="mt-2 text-xs text-white/30">FORA</p></div>
         </div>
 
-        {result && <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <Info label="Posse" value={currentMinute >= 90 ? result.homeStats.possession + '% / ' + result.awayStats.possession + '%' : 'calculando'} />
-          <Info label="Finalizações" value={result.homeStats.shots + ' / ' + result.awayStats.shots} />
-          <Info label="No alvo" value={result.homeStats.shotsOnTarget + ' / ' + result.awayStats.shotsOnTarget} />
-          <Info label="Escanteios" value={result.homeStats.corners + ' / ' + result.awayStats.corners} />
-        </div>}
+        {result && (() => {
+          const live = result.timeline[Math.max(0, Math.min(currentMinute, result.timeline.length) - 1)]
+          const homeStats = live?.home ?? result.homeStats
+          const awayStats = live?.away ?? result.awayStats
+          return <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-6">
+            <Info label="Posse" value={homeStats.possession + '% / ' + awayStats.possession + '%'} />
+            <Info label="Finalizações" value={homeStats.shots + ' / ' + awayStats.shots} />
+            <Info label="No alvo" value={homeStats.shotsOnTarget + ' / ' + awayStats.shotsOnTarget} />
+            <Info label="Chances" value={homeStats.chances + ' / ' + awayStats.chances} />
+            <Info label="Desarmes" value={homeStats.tackles + ' / ' + awayStats.tackles} />
+            <Info label="Escanteios" value={homeStats.corners + ' / ' + awayStats.corners} />
+          </div>
+        })()}
 
         {!result && <button onClick={simulate} disabled={simulating} className="mx-auto mt-10 flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] disabled:opacity-40">{simulating ? 'Preparando...' : 'Começar partida'} <ArrowRight size={17} /></button>}
         {simulating && <p className="mt-5 text-center text-xs text-white/30">A partida está acontecendo. Os lances aparecem conforme o relógio avança.</p>}
