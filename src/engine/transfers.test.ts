@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateAskingPrice, calculateMinimumOffer, negotiateTransfer } from './transfers'
+import { applyTransfer, calculateAskingPrice, calculateMinimumOffer, negotiateTransfer } from './transfers'
 import type { Player } from '../types/game'
 
 const player: Player = {
@@ -40,5 +40,14 @@ describe('transfers', () => {
 
   it('não permite preço negativo', () => {
     expect(calculateAskingPrice(player, -500)).toBe(100000)
+  })
+
+  it('move o jogador para o novo clube e preserva o histórico', () => {
+    const state = { playerClubOverrides: {}, records: [] }
+    const record = { id: 't1', date: '2026-01-11', playerId: player.id, playerName: 'Joao Silva', fromClubId: 'club-a', toClubId: 'club-b', fee: 2000000, kind: 'purchase' as const }
+    const next = applyTransfer(state, record)
+    expect(next.playerClubOverrides[player.id]).toBe('club-b')
+    expect(next.records).toHaveLength(1)
+    expect(next.records[0].fee).toBe(2000000)
   })
 })
