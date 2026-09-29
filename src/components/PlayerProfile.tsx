@@ -42,7 +42,6 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
       const { data, error } = await supabase
         .from('club_players')
         .select('contract_until,salary,market_value,joined_at')
-        .eq('club_id', club.id)
         .eq('player_id', player.id)
         .maybeSingle()
 
