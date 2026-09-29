@@ -32,6 +32,8 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
   const [position, setPosition] = useState('ALL')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<MarketPlayer | null>(null)
+  const [mode, setMode] = useState<'buy' | 'sell'>('buy')
+  const [buyerId, setBuyerId] = useState('')
   const [offer, setOffer] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -78,6 +80,8 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
     return () => { active = false }
   }, [club.id, clubs, state.playerClubOverrides])
 
+  const myPlayers = useMemo(() => marketPlayers.filter(item => item.club.id === club.id), [marketPlayers, club.id])
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
     return marketPlayers.filter(item => {
@@ -90,28 +94,36 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
   const selectedAsking = selected ? calculateAskingPrice(selected.player, selected.marketValue) : 0
   const negotiation = selected ? negotiateTransfer(selectedAsking, offer) : null
 
-  function openPlayer(item: MarketPlayer) {
+  function openPlayer(item: MarketPlayer, nextMode: 'buy' | 'sell') {
     setSelected(item)
+    setMode(nextMode)
     setOffer(calculateAskingPrice(item.player, item.marketValue))
+    setBuyerId(clubs.find(item => item.id !== club.id)?.id ?? '')
     setMessage(null)
   }
 
-  function buy() {
+  function submitTransfer() {
     if (!selected || !negotiation || saving) return
     if (!negotiation.accepted) {
       setMessage(`A proposta foi recusada. O mínimo aceito é ${money(negotiation.minimum)}.`)
       return
     }
-    if (!canCompleteTransfer(club, offer)) {
+    if (mode === 'buy' && !canCompleteTransfer(club, offer)) {
       setMessage('O orçamento disponível não é suficiente para esta proposta.')
+      return
+    }
+    if (mode === 'sell' && !buyerId) {
+      setMessage('Escolha um clube comprador.')
       return
     }
 
     setSaving(true)
-    const record = createTransferRecord(today, selected.player, selected.club.id, club.id, offer, 'purchase')
+    const fromClubId = mode === 'buy' ? selected.club.id : club.id
+    const toClubId = mode === 'buy' ? club.id : buyerId
+    const record = createTransferRecord(today, selected.player, fromClubId, toClubId, offer, mode === 'buy' ? 'purchase' : 'sale')
     const nextState = applyTransfer(state, record)
-    onTransfer(record, nextState, balance - offer)
-    setMessage(`${selected.player.first_name} ${selected.player.last_name} agora faz parte do elenco.`)
+    onTransfer(record, nextState, mode === 'buy' ? balance - offer : balance + offer)
+    setMessage(mode === 'buy' ? `${selected.player.first_name} ${selected.player.last_name} agora faz parte do elenco.` : `${selected.player.first_name} ${selected.player.last_name} foi vendido.`)
     setSelected(null)
     setSaving(false)
   }
@@ -135,7 +147,9 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col gap-3 md:flex-row">
+      <div className="mt-6 flex gap-2 rounded-xl border border-white/6 bg-white/[0.02] p-1"><button onClick={() => { setMode('buy'); setSelected(null) }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold ${mode === 'buy' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Comprar</button><button onClick={() => { setMode('sell'); setSelected(null) }} className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-bold ${mode === 'sell' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Vender</button></div>
+
+      {mode === 'buy' && <div className="mt-6 flex flex-col gap-3 md:flex-row">
         <label className="flex flex-1 items-center gap-3 rounded-xl border border-white/7 bg-white/[0.02] px-4">
           <Search size={16} className="text-white/30" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar jogador ou clube" className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-white/20" />
@@ -144,6 +158,8 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
           {['ALL','GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'].map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}
         </div>
       </div>
+
+      {mode === 'buy' && <div className="mt-5 overflow-hidden rounded-2xl border border-white/6"><div className="bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">Seu elenco · {myPlayers.length} jogadores</div>{myPlayers.map(item => <button key={item.player.id} onClick={() => openPlayer(item, 'sell')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]"><div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div><span className="text-xs text-white/40">Seu elenco</span><span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span><span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span><span className="text-xs text-white/35">{money(item.marketValue)}</span></button>)}</div>}
 
       {error && <div className="mt-6 rounded-xl border border-red-400/15 bg-red-400/5 p-4 text-sm text-red-200">Não foi possível carregar o mercado. {error}</div>}
       {loading && <div className="py-20 text-center text-sm text-white/35">Carregando mercado...</div>}
@@ -185,11 +201,12 @@ export default function TransferMarket({ club, clubs, balance, today, state, onT
         </div>
         <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
           <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Sua proposta</p><p className="mt-2 text-sm text-white/35">O clube aceita propostas a partir de 90% do preço pedido.</p></div><Tag size={20} className="text-emerald-300/50" /></div>
+          {mode === 'sell' && <label className="mt-4 block text-xs text-white/35">Clube comprador<select value={buyerId} onChange={e => setBuyerId(e.target.value)} className="mt-2 w-full rounded-xl border border-white/8 bg-[#0d1015] px-4 py-3 text-sm text-white outline-none">{clubs.filter(item => item.id !== club.id).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
           <input type="range" min={calculateAskingPrice(selected.player, selected.marketValue) * 0.75} max={calculateAskingPrice(selected.player, selected.marketValue) * 1.15} step={10000} value={offer} onChange={e => setOffer(Number(e.target.value))} className="mt-5 w-full" />
           <div className="mt-3 flex items-center justify-between text-sm"><span className="text-white/30">Oferta</span><span className="font-bold text-emerald-300">{money(offer)}</span></div>
           {negotiation && <p className={`mt-3 text-xs ${negotiation.accepted ? 'text-emerald-300/70' : 'text-amber-200/70'}`}>{negotiation.accepted ? 'Oferta dentro da margem de negociação.' : `Abaixo do mínimo de ${money(negotiation.minimum)}.`}</p>}
           {message && <p className="mt-3 rounded-lg border border-white/6 bg-black/10 px-3 py-2 text-xs text-white/45">{message}</p>}
-          <button onClick={buy} disabled={saving || !negotiation?.accepted || !canCompleteTransfer(club, offer)} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30"><ShoppingBag size={16} /> {canCompleteTransfer(club, offer) ? 'Enviar proposta e contratar' : 'Orçamento insuficiente'}</button>
+          <button onClick={submitTransfer} disabled={saving || !negotiation?.accepted || (mode === 'buy' && !canCompleteTransfer(club, offer))} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30"><ShoppingBag size={16} /> {mode === 'sell' ? 'Aceitar proposta e vender' : canCompleteTransfer(club, offer) ? 'Enviar proposta e contratar' : 'Orçamento insuficiente'}</button>
         </div>
       </section>
     </div>}
