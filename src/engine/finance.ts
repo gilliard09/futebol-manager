@@ -31,6 +31,11 @@ export function calculateMatchRevenue(attendance: number, ticketPrice = 35, home
   return Math.max(0, Math.round(attendance * ticketPrice * homeBonus))
 }
 
+export function estimateAttendance(reputation: number, capacity = 12000) {
+  const base = 4500 + Math.max(0, reputation) * 70
+  return Math.min(capacity, Math.max(2500, Math.round(base)))
+}
+
 export function calculateMonthlySalaryExpense(monthlyPayroll: number) {
   return -Math.max(0, monthlyPayroll)
 }
