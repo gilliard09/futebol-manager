@@ -41,9 +41,26 @@ export function trainPlayer(player: Player, focus: TrainingFocus, random: Random
 
   next.form = Math.min(100, next.form + 2)
   next.morale = Math.min(100, next.morale + 1)
+  next.fatigue = Math.min(100, (next.fatigue ?? 0) + 12)
   return next
 }
 
 export function trainSquad(players: Player[], focus: TrainingFocus, random: Random = Math.random) {
   return players.map(player => trainPlayer(player, focus, random))
+}
+
+
+export function recoverPlayers(players: Player[], amount = 18) {
+  return players.map(player => ({
+    ...player,
+    fatigue: Math.max(0, (player.fatigue ?? 0) - amount),
+  }))
+}
+
+export function applyMatchFatigue(players: Player[], ratings: Array<{ playerId: string; fatigue: number }>) {
+  const fatigueById = new Map(ratings.map(item => [item.playerId, item.fatigue]))
+  return players.map(player => ({
+    ...player,
+    fatigue: Math.min(100, (player.fatigue ?? 0) + Math.round((fatigueById.get(player.id) ?? 20) * 0.45)),
+  }))
 }
