@@ -5,10 +5,13 @@ import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Sc
 import { playerOverall, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
+import { TRAINING_FOCUSES, type TrainingFocus, trainSquad } from './engine/training'
+import { calculateMonthlyPayroll } from './engine/economy'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
 const TACTIC_KEY = 'futebol-manager:tactic'
+const TRAINING_KEY = 'futebol-manager:training'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -89,13 +92,14 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
     try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
   })
-  const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match'>('overview')
+  const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match' | 'training'>('overview')
   const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
   const [tactic, setTactic] = useState('balanced')
   const [formation, setFormation] = useState('4-3-3')
   const [activeMatchFixture, setActiveMatchFixture] = useState<Fixture | null>(null)
   const [loading, setLoading] = useState(true)
   const [salaryTotal, setSalaryTotal] = useState(0)
+  const [trainingOpen, setTrainingOpen] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -109,7 +113,15 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
         supabase.from('club_players').select('salary').eq('club_id', career.club.id),
       ])
       if (!active) return
-      if (!squadResult.error) setPlayers((squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number })))
+      if (!squadResult.error) {
+        const loaded = (squadResult.data ?? []).map((row: any) => ({ ...row.players, squad_number: row.squad_number }))
+        try {
+          const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
+          setPlayers(loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player))
+        } catch {
+          setPlayers(loaded)
+        }
+      }
       if (!salaryResult.error) setSalaryTotal((salaryResult.data ?? []).reduce((sum: number, row: any) => sum + Number(row.salary ?? 0), 0))
       if (!fixtureResult.error) {
         const availableFixture = (fixtureResult.data ?? []).find((item: any) => !playedMatches[item.id]) as Fixture | undefined
@@ -174,6 +186,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
   const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
 
   if (view === 'squad') return <Squad players={players} club={career.club} back={() => setView('overview')} />
+  if (view === 'training') return <Training players={players} club={career.club} salaryTotal={salaryTotal} back={() => setView('overview')} onComplete={(nextPlayers) => { setPlayers(nextPlayers); setView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
@@ -258,7 +271,7 @@ function Dashboard({ career, clubs, newCareer }: { career: ManagerProfile; clubs
         <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Elenco</p><h2 className="mt-2 text-2xl font-bold">{players.length} jogadores</h2></div><Users className="text-emerald-300/50" size={24} /></div><div className="mt-6 space-y-2">{players.slice(0, 5).map(player => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div><span className="text-xs font-semibold text-white/40">#{player.squad_number}</span></div>)}</div><button onClick={() => setView('squad')} className="mt-5 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Ver elenco completo <ChevronRight size={16} /></button></section>
       </div>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3 text-center">P</th><th className="px-4 py-3 text-center">J</th><th className="px-4 py-3 text-center">V</th><th className="px-4 py-3 text-center">E</th><th className="px-4 py-3 text-center">D</th><th className="px-4 py-3 text-center">GP</th><th className="px-4 py-3 text-center">GC</th><th className="px-4 py-3 text-center">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 text-center font-bold">{team.points}</td><td className="px-4 py-3 text-center text-white/40">{team.played}</td><td className="px-4 py-3 text-center text-white/40">{team.wins}</td><td className="px-4 py-3 text-center text-white/40">{team.draws}</td><td className="px-4 py-3 text-center text-white/40">{team.losses}</td><td className="px-4 py-3 text-center text-white/40">{team.gf}</td><td className="px-4 py-3 text-center text-white/40">{team.ga}</td><td className="px-4 py-3 text-center text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
-      <div className="mt-4 grid gap-4 md:grid-cols-2"><Action title="Treinamento" text="Prepare o elenco para o próximo jogo." icon={<Dumbbell size={20} />} /><button onClick={() => setView('tactics')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Shield size={20} /></div><div><p className="font-semibold">Escalação e Táticas</p><p className="mt-1 text-xs text-white/30">Escolha a formação e os 11 titulares.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button></div>
+      <div className="mt-4 grid gap-4 md:grid-cols-2"><button onClick={() => setView('training')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Dumbbell size={20} /></div><div><p className="font-semibold">Treinamento</p><p className="mt-1 text-xs text-white/30">Prepare o elenco para o próximo jogo.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => setView('tactics')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Shield size={20} /></div><div><p className="font-semibold">Escalação e Táticas</p><p className="mt-1 text-xs text-white/30">Escolha a formação e os 11 titulares.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button></div>
     </>}
   </section></main>
 }
@@ -376,6 +389,46 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
       <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{playerOverall(p)}</span></div>)}</div></section>
     </div>
     <div className="mt-6 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Sua escalação fica salva nesta carreira e será usada pelo motor da próxima partida.</div>
+  </section></main>
+}
+
+
+function Training({ players, club, salaryTotal, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; back: () => void; onComplete: (players: Player[]) => void }) {
+  const [focus, setFocus] = useState<TrainingFocus>('balanced')
+  const [saving, setSaving] = useState(false)
+  const selected = TRAINING_FOCUSES[focus]
+  const affordable = club.budget >= selected.cost
+
+  function complete() {
+    if (!affordable || saving) return
+    setSaving(true)
+    const nextPlayers = trainSquad(players, focus)
+    const previous = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
+    const map = Object.fromEntries(nextPlayers.map(player => [player.id, player]))
+    localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString() }))
+    setTimeout(() => onComplete(nextPlayers), 250)
+  }
+
+  return <main className="min-h-screen"><Top label="TREINAMENTO" back={back} /><section className="px-6 py-8 md:px-10">
+    <p className="text-sm text-white/35">{club.name}</p>
+    <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Prepare o elenco</h1>
+    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Escolha o foco da sessão. Jogadores jovens têm maior capacidade de evolução, mas ninguém ultrapassa o próprio potencial.</p>
+    <div className="mt-8 grid gap-3 md:grid-cols-2">
+      {(Object.entries(TRAINING_FOCUSES) as [TrainingFocus, typeof selected][]).map(([key, item]) => <button key={key} onClick={() => setFocus(key)} className={`rounded-2xl border p-5 text-left ${focus === key ? 'border-emerald-400/40 bg-emerald-400/8' : 'border-white/6 bg-white/[0.02]'}`}>
+        <div className="flex items-center justify-between"><p className="font-semibold">{item.label}</p><span className="text-xs font-bold text-emerald-300">{money(item.cost)}</span></div>
+        <p className="mt-2 text-xs leading-5 text-white/35">{item.description}</p>
+      </button>)}
+    </div>
+    <div className="mt-6 grid gap-3 md:grid-cols-3">
+      <Info label="Custo da sessão" value={money(selected.cost)} />
+      <Info label="Folha mensal" value={money(calculateMonthlyPayroll([salaryTotal]))} />
+      <Info label="Orçamento disponível" value={money(club.budget)} />
+    </div>
+    <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
+      <p className="text-sm font-semibold">O que acontece?</p>
+      <p className="mt-2 text-xs leading-6 text-white/35">Os atributos relacionados ao foco podem subir 1 ponto, respeitando o potencial do atleta. A sessão também melhora ligeiramente forma e moral.</p>
+      <button disabled={!affordable || saving} onClick={complete} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{saving ? 'Treinando...' : affordable ? 'Realizar treinamento' : 'Orçamento insuficiente'} <ArrowRight size={16} /></button>
+    </div>
   </section></main>
 }
 
