@@ -38,6 +38,10 @@ export type InteractiveMatchState = {
   timeline: { minute: number; home: MatchStats; away: MatchStats }[]
   home: InteractiveTeamState
   away: InteractiveTeamState
+  homeSquad: Player[]
+  awaySquad: Player[]
+  homeStartingIds: Set<string>
+  awayStartingIds: Set<string>
   finished: boolean
   rng: () => number
 }
@@ -168,6 +172,10 @@ export function createInteractiveMatch(
     timeline: [],
     home,
     away,
+    homeSquad: availableHomePlayers.map(player => ({ ...player })),
+    awaySquad: availableAwayPlayers.map(player => ({ ...player })),
+    homeStartingIds: new Set(homeLineup.map(item => item.player.id)),
+    awayStartingIds: new Set(awayLineup.map(item => item.player.id)),
     finished: false,
     rng: random,
   }
@@ -193,6 +201,10 @@ function cloneState(state: InteractiveMatchState): InteractiveMatchState {
     timeline: [...state.timeline],
     home: cloneTeam(state.home),
     away: cloneTeam(state.away),
+    homeSquad: state.homeSquad.map(player => ({ ...player })),
+    awaySquad: state.awaySquad.map(player => ({ ...player })),
+    homeStartingIds: new Set(state.homeStartingIds),
+    awayStartingIds: new Set(state.awayStartingIds),
   }
 }
 
@@ -356,6 +368,7 @@ export function makeInteractiveSubstitution(
     type: 'substitution',
     team: teamName,
     player: incoming.first_name + ' ' + incoming.last_name,
+    playerId: incoming.id,
     text: incoming.first_name + ' ' + incoming.last_name + ' entra no lugar de ' + outgoing.player.first_name + ' ' + outgoing.player.last_name + '.',
   })
   return next
@@ -417,22 +430,20 @@ export function advanceInteractiveMinute(state: InteractiveMatchState, controlle
 }
 
 function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
-  const allTeams: Array<[InteractiveTeam, InteractiveTeamState]> = [['home', state.home], ['away', state.away]]
-  const started = new Set<string>([
-    ...state.home.lineup.map(item => item.player.id),
-    ...state.away.lineup.map(item => item.player.id),
-  ])
-  const originalHome = [...state.home.lineup, ...state.home.bench].map(item => 'player' in item ? item.player : item)
-  const originalAway = [...state.away.lineup, ...state.away.bench].map(item => 'player' in item ? item.player : item)
   const ratings: PlayerMatchRating[] = []
-  for (const [teamName, team] of allTeams) {
-    const players = teamName === 'home' ? originalHome : originalAway
-    for (const player of players) {
-      const name = player.first_name + ' ' + player.last_name
+  const teams: Array<[InteractiveTeam, InteractiveTeamState, Player[], Set<string>]> = [
+    ['home', state.home, state.homeSquad, state.homeStartingIds],
+    ['away', state.away, state.awaySquad, state.awayStartingIds],
+  ]
+  for (const [teamName, team, squad, startingIds] of teams) {
+    for (const player of squad) {
+      const name = playerNameForRating(player)
       const playerEvents = state.events.filter(event => event.team === teamName && event.player === name)
       const goals = playerEvents.filter(event => event.type === 'goal').length
       const cards = playerEvents.filter(event => event.type === 'card' || event.type === 'red_card').length
-      const minutes = team.removed.has(player.id) ? Math.max(1, state.minute - 1) : state.minute
+      const wasRemoved = team.removed.has(player.id)
+      const substitutionEvent = state.events.find(event => event.type === 'substitution' && event.playerId === player.id)
+      const minutes = wasRemoved ? Math.max(1, state.minute - 1) : substitutionEvent ? Math.max(1, state.minute - substitutionMinute(state, player.id)) : state.minute
       const base = 5.5 + (playerOverall(player) - 60) * 0.055
       ratings.push({
         playerId: player.id,
@@ -442,13 +453,22 @@ function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
         rating: Math.round(clamp(base + goals * 0.85 - cards * 0.4, 1, 10) * 10) / 10,
         goals,
         assists: 0,
-        fatigue: Math.round(clamp((player.fatigue ?? 0) + state.minute * 0.45)),
+        fatigue: Math.round(clamp((player.fatigue ?? 0) + minutes * 0.45)),
         minutes,
-        started: !team.bench.some(item => item.id === player.id),
+        started: startingIds.has(player.id),
       })
     }
   }
   return ratings
+}
+
+function playerNameForRating(player: Player) {
+  return player.first_name + ' ' + player.last_name
+}
+
+function substitutionMinute(state: InteractiveMatchState, playerId: string) {
+  const event = state.events.find(item => item.type === 'substitution' && item.playerId === playerId)
+  return event?.minute ?? 1
 }
 
 export function interactiveMatchResult(state: InteractiveMatchState): MatchResult {
