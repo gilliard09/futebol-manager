@@ -69,3 +69,55 @@ create index if not exists club_management_seasons_status_idx
 
 create index if not exists club_commercial_seasons_sponsor_idx
   on public.club_commercial_seasons(sponsor_id);
+
+-- A limpeza de nova carreira é executada pelo RPC de reset, que já é
+-- SECURITY DEFINER e não exige uma policy DELETE pública.
+create or replace function public.reset_world_state()
+returns void
+language plpgsql
+security definer
+set search_path=public
+as $$
+begin
+  delete from public.club_management_seasons;
+  delete from public.club_commercial_seasons;
+
+  delete from public.club_players;
+  insert into public.club_players(id,club_id,player_id,squad_number,contract_until,salary,market_value,joined_at)
+  select club_player_id,club_id,player_id,squad_number,contract_until,salary,market_value,now()
+  from public.world_baseline_squads;
+
+  update public.players p
+  set
+    first_name=b.first_name,
+    last_name=b.last_name,
+    age=b.age,
+    nationality=b.nationality,
+    position=b.position,
+    pace=b.pace,
+    shooting=b.shooting,
+    passing=b.passing,
+    dribbling=b.dribbling,
+    defending=b.defending,
+    physical=b.physical,
+    goalkeeping=b.goalkeeping,
+    mental=b.mental,
+    potential=b.potential,
+    form=b.form,
+    morale=b.morale,
+    updated_at=now()
+  from public.world_baseline_players b
+  where b.id=p.id;
+
+  update public.clubs c
+  set
+    budget=b.budget,
+    reputation=b.reputation,
+    strength=b.strength
+  from public.world_baseline_clubs b
+  where b.id=c.id;
+end;
+$$;
+
+revoke all on function public.reset_world_state() from public;
+grant execute on function public.reset_world_state() to anon,authenticated;
