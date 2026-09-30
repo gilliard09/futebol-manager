@@ -155,6 +155,46 @@ export function buildWorldNews(
     }
   }
 
+  if (pressDay) {
+    const ranked = Object.entries(performanceByClub)
+      .filter(([, performance]) => performance.played >= 5)
+      .sort((a, b) => a[1].position - b[1].position)
+
+    const leader = ranked[0]
+    const runnerUp = ranked[1]
+    if (leader && runnerUp && leader[1].points - runnerUp[1].points <= 3) {
+      const leaderName = clubName(leader[0])
+      const runnerUpName = clubName(runnerUp[0])
+      const userInRace = leader[0] === userClubId || runnerUp[0] === userClubId
+      push({ date: result.date, title: userInRace ? 'Seu clube entrou na briga pelo título' : 'Disputa pelo título esquenta', message: `${leaderName} lidera com ${leader[1].points} ponto(s), mas ${runnerUpName} está a apenas ${leader[1].points - runnerUp[1].points} ponto(s) da liderança.`, tone: 'positive', category: 'match', priority: userInRace ? 96 : 78, id: `title-race:${result.date}:${leader[0]}:${runnerUp[0]}` })
+    }
+
+    const fourth = ranked.find(([, performance]) => performance.position === 4)
+    const fifth = ranked.find(([, performance]) => performance.position === 5)
+    if (fourth && fifth && fourth[1].points - fifth[1].points <= 3) {
+      push({ date: result.date, title: 'Briga pelo G4 ganha tensão', message: `${clubName(fourth[0])} ocupa o 4º lugar, mas ${clubName(fifth[0])} está a apenas ${fourth[1].points - fifth[1].points} ponto(s) da vaga.`, tone: 'neutral', category: 'match', priority: fourth[0] === userClubId || fifth[0] === userClubId ? 91 : 62, id: `top-four:${result.date}:${fourth[0]}:${fifth[0]}` })
+    }
+
+    for (const [clubId, performance] of ranked) {
+      const club = clubs.find(item => item.id === clubId)
+      if (!club) continue
+      const results = performance.recentResults
+      let streak = 0
+      const streakResult = results[results.length - 1]
+      for (let i = results.length - 1; i >= 0 && results[i] === streakResult; i--) streak++
+      if (streak < 3) continue
+      const isUser = clubId === userClubId
+      if (streakResult === 'W') push({ date: result.date, title: isUser ? 'Seu clube vive uma sequência de vitórias' : 'Sequência de vitórias chama atenção', message: `${club.name} venceu os últimos ${streak} jogos da Liga Nacional do Brasil e ganhou força na classificação.`, tone: 'positive', category: 'match', priority: isUser ? 94 : 70, id: `streak-win:${result.date}:${clubId}:${streak}` })
+      else if (streakResult === 'L') push({ date: result.date, title: isUser ? 'A pressão aumenta no seu clube' : 'Jejum começa a preocupar', message: `${club.name} perdeu os últimos ${streak} jogos da Liga Nacional do Brasil e começa a perder terreno.`, tone: 'warning', category: 'match', priority: isUser ? 98 : 76, id: `streak-loss:${result.date}:${clubId}:${streak}` })
+    }
+
+    for (const [clubId, performance] of ranked) {
+      const club = clubs.find(item => item.id === clubId)
+      if (!club || clubId === userClubId) continue
+      if (club.reputation < 78 || performance.position < 9 || performance.recentPoints > 5) continue
+      push({ date: result.date, title: 'Grande clube vive momento difícil', message: `${club.name}, um dos clubes de maior reputação do campeonato, ocupa a ${performance.position}ª posição e somou apenas ${performance.recentPoints} ponto(s) nos últimos cinco jogos.`, tone: 'warning', category: 'club', priority: 84, id: `big-club-crisis:${result.date}:${clubId}` })
+    }
+  }
   const evolved = result.evolvedPlayerIds
     .map(id => playerById.get(id))
     .filter((player): player is WorldPlayer => Boolean(player))
