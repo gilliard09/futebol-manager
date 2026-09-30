@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw, Shield, Square } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw, Square, Goal, HeartPulse, CreditCard, Users, Zap, SlidersHorizontal } from 'lucide-react'
 import type { Fixture, Formation, ManagerProfile, Player } from '../types/game'
 import {
   advanceInteractiveMinute,
@@ -78,49 +78,62 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
   </div>
 }
 
-function TacticControls({ session, userTeam, onTactic }: { session: InteractiveMatchState; userTeam: InteractiveTeam; onTactic: (tactic: InteractiveTactic, formation?: Formation) => void }) {
-  const team = userTeam === 'home' ? session.home : session.away
-  return <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Comando tático</p>
-        <p className="mt-1 text-sm font-semibold">Ajuste sua equipe durante o jogo</p>
+
+function playerFieldPosition(role: string, team: InteractiveTeam, occurrence: number) {
+  const home = team === 'home'
+  const map: Record<string, { x: number; y: number }[]> = {
+    GK: [{ x: 50, y: 94 }], CB: [{ x: 35, y: 78 }, { x: 65, y: 78 }], LB: [{ x: 14, y: 80 }], RB: [{ x: 86, y: 80 }],
+    DM: [{ x: 50, y: 67 }, { x: 38, y: 66 }], CM: [{ x: 50, y: 57 }, { x: 34, y: 59 }, { x: 66, y: 59 }],
+    AM: [{ x: 50, y: 46 }], LW: [{ x: 18, y: 43 }], RW: [{ x: 82, y: 43 }], ST: [{ x: 50, y: 30 }, { x: 42, y: 31 }],
+  }
+  const point = map[role]?.[occurrence] ?? map[role]?.[0] ?? map.CM[0]
+  return { x: point.x, y: home ? point.y : 100 - point.y }
+}
+
+function Pitch({ session, userTeam }: { session: InteractiveMatchState; userTeam: InteractiveTeam }) {
+  const renderTeam = (teamNameValue: InteractiveTeam) => {
+    const team = teamNameValue === 'home' ? session.home : session.away
+    const counts: Record<string, number> = {}
+    return team.lineup.map(item => {
+      const occurrence = counts[item.role] ?? 0
+      counts[item.role] = occurrence + 1
+      const pos = playerFieldPosition(item.role, teamNameValue, occurrence)
+      const userSide = teamNameValue === userTeam
+      return <div key={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
+        <div className={userSide ? 'mx-auto flex h-9 w-9 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-500 text-[#04110c] shadow-lg md:h-10 md:w-10' : 'mx-auto flex h-9 w-9 items-center justify-center rounded-full border-2 border-orange-300 bg-orange-500 text-[#1a0b00] shadow-lg md:h-10 md:w-10'}>
+          <span className="text-[10px] font-black">{item.player.first_name[0]}{item.player.last_name[0]}</span>
+        </div>
+        <span className="mt-1 block max-w-20 truncate rounded bg-black/55 px-1 text-[8px] font-bold text-white">{item.player.last_name}</span>
       </div>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-white/25">{team.formation}</span>
+    })
+  }
+  return <section className="rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4">
+    <div className="mb-3 flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Escalação em campo</p><p className="mt-1 text-xs text-white/35">Verde = sua equipe · laranja = adversário</p></div><span className="rounded-full border border-white/8 px-2.5 py-1 font-mono text-[9px] font-bold text-white/35">{session.home.formation} · {session.away.formation}</span></div>
+    <div className="relative mx-auto aspect-[4/5] max-w-[470px] overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]">
+      <div className="absolute inset-3 rounded-xl border border-white/35" />
+      <div className="absolute left-1/2 top-1/2 h-px w-[calc(100%-24px)] -translate-x-1/2 bg-white/25" />
+      <div className="absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/25" />
+      <div className="absolute left-1/2 top-3 h-12 w-32 -translate-x-1/2 border border-t-0 border-white/25" />
+      <div className="absolute bottom-3 left-1/2 h-12 w-32 -translate-x-1/2 border border-b-0 border-white/25" />
+      {renderTeam('away')}{renderTeam('home')}
+      <span className="absolute left-2 top-2 rounded bg-black/30 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-white/55">Fora</span>
+      <span className="absolute bottom-2 left-2 rounded bg-black/30 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-white/55">Casa</span>
     </div>
-    <div className="mt-4 grid grid-cols-3 gap-2">
-      {(['defensive', 'balanced', 'offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => onTactic(value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${team.tactic === value ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/40 hover:text-white'}`}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}
-    </div>
-    <div className="mt-3 grid grid-cols-4 gap-2">
-      {(['4-3-3', '4-4-2', '4-2-3-1', '3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => onTactic(team.tactic, value)} className={`rounded-lg border px-2 py-2 text-[10px] font-bold ${team.formation === value ? 'border-white/15 bg-white/8 text-white' : 'border-white/5 text-white/30'}`}>{value}</button>)}
-    </div>
-    <p className="mt-3 text-[10px] leading-4 text-white/25">Use os controles abaixo durante a partida. A alteração será aplicada ao próximo minuto simulado.</p>
   </section>
 }
 
-function SubstitutionPanel({ session, userTeam, onSubstitute }: { session: InteractiveMatchState; userTeam: InteractiveTeam; onSubstitute: (outgoingId: string, incomingId: string) => void }) {
+function Bench({ session, userTeam, selectedOutgoing, onSelectIncoming }: { session: InteractiveMatchState; userTeam: InteractiveTeam; selectedOutgoing: string; onSelectIncoming: (id: string) => void }) {
   const team = userTeam === 'home' ? session.home : session.away
-  const [outgoing, setOutgoing] = useState('')
-  const [incoming, setIncoming] = useState('')
   return <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Substituições</p>
-        <p className="mt-1 text-sm font-semibold">{team.substitutions}/5 utilizadas</p>
-      </div>
-      <span className="text-[10px] font-bold uppercase tracking-wider text-white/25">{team.bench.length} no banco</span>
+    <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-1 text-sm font-semibold">Escolha quem entra</p></div><span className="font-mono text-xs font-bold text-white/35">{team.substitutions}/5</span></div>
+    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {team.bench.slice(0, 9).map(player => <button key={player.id} disabled={team.substitutions >= 5 || !selectedOutgoing} onClick={() => onSelectIncoming(player.id)} className="flex items-center gap-3 rounded-xl border border-white/6 bg-black/10 p-3 text-left transition hover:border-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-30">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[9px] font-black">{player.first_name[0]}{player.last_name[0]}</span>
+        <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{playerName(player)}</span><span className="mt-0.5 block text-[9px] uppercase tracking-wider text-white/25">{player.position} · OVR {playerOverall(player)}</span></span>
+        <ArrowRight size={14} className="text-white/20" />
+      </button>)}
     </div>
-    <div className="mt-4 grid gap-2 md:grid-cols-2">
-      <select value={outgoing} onChange={event => setOutgoing(event.target.value)} className="rounded-xl border border-white/8 bg-black/20 px-3 py-3 text-xs text-white outline-none">
-        <option value="">Sai jogador...</option>
-        {team.lineup.filter(item => item.player.position !== 'GK').map(item => <option key={item.player.id} value={item.player.id}>{playerName(item.player)} · {playerOverall(item.player)}</option>)}
-      </select>
-      <select value={incoming} onChange={event => setIncoming(event.target.value)} className="rounded-xl border border-white/8 bg-black/20 px-3 py-3 text-xs text-white outline-none">
-        <option value="">Entra jogador...</option>
-        {team.bench.map(player => <option key={player.id} value={player.id}>{playerName(player)} · {playerOverall(player)}</option>)}
-      </select>
-    </div>
-    <button disabled={!outgoing || !incoming || team.substitutions >= 5} onClick={() => { onSubstitute(outgoing, incoming); setOutgoing(''); setIncoming('') }} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 text-xs font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">Confirmar substituição <ArrowRight size={15} /></button>
+    {selectedOutgoing && <p className="mt-3 rounded-lg bg-emerald-400/8 px-3 py-2 text-[10px] font-bold text-emerald-300">Jogador de saída selecionado. Escolha um reserva.</p>}
   </section>
 }
 
@@ -132,6 +145,8 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const [session, setSession] = useState<InteractiveMatchState | null>(null)
   const [postgameTab, setPostgameTab] = useState<'events' | 'stats'>('events')
   const [lastEventCount, setLastEventCount] = useState(0)
+  const [selectedOutgoing, setSelectedOutgoing] = useState('')
+  const [eventFilter, setEventFilter] = useState<'all' | 'goal' | 'discipline' | 'injury' | 'substitution' | 'chance'>('all')
 
   const savedLineup = useMemo(() => {
     try {
@@ -256,38 +271,48 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Começar partida <Play size={17} /></button>
       </section>}
 
+
       {phase === 'live' && session && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
         <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-mono text-xs font-bold text-white/50">{session.minute}'</span>
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/6"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: (session.minute / 90) * 100 + '%' }} /></div>
-            <span className="font-mono text-xs text-white/25">90'</span>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={() => setPaused(value => !value)} className="flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Continuar' : 'Pausar'}</button>
-            <button onClick={skipToEnd} className="flex items-center gap-2 rounded-xl border border-white/8 px-4 py-2.5 text-xs font-bold text-white/60"><Square size={13} /> Pular para o fim</button>
-          </div>
+          <div className="flex items-center justify-between gap-3"><span className="font-mono text-xs font-bold text-white/50">{session.minute}'</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/6"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: (session.minute / 90) * 100 + '%' }} /></div><span className="font-mono text-xs text-white/25">90'</span></div>
+          <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => setPaused(value => !value)} className="flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Continuar' : 'Pausar'}</button><button onClick={skipToEnd} className="flex items-center gap-2 rounded-xl border border-white/8 px-4 py-2.5 text-xs font-bold text-white/60"><Square size={13} /> Pular para o fim</button><span className="ml-auto flex items-center gap-1.5 rounded-xl border border-white/6 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-white/25"><Zap size={12} /> {paused ? 'Pausado' : 'Ao vivo'}</span></div>
         </div>
-
-        <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-          <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
-            <div className="flex items-center justify-between"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Lance a lance</p><span className="text-[10px] font-bold text-white/20">{visibleEvents.length} eventos</span></div>
-            <div className="mt-4 max-h-[520px] space-y-2 overflow-y-auto pr-1">
-              {visibleEvents.length ? visibleEvents.slice().reverse().map((event, index) => <div key={event.minute + '-' + index} className={`flex items-start gap-3 rounded-xl border px-3 py-3 ${event.type === 'goal' ? 'border-emerald-400/20 bg-emerald-400/[0.06]' : event.type === 'red_card' || event.type === 'injury' ? 'border-red-400/20 bg-red-400/[0.04]' : 'border-white/5 bg-black/10'}`}>
-                <span className="w-8 shrink-0 font-mono text-xs font-bold text-white/35">{event.minute}'</span>
-                <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-[9px] font-bold uppercase tracking-wider text-white/25">{eventLabel(event.type)}</span><span className={`h-1.5 w-1.5 rounded-full ${event.team === 'home' ? 'bg-emerald-400' : 'bg-orange-400'}`} /></div><p className="mt-1 text-sm font-semibold">{event.player}</p><p className="mt-1 text-xs leading-5 text-white/35">{event.text}</p></div>
-              </div>) : <p className="py-8 text-center text-sm text-white/30">A partida começou. Aguardando o primeiro lance...</p>}
-            </div>
-          </section>
-
+        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="space-y-4">
+            <Pitch session={session} userTeam={userTeam} />
+            <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
+              <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua escalação</p><p className="mt-1 text-xs text-white/30">Selecione um titular para preparar a substituição.</p></div><span className="font-mono text-[9px] text-white/25">{user?.lineup.length ?? 0} em campo</span></div>
+              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">{user?.lineup.map(item => <button key={item.player.id} disabled={item.player.position === 'GK'} onClick={() => setSelectedOutgoing(item.player.id)} className={selectedOutgoing === item.player.id ? 'flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-400/8 p-2.5 text-left' : 'flex items-center gap-2 rounded-xl border border-white/5 bg-black/10 p-2.5 text-left'}><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-[8px] font-black">{item.player.first_name[0]}{item.player.last_name[0]}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold">{playerName(item.player)}</span><span className="block text-[8px] uppercase tracking-wider text-white/25">{item.role} · OVR {playerOverall(item.player)}</span></span></button>)}</div>
+            </section>
+            <Bench session={session} userTeam={userTeam} selectedOutgoing={selectedOutgoing} onSelectIncoming={(incomingId) => { if (selectedOutgoing) { applySubstitution(selectedOutgoing, incomingId); setSelectedOutgoing('') } }} />
+          </div>
           <aside className="space-y-4">
-            <TacticControls session={session} userTeam={userTeam} onTactic={applyTactic} />
-            <SubstitutionPanel session={session} userTeam={userTeam} onSubstitute={applySubstitution} />
-            {user && <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Estado da equipe</p><div className="mt-4 grid grid-cols-2 gap-2">{[['Ataque', user.metrics.attack.toFixed(0)],['Meio', user.metrics.midfield.toFixed(0)],['Defesa', user.metrics.defense.toFixed(0)],['Moral', user.metrics.morale.toFixed(0)]].map(([label,value]) => <div key={label} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">{label}</p><p className="mt-1 font-mono text-lg font-bold">{value}</p></div>)}</div></section>}
+            <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
+              <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Comando tático</p><p className="mt-1 text-sm font-semibold">Ajuste sem sair da partida</p></div><SlidersHorizontal size={16} className="text-white/25" /></div>
+              <div className="mt-4 grid grid-cols-3 gap-2">{(['defensive','balanced','offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => applyTactic(value)} className={user.tactic === value ? 'rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-2.5 text-[10px] font-bold text-emerald-300' : 'rounded-xl border border-white/6 bg-black/10 p-2.5 text-[10px] font-bold text-white/45'}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}</div>
+              <div className="mt-3 flex flex-wrap gap-1.5">{(['4-3-3','4-4-2','4-2-3-1','3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => applyTactic(user.tactic, value)} className={user.formation === value ? 'rounded-lg border border-white/20 bg-white/8 px-2.5 py-2 font-mono text-[9px] font-bold text-white' : 'rounded-lg border border-white/5 px-2.5 py-2 font-mono text-[9px] font-bold text-white/30'}>{value}</button>)}</div>
+            </section>
+            <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
+              <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Lance a lance</p><p className="mt-1 text-xs text-white/25">Eventos em tempo real</p></div><span className="font-mono text-[9px] text-white/20">{visibleEvents.length}</span></div>
+              <div className="mt-3 flex flex-wrap gap-1.5">{([['all','Tudo'],['goal','Gols'],['discipline','Cartões'],['injury','Lesões'],['substitution','Substituições'],['chance','Chances']] as const).map(([id,label]) => <button key={id} onClick={() => setEventFilter(id)} className={eventFilter === id ? 'rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[8px] font-bold uppercase tracking-wider text-white' : 'rounded-lg border border-white/5 px-2 py-1.5 text-[8px] font-bold uppercase tracking-wider text-white/25'}>{label}</button>)}</div>
+              <div className="mt-3 max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                {visibleEvents.slice().reverse().filter(event => eventFilter === 'all' || (eventFilter === 'goal' ? event.type === 'goal' : eventFilter === 'discipline' ? ['card','red_card'].includes(event.type) : eventFilter === 'injury' ? event.type === 'injury' : eventFilter === 'substitution' ? event.type === 'substitution' : event.type === 'chance')).map((event, index) => {
+                  const goal = event.type === 'goal'
+                  const danger = event.type === 'red_card' || event.type === 'injury'
+                  const icon = goal ? <Goal size={14} /> : event.type === 'injury' ? <HeartPulse size={14} /> : event.type === 'red_card' || event.type === 'card' ? <CreditCard size={14} /> : event.type === 'substitution' ? <Users size={14} /> : <Zap size={14} />
+                  const cardClass = goal ? 'border-emerald-400/25 bg-emerald-400/8' : danger ? 'border-red-400/25 bg-red-400/7' : event.type === 'card' ? 'border-yellow-400/15 bg-yellow-400/5' : 'border-white/5 bg-black/10'
+                  const iconClass = goal ? 'bg-emerald-400/15 text-emerald-300' : danger ? 'bg-red-400/15 text-red-300' : event.type === 'card' ? 'bg-yellow-400/10 text-yellow-300' : 'bg-white/5 text-white/35'
+                  return <div key={event.minute + '-' + index} className={'flex items-start gap-2 rounded-xl border p-3 ' + cardClass}>
+                    <span className={'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ' + iconClass}>{icon}</span><span className="w-7 shrink-0 font-mono text-[10px] font-bold text-white/35">{event.minute}'</span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-[8px] font-bold uppercase tracking-wider text-white/25">{eventLabel(event.type)}</span><span className={event.team === 'home' ? 'h-1.5 w-1.5 rounded-full bg-emerald-400' : 'h-1.5 w-1.5 rounded-full bg-orange-400'} /></div><p className="mt-1 text-xs font-bold">{event.player}</p><p className="mt-1 text-[10px] leading-4 text-white/35">{event.text}</p></div>
+                  </div>
+                })}
+                {!visibleEvents.length && <p className="py-8 text-center text-xs text-white/25">A partida começou. O próximo lance aparecerá aqui.</p>}
+              </div>
+            </section>
           </aside>
         </div>
-      </section>}
+      </section>
 
       {phase === 'postgame' && session && result && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
