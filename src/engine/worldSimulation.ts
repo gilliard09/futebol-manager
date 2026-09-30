@@ -178,7 +178,7 @@ export function simulateWorldDay(
   // A virada do ano envelhece todos os jogadores, inclusive os do clube do treinador.
   // O envelhecimento acontece aqui para que todas as carreiras atravessem as temporadas
   // pelo mesmo relógio do mundo.
-  if (month === 1 && day === 1) {
+  if (month === 1 && day === 10) {
     for (const player of players) {
       player.age += 1
       const overall = playerOverall(player)
