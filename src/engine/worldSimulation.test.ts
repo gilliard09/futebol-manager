@@ -154,3 +154,19 @@ describe('world simulation', () => {
     expect(players.some((player, index) => player.shooting > before[index].shooting || player.pace > before[index].pace || player.passing > before[index].passing || player.dribbling > before[index].dribbling || player.mental > before[index].mental || player.physical > before[index].physical || player.defending > before[index].defending)).toBe(true)
   })
 })
+
+
+it('connects individual performance to market value signals', () => {
+  const standout = basePlayer('standout', 'a')
+  standout.seasonGoals = 10
+  standout.seasonAssists = 5
+  standout.seasonAverageRating = 7.65
+
+  const ordinary = basePlayer('ordinary', 'a')
+  ordinary.seasonGoals = 1
+  ordinary.seasonAssists = 1
+  ordinary.seasonAverageRating = 6.5
+
+  expect(playerMarketPerformanceFactor(standout)).toBeGreaterThan(playerMarketPerformanceFactor(ordinary))
+  expect(playerMarketPerformanceFactor(standout)).toBeGreaterThan(1)
+})
