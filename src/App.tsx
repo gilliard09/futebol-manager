@@ -14,7 +14,7 @@ import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, createTransaction, estimateAttendance, type FinanceTransaction } from './engine/finance'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
-import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
+import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
@@ -774,10 +774,21 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const evolvedPlayerIds = new Set(results.flatMap(result => result.evolvedPlayerIds))
     const transfers = results.flatMap(result => result.transfers)
     const renewals = results.flatMap(result => result.renewals)
+    const newLoans = results.flatMap(result => result.loans ?? [])
     const retirements = results.flatMap(result => result.retirements)
     const expiredContracts = results.flatMap(result => result.expiredContracts)
     const youth = results.flatMap(result => result.youth)
     const changedClubs = new Set(results.flatMap(result => result.changedClubs))
+    const currentLoanState: LoanState = (() => {
+      try { return JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}') } catch { return { records: [] } }
+    })()
+    if (newLoans.length) {
+      const known = new Set(currentLoanState.records.map(record => record.id))
+      const mergedRecords = [...currentLoanState.records, ...newLoans.filter(record => !known.has(record.id))]
+      const nextLoanState = { records: mergedRecords }
+      localStorage.setItem(LOANS_KEY, JSON.stringify(nextLoanState))
+      setLoanState(nextLoanState)
+    }
 
     const changedPlayers = playersForWorld.filter(player => evolvedPlayerIds.has(player.id))
     await Promise.all(changedPlayers.map(player =>
@@ -900,7 +911,13 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const state = await loadWorldState()
     if (!state) return []
     const previousMarketInterest = loadMarketInterest(state.seasonId)
-    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest)
+    const activeLoans: LoanRecord[] = (() => {
+      try {
+        const stored: LoanState = JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}')
+        return stored.records ?? []
+      } catch { return [] }
+    })()
+    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans)
     localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
     const news = buildWorldNews(result, state.worldClubs, state.playersForWorld, state.performanceByClub, career.club.id)
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
@@ -969,7 +986,13 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       }
 
       const previousMarketInterest = loadMarketInterest(state.seasonId)
-      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest)
+      const activeLoans: LoanRecord[] = (() => {
+        try {
+          const stored: LoanState = JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}')
+          return stored.records ?? []
+        } catch { return [] }
+      })()
+      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans)
       localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
       results.push(result)
       news.push(...buildWorldNews(result, state.worldClubs, state.playersForWorld))
