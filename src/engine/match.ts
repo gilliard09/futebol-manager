@@ -200,7 +200,9 @@ export function selectStartingLineup(
     const fatigue = player.fatigue ?? 0
     const recentMinutes = player.seasonMinutes ?? 0
     const recentAppearances = player.seasonAppearances ?? 0
+    const recentStarts = player.seasonStarts ?? 0
     const recentRating = player.seasonAverageRating ?? 0
+    const startRate = recentAppearances > 0 ? recentStarts / recentAppearances : 0
     const formBonus = (player.form - 50) * 0.12
     const moraleBonus = (player.morale - 50) * (coachPersonality === 'psychologist' ? 0.07 : 0.04)
     const roleBonus = player.position === role ? 10 : 0
@@ -209,6 +211,7 @@ export function selectStartingLineup(
     const workloadPenalty = recentMinutes >= 900 ? (matchImportance >= 1.1 ? 2 : 7) : recentMinutes >= 600 ? (matchImportance >= 1.1 ? 1 : 3) : 0
     const recentRatingBonus = recentRating > 0 ? (recentRating - 6.5) * 2.2 : 0
     const appearanceBonus = Math.min(1.5, recentAppearances * 0.08)
+    const hierarchyBonus = Math.min(2.5, startRate * 2.5)
     const rotationBonus = coachStyle === 'youth_focus' && player.age <= 23 ? 5 : 0
     const developmentBonus = player.age <= 23 && player.potential >= overall + 8 ? 2 : 0
     const veteranPenalty = player.age >= 31 && recentMinutes >= 900 && matchImportance < 1.1 ? 2 : 0
@@ -218,7 +221,7 @@ export function selectStartingLineup(
       : opponentPressure <= -4 && matchImportance < 1.1
         ? (player.age <= 23 || recentMinutes < 600 ? 1.5 : 0)
         : 0
-    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + recentRatingBonus + appearanceBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
+    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + recentRatingBonus + appearanceBonus + hierarchyBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
   }
 
   return FORMATIONS[formation].map((role, slot) => {
