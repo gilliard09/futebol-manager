@@ -36,6 +36,7 @@ export type Player = {
 export type Fixture = {
   id: string
   competition_id: string
+  competition_name?: string | null
   season_id?: string
   round: number
   scheduled_at: string
