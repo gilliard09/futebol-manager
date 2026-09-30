@@ -403,10 +403,20 @@ export function simulateWorldDay(
       const overall = playerOverall(player)
       const performance = performanceByClub[club.id]
       const underPressure = Boolean(performance && (performance.position >= 13 || performance.recentPoints <= 4))
-      const important = underPressure ? overall >= club.strength || player.potential >= 86 : overall >= club.strength - 2 || player.potential >= 84
+      const role = getSquadRole(player)
+      const roleImportant = role === 'starter' || role === 'rotation' || (role === 'prospect' && player.potential >= 84)
+      const important = roleImportant && (underPressure
+        ? overall >= club.strength - 2 || player.potential >= 86
+        : overall >= club.strength - 4 || player.potential >= 84)
       if (!important || club.budget < 250000) continue
-      if (random01(`${date}:renew:${player.id}`) > 0.7) continue
-      const salary = Math.round(Math.max(player.salary * 1.08, overall * 1200) / 500) * 500
+      const renewalChance = role === 'starter'
+        ? 0.88
+        : role === 'rotation'
+          ? 0.76
+          : 0.68
+      if (random01(`${date}:renew:${player.id}`) > renewalChance) continue
+      const salaryMultiplier = role === 'starter' ? 1.14 : role === 'rotation' ? 1.1 : 1.06
+      const salary = Math.round(Math.max(player.salary * salaryMultiplier, overall * 1200) / 500) * 500
       player.salary = salary
       player.contractUntil = addYears(date, 2)
       club.budget = Math.max(0, club.budget - salary * 0.2)
@@ -453,7 +463,15 @@ export function simulateWorldDay(
         const ageFactor = player.age <= 23 ? 1.04 : player.age >= 32 ? 0.93 : 1
         const formFactor = player.form >= 80 ? 1.025 : player.form <= 45 ? 0.96 : 1
         const potentialFactor = player.potential >= overall + 10 ? 1.025 : 1
-        const multiplier = positionFactor * recentFactor * ageFactor * formFactor * potentialFactor
+        const role = getSquadRole(player)
+        const roleFactor = role === 'starter'
+          ? 1.035
+          : role === 'rotation'
+            ? 1.015
+            : role === 'prospect'
+              ? 1.025
+              : 0.985
+        const multiplier = positionFactor * recentFactor * ageFactor * formFactor * potentialFactor * roleFactor
         player.marketValue = Math.max(100000, Math.round((player.marketValue * multiplier) / 50000) * 50000)
         evolvedPlayerIds.add(player.id)
       }
