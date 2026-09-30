@@ -33,10 +33,17 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [round, setRound] = useState(1)
   const [statsMetric, setStatsMetric] = useState<'goals' | 'assists' | 'averageRating' | 'appearances'>('goals')
   const [statsScope, setStatsScope] = useState<'all' | 'club'>('all')
+  const [seasonStatus, setSeasonStatus] = useState<'upcoming' | 'active' | 'completed' | null>(null)
+  const [officialHistory, setOfficialHistory] = useState<any>(null)
 
   useEffect(() => {
     let active = true
     ;(async () => {
+      const { data: season } = await supabase.from('seasons').select('id,status').eq('name', 'Temporada 2026').maybeSingle()
+      if (season) {
+        const { data: historyRows } = await supabase.from('competition_history').select('competition_id,champion_club_id,runner_up_club_id,top_scorer_player_id,top_scorer_goals').eq('season_id', season.id)
+        if (active) { setSeasonStatus(season.status); setOfficialHistory(historyRows ?? []) }
+      }
       setLoading(true)
       const { data } = await supabase
         .from('fixtures')
@@ -214,9 +221,9 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <Info label="Campeão" value={history.champion?.short_name ?? 'Em aberto'} />
             <Info label="Vice-campeão" value={history.runnerUp?.short_name ?? 'Em aberto'} />
-            <Info label="Status" value={history.completed ? 'Competição encerrada' : 'Em andamento'} />
+            <Info label="Status" value={seasonStatus === 'completed' ? 'Temporada encerrada' : history.completed ? 'Competição encerrada' : 'Em andamento'} />
           </div>
-          <p className="mt-3 text-xs text-white/25">O registro persistente será gravado no encerramento da temporada. Esta área antecipa a leitura do histórico da competição.</p>
+          <p className="mt-3 text-xs text-white/25">{seasonStatus === 'completed' ? `Registro oficial salvo no histórico · ${officialHistory.length} competição(ões) consolidada(s).` : 'O registro persistente será gravado no encerramento da temporada.'}</p>
         </section>
 
         {stats.length > 0 && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
