@@ -101,13 +101,13 @@ describe('world simulation', () => {
 
   it('role and morale influence transfer need', () => {
     const clubs = [club('user', 1000000), club('ai-a', 7000000), club('ai-b', 7000000)]
-    const starter = basePlayer('starter-market', 'ST')
+    const starter = basePlayer('starter-market', 'user', 'ST')
     starter.seasonAppearances = 12
     starter.seasonStarts = 10
     starter.seasonMinutes = 1000
     starter.seasonAverageRating = 7.5
     starter.morale = 90
-    const unhappyBackup = basePlayer('backup-market', 'ST')
+    const unhappyBackup = basePlayer('backup-market', 'user', 'ST')
     unhappyBackup.seasonAppearances = 1
     unhappyBackup.seasonStarts = 0
     unhappyBackup.seasonMinutes = 30
