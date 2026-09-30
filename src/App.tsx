@@ -216,13 +216,177 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
     const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
     if (!leagueId || !cupId) return
-    const { data: fixtures } = await supabase.from('fixtures').select('round,status,home_club_id,away_club_id,home_score,away_score,winner_club_id,competition_id').eq('season_id', seasonId).in('competition_id', [leagueId, cupId])
+
+    const { data: fixtures } = await supabase
+      .from('fixtures')
+      .select('round,status,home_club_id,away_club_id,home_score,away_score,winner_club_id,competition_id')
+      .eq('season_id', seasonId)
+      .in('competition_id', [leagueId, cupId])
+
     const leagueFixtures = (fixtures ?? []).filter(item => item.competition_id === leagueId)
     const cupFixtures = (fixtures ?? []).filter(item => item.competition_id === cupId)
-    const completion = buildSeasonCompletion({ id: seasonId, name: SEASON_NAME }, leagueId, cupId, leagueFixtures, cupFixtures, Object.values(matches))
+    const completion = buildSeasonCompletion(
+      { id: seasonId, name: SEASON_NAME },
+      leagueId,
+      cupId,
+      leagueFixtures,
+      cupFixtures,
+      Object.values(matches),
+    )
     if (!completion) return
-    const { error } = await supabase.from('seasons').update({ status: 'completed', end_date: toDateKey(new Date().toISOString()) }).eq('id', seasonId).eq('status', 'active')
-    if (error) { console.error('Não foi possível fechar a temporada', error); return }
+
+    // O fechamento precisa ser idempotente: só a primeira chamada que encontrar
+    // a temporada ativa pode aplicar os efeitos das conquistas.
+    const { data: closedSeason, error } = await supabase
+      .from('seasons')
+      .update({ status: 'completed', end_date: toDateKey(new Date().toISOString()) })
+      .eq('id', seasonId)
+      .eq('status', 'active')
+      .select('id')
+      .maybeSingle()
+
+    if (error) {
+      console.error('Não foi possível fechar a temporada', error)
+      return
+    }
+    if (!closedSeason) return
+
+    const leagueTeams = [...new Set(leagueFixtures.flatMap(item => [item.home_club_id, item.away_club_id]))]
+      .map(id => ({ id, name: id }))
+    const leagueStandings = buildStandings(leagueTeams, leagueFixtures as any)
+    const topFour = leagueStandings.slice(0, 4).map(team => team.id)
+
+    // Na Copa, a semifinal é a fase anterior à final (rodada 6 no calendário atual).
+    const semifinalists = [...new Set(
+      cupFixtures
+        .filter(item => item.round === 6)
+        .flatMap(item => [item.home_club_id, item.away_club_id]),
+    )]
+
+    const achievementByClub = new Map<string, {
+      budgetBonus: number
+      reputationBonus: number
+      strengthBonus: number
+      marketMultiplier: number
+    }>()
+
+    function achievement(clubId: string) {
+      const current = achievementByClub.get(clubId) ?? {
+        budgetBonus: 0,
+        reputationBonus: 0,
+        strengthBonus: 0,
+        marketMultiplier: 1,
+      }
+      achievementByClub.set(clubId, current)
+      return current
+    }
+
+    // Liga: o título tem um peso claramente maior que uma boa colocação.
+    topFour.forEach((clubId, index) => {
+      const current = achievement(clubId)
+      if (index === 0) {
+        current.budgetBonus += 3_000_000
+        current.reputationBonus += 5
+        current.strengthBonus += 2
+        current.marketMultiplier *= 1.05
+      } else if (index === 1) {
+        current.budgetBonus += 1_500_000
+        current.reputationBonus += 2
+        current.strengthBonus += 1
+        current.marketMultiplier *= 1.02
+      } else {
+        current.budgetBonus += 750_000
+        current.reputationBonus += 1
+        current.marketMultiplier *= 1.01
+      }
+    })
+
+    const cupChampion = achievement(completion.cup.championClubId)
+    cupChampion.budgetBonus += 2_000_000
+    cupChampion.reputationBonus += 3
+    cupChampion.strengthBonus += 1
+    cupChampion.marketMultiplier *= 1.03
+
+    if (completion.cup.runnerUpClubId) {
+      const cupRunner = achievement(completion.cup.runnerUpClubId)
+      cupRunner.budgetBonus += 1_000_000
+      cupRunner.reputationBonus += 1
+      cupRunner.marketMultiplier *= 1.015
+    }
+
+    semifinalists.forEach(clubId => {
+      if (clubId === completion.cup.championClubId || clubId === completion.cup.runnerUpClubId) return
+      const current = achievement(clubId)
+      current.budgetBonus += 500_000
+      current.reputationBonus += 1
+      current.marketMultiplier *= 1.01
+    })
+
+    // Títulos anteriores começam a construir uma "era": um novo título de um
+    // clube que já ganhou antes gera um bônus adicional, sem deixar a reputação
+    // escapar do teto normal do jogo.
+    const { data: previousLeagueHistory } = await supabase
+      .from('competition_history')
+      .select('champion_club_id')
+      .eq('competition_id', leagueId)
+      .neq('season_id', seasonId)
+
+    const previousLeagueTitles = new Map<string, number>()
+    for (const row of previousLeagueHistory ?? []) {
+      if (!row.champion_club_id) continue
+      previousLeagueTitles.set(row.champion_club_id, (previousLeagueTitles.get(row.champion_club_id) ?? 0) + 1)
+    }
+
+    const currentLeagueChampion = completion.league.championClubId
+    if (currentLeagueChampion) {
+      const priorTitles = previousLeagueTitles.get(currentLeagueChampion) ?? 0
+      if (priorTitles > 0) {
+        const era = Math.min(3, priorTitles)
+        const current = achievement(currentLeagueChampion)
+        current.budgetBonus += era * 500_000
+        current.reputationBonus += era * 2
+        current.strengthBonus += era
+        current.marketMultiplier *= 1 + era * 0.01
+      }
+    }
+
+    // O efeito econômico chega ao elenco inteiro: títulos valorizam o ativo
+    // esportivo, enquanto campanhas relevantes aumentam a capacidade financeira
+    // e a reputação do clube.
+    const { data: clubsToUpdate } = await supabase
+      .from('clubs')
+      .select('id,budget,reputation,strength')
+      .in('id', [...achievementByClub.keys()])
+
+    for (const club of clubsToUpdate ?? []) {
+      const effect = achievementByClub.get(club.id)
+      if (!effect) continue
+      await supabase
+        .from('clubs')
+        .update({
+          budget: Math.max(0, Number(club.budget ?? 0) + effect.budgetBonus),
+          reputation: Math.max(35, Math.min(95, Number(club.reputation ?? 50) + effect.reputationBonus)),
+          strength: Math.max(35, Math.min(95, Number(club.strength ?? 50) + effect.strengthBonus)),
+        })
+        .eq('id', club.id)
+    }
+
+    const { data: squadLinks } = await supabase
+      .from('club_players')
+      .select('id,club_id,market_value')
+      .in('club_id', [...achievementByClub.keys()])
+
+    for (const player of squadLinks ?? []) {
+      const effect = achievementByClub.get(player.club_id)
+      if (!effect) continue
+      await supabase
+        .from('club_players')
+        .update({
+          market_value: Math.max(100_000, Math.round((Number(player.market_value ?? 100_000) * effect.marketMultiplier) / 50_000) * 50_000),
+        })
+        .eq('id', player.id)
+    }
+
     setSeasonClosed(true)
     setSeasonCompletion(completion)
   }
