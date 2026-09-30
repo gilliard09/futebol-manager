@@ -2464,7 +2464,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       }
 
       // Cada partida agora deixa um registro permanente da carreira esportiva.
-      // Os 11 jogadores avaliados pelo motor são considerados titulares e recebem 90 minutos.
+      // O motor agora retorna somente jogadores que efetivamente participaram da partida; reservas não utilizados ficam fora das estatísticas.
       const seasonId = activeMatchFixture.season_id
       if (seasonId) {
         const playerIds = [...new Set(Object.values(matchesToPersist).flatMap(match => (match.playerRatings ?? []).map(rating => rating.playerId)))]
@@ -2810,7 +2810,7 @@ function ClubMatchSide({ club, overall, align }: { club: { name: string; short_n
   const content = <div className={`flex items-center gap-3 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
     {align === 'right' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Seu clube'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/90 p-2 shadow-lg sm:h-16 sm:w-16">
-      {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <Shield size={25} className="text-slate-700" />}
+      {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-sm font-black text-slate-700">{(club?.short_name ?? club?.name ?? "FC").slice(0, 3).toUpperCase()}</span>}
     </div>
     {align === 'left' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Adversário'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
   </div>
@@ -2881,7 +2881,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
         <div className="rounded-xl bg-white/[0.025] p-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5">
-              {career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <Shield size={16} className="text-white/35" />}
+              {career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-[10px] font-black text-white/55">{(career.club.short_name ?? career.club.name ?? "FM").slice(0, 3).toUpperCase()}</span>}
             </div>
             <div className="min-w-0"><p className="truncate text-xs font-bold">{career.club.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">{career.name}</p></div>
           </div>
@@ -2965,7 +2965,7 @@ function OpponentSquad({ players, club, today, back }: { players: Player[]; club
   const lineup = club && players.length && coach ? selectStartingLineup(players, coach.formation, coach.style, coach.personality, [], {}, 1) : []
   return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
     <button onClick={back} className="mb-6 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
-    <div className="mb-6 flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-2">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <Shield size={24} className="text-slate-500" />}</div><div><p className="label-mono text-white/30">Próximo adversário</p><h1 className="mt-1 font-display text-3xl font-bold">{club?.name ?? 'Adversário'}</h1><p className="mt-1 text-sm text-white/35">{club?.city ?? '—'} · {club?.stadium ?? 'Estádio não informado'} · {formatSeasonDate(today)}</p></div></div>
+    <div className="mb-6 flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-2">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-sm font-black text-slate-500">{(club?.short_name ?? club?.name ?? "FC").slice(0, 3).toUpperCase()}</span>}</div><div><p className="label-mono text-white/30">Próximo adversário</p><h1 className="mt-1 font-display text-3xl font-bold">{club?.name ?? 'Adversário'}</h1><p className="mt-1 text-sm text-white/35">{club?.city ?? '—'} · {club?.stadium ?? 'Estádio não informado'} · {formatSeasonDate(today)}</p></div></div>
     <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]"><section className="game-panel"><p className="label-mono text-white/30">Escalação provável</p><h2 className="mt-1 font-display text-xl font-bold">{coach?.formation ?? '—'} · {coach?.tactic === 'offensive' ? 'Ofensivo' : coach?.tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</h2><div className="mt-4 space-y-2">{lineup.map(item => <div key={item.player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-2.5"><div><p className="text-xs font-bold">{item.player.first_name} {item.player.last_name}</p><p className="mt-0.5 text-[9px] uppercase tracking-wider text-white/25">{item.role} · OVR {playerOverall(item.player)}</p></div><span className="font-mono text-[9px] text-white/25">#{item.player.id.slice(0,4)}</span></div>)}</div></section><section className="game-panel"><div className="relative mx-auto aspect-[4/5] max-w-[430px] overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]"><div className="absolute inset-3 rounded-xl border border-white/30" />{lineup.map((item,index) => <div key={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{left: playerFieldPositionForRole(item.role,index) + '%', top: playerFieldY(item.role,index) + '%'}}><span className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-[9px] font-black text-[#1a0b00]">{item.player.first_name[0]}{item.player.last_name[0]}</span><span className="mt-1 block max-w-16 truncate bg-black/50 px-1 text-[8px] font-bold">{item.player.last_name}</span></div>)}</div></section></div>
   </main>
 }
