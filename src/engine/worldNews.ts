@@ -156,6 +156,69 @@ export function buildWorldNews(
   }
 
   if (pressDay) {
+    const activePlayers = players.filter(player => player.clubId !== '' && (player.seasonAppearances ?? 0) >= 3)
+    const topScorer = [...activePlayers].sort((a, b) => (b.seasonGoals ?? 0) - (a.seasonGoals ?? 0))[0]
+    if (topScorer && (topScorer.seasonGoals ?? 0) >= 5) {
+      const isUser = topScorer.clubId === userClubId
+      push({
+        date: result.date,
+        title: isUser ? 'Seu jogador é destaque na artilharia' : 'Artilheiro começa a chamar atenção',
+        message: `${playerName(topScorer.id)} já marcou ${topScorer.seasonGoals} gol(s) na temporada pelo ${clubName(topScorer.clubId)}.`,
+        tone: 'positive',
+        category: 'career',
+        priority: isUser ? 97 : 73,
+        id: `top-scorer:${result.date}:${topScorer.id}:${topScorer.seasonGoals}`,
+      })
+    }
+
+    const topRated = [...activePlayers].filter(player => (player.seasonAverageRating ?? 0) >= 7).sort((a, b) => (b.seasonAverageRating ?? 0) - (a.seasonAverageRating ?? 0))[0]
+    if (topRated && (topRated.seasonAverageRating ?? 0) >= 7.4) {
+      const isUser = topRated.clubId === userClubId
+      push({
+        date: result.date,
+        title: isUser ? 'Um dos seus jogadores vive grande fase' : 'Jogador vira destaque da temporada',
+        message: `${playerName(topRated.id)} tem média ${topRated.seasonAverageRating?.toFixed(2)} nas últimas atuações pelo ${clubName(topRated.clubId)}.`,
+        tone: 'positive',
+        category: 'career',
+        priority: isUser ? 93 : 69,
+        id: `top-rated:${result.date}:${topRated.id}`,
+      })
+    }
+
+    const youngBreakout = [...activePlayers]
+      .filter(player => player.age <= 23 && (player.seasonStarts ?? 0) >= 5 && (player.seasonAverageRating ?? 0) >= 7)
+      .sort((a, b) => (b.seasonAverageRating ?? 0) - (a.seasonAverageRating ?? 0))[0]
+    if (youngBreakout) {
+      const isUser = youngBreakout.clubId === userClubId
+      push({
+        date: result.date,
+        title: isUser ? 'Jovem do seu elenco ganha destaque' : 'Jovem revelação começa a aparecer',
+        message: `${playerName(youngBreakout.id)}, de ${youngBreakout.age} anos, vem sendo titular e mantém média ${youngBreakout.seasonAverageRating?.toFixed(2)} pelo ${clubName(youngBreakout.clubId)}.`,
+        tone: 'positive',
+        category: 'academy',
+        priority: isUser ? 95 : 71,
+        id: `young-breakout:${result.date}:${youngBreakout.id}`,
+      })
+    }
+
+    const strugglingStarter = [...activePlayers]
+      .filter(player => (player.seasonStarts ?? 0) >= 5 && (player.seasonAverageRating ?? 0) > 0 && (player.seasonAverageRating ?? 0) < 5.9)
+      .sort((a, b) => (a.seasonAverageRating ?? 0) - (b.seasonAverageRating ?? 0))[0]
+    if (strugglingStarter) {
+      const isUser = strugglingStarter.clubId === userClubId
+      push({
+        date: result.date,
+        title: isUser ? 'Titular do seu clube vive má fase' : 'Titular entra na mira das críticas',
+        message: `${playerName(strugglingStarter.id)} tem média ${strugglingStarter.seasonAverageRating?.toFixed(2)} e começa a ser questionado após ${strugglingStarter.seasonStarts} titularidades.`,
+        tone: 'warning',
+        category: 'squad',
+        priority: isUser ? 90 : 65,
+        id: `struggling-player:${result.date}:${strugglingStarter.id}`,
+      })
+    }
+  }
+
+  if (pressDay) {
     const ranked = Object.entries(performanceByClub)
       .filter(([, performance]) => performance.played >= 5)
       .sort((a, b) => a[1].position - b[1].position)
