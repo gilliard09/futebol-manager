@@ -1671,9 +1671,9 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     {worldNews.length > 0 && <section className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Ao redor do seu clube</p>
-          <h2 className="mt-2 text-2xl font-bold">Notícias do mundo</h2>
-          <p className="mt-2 text-sm text-white/35">Enquanto você trabalha no seu clube, o restante do futebol continua se movimentando.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Imprensa do futebol</p>
+          <h2 className="mt-2 text-2xl font-bold">O mundo continua jogando</h2>
+          <p className="mt-2 text-sm text-white/35">Mercado, resultados, jovens e decisões importantes ganham espaço conforme acontecem.</p>
         </div>
         <Newspaper size={22} className="text-white/25" />
       </div>
@@ -1688,7 +1688,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold">{item.title}</p>
-                <p className="mt-1 text-xs leading-5 text-white/40">{item.message}</p>
+                <div className="mt-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-wider text-white/20">{item.category === 'market' ? 'Mercado' : item.category === 'academy' ? 'Base' : item.category === 'career' ? 'Carreira' : item.category === 'club' ? 'Clube' : 'Elenco'}</span><p className="text-xs leading-5 text-white/40">{item.message}</p></div>
               </div>
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-white/20">{formatSeasonDate(item.date)}</span>
             </div>
