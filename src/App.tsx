@@ -421,7 +421,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [advancingDays, setAdvancingDays] = useState(false)
 
   async function advanceOneDay(fromClock = clock) {
-    if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate) || advancingDays) return false
+    if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
     const nextClock = advanceSeasonDay(fromClock)
     await simulateOtherClubs(nextClock.currentDate)
     const nextPlayers = recoverPlayers(players, 8)
