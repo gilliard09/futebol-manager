@@ -32,6 +32,7 @@ export type MarketInterest = {
   startedAt: string
   stage: 'monitoring' | 'scouting' | 'proposal_ready'
   lastUpdated: string
+  stageChanged?: boolean
 }
 
 export type WorldSimulationResult = {
@@ -293,13 +294,6 @@ export function simulateWorldDay(
     changedClubs.add(previousClubId)
   }
   // O mercado guarda memória: interesse nasce, amadurece e só depois pode virar proposta.
-  const previousInterestByKey = new Map<string, MarketInterest>()
-  for (const interest of previousMarketInterest) {
-    for (const clubId of interest.clubIds) {
-      previousInterestByKey.set(interest.playerId + ':' + clubId, interest)
-    }
-  }
-
   const candidateInterests = new Map<string, Set<string>>()
   if ([10, 20].includes(day)) {
     const standoutPlayers = players
@@ -368,6 +362,7 @@ export function simulateWorldDay(
       clubIds: nextClubs,
       stage,
       lastUpdated: date,
+      stageChanged: stage !== previous.stage,
     })
     if (candidates) candidateInterests.delete(previous.playerId)
   }
@@ -380,6 +375,7 @@ export function simulateWorldDay(
       startedAt: date,
       stage: 'monitoring',
       lastUpdated: date,
+      stageChanged: true,
     })
   }
 
