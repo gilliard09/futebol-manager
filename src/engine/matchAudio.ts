@@ -16,7 +16,7 @@ export type MatchSound = keyof typeof SOUND_PATHS
 export function playMatchSound(sound: MatchSound) {
   if (typeof window === 'undefined') return
   const audio = new Audio(SOUND_PATHS[sound])
-  audio.volume = sound === 'goal_home' || sound === 'goal_away' ? 0.75 : 0.55
+  audio.volume = sound === 'goal_home' || sound === 'goal_away' ? 0.9 : 0.7
   void audio.play().catch(() => {
     // O navegador pode bloquear áudio até haver interação do usuário.
   })
@@ -27,7 +27,7 @@ export function startMatchAmbient() {
   if (!ambientAudio) {
     ambientAudio = new Audio(AMBIENT_PATH)
     ambientAudio.loop = true
-    ambientAudio.volume = 0.18
+    ambientAudio.volume = 0.12
   }
   if (ambientAudio.paused) {
     void ambientAudio.play().catch(() => {
