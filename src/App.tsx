@@ -210,7 +210,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
   const [seasonClosed, setSeasonClosed] = useState(false)
   const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
-  const [pendingEvent, setPendingEvent] = useState<{ type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number } | null>(null)
 
   async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
     const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
