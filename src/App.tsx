@@ -62,6 +62,7 @@ export default function App() {
   const [clubs, setClubs] = useState<Club[]>([])
   const [managerName, setManagerName] = useState('')
   const [nationality, setNationality] = useState('Brasil')
+  const [birthDate, setBirthDate] = useState('')
   const [managerStyle, setManagerStyle] = useState<ManagerProfile['style']>('high_press')
   const [managerPersonality, setManagerPersonality] = useState<ManagerProfile['personality']>('motivator')
   const [selectedClub, setSelectedClub] = useState<Club | null>(null)
@@ -90,8 +91,10 @@ export default function App() {
 
   function confirmCareer() {
     if (!selectedClub || !canContinue) return
-    const next: ManagerProfile = { name: managerName.trim(), nationality, club: selectedClub, season: 'Temporada 2026' }
-    localStorage.setItem(CAREER_KEY, JSON.stringify(next)); setCareer(next); setScreen('dashboard')
+    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate: birthDate || '1990-01-01', style: managerStyle, personality: managerPersonality, club: selectedClub, season: 'Temporada 2026' }
+    localStorage.setItem(CAREER_KEY, JSON.stringify(next))
+    localStorage.setItem(FINANCE_KEY, JSON.stringify([createTransaction('2026-01-11', 'bonus', 'Orçamento inicial da carreira', selectedClub.budget, undefined, 'career:initial-budget')]))
+    setCareer(next); setScreen('dashboard')
   }
 
   function newCareer() {
@@ -104,7 +107,7 @@ export default function App() {
     localStorage.removeItem(TACTIC_KEY)
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
-    setCareer(null); setManagerName(''); setSelectedClub(null); setScreen('manager')
+    setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); setScreen('manager')
   }
 
   return <div className="min-h-screen bg-[#090b0f] text-white"><div className="mx-auto min-h-screen max-w-6xl border-x border-white/5 bg-[#0d1015]">
