@@ -332,6 +332,11 @@ export function simulateMatch(
   const enteredAtById = new Map<string, number>()
   const startedIds = new Set([...home, ...away].map(item => item.player.id))
   const substitutions = new Set<string>()
+  const substitutionCount: Record<'home' | 'away', number> = { home: 0, away: 0 }
+  const substitutionWindows: Record<'home' | 'away', Set<number>> = {
+    home: new Set<number>(),
+    away: new Set<number>(),
+  }
   const modifiers = coachModifiers(coachStyle, coachPersonality)
   const homeMetrics = calculateTeamMetrics(home, tactic, formation)
   homeMetrics.attack = clamp(homeMetrics.attack + modifiers.attack)
@@ -354,21 +359,56 @@ export function simulateMatch(
     enteredAtById.set(item.player.id, 1)
   }
 
-  const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away') => {
-    if (![60, 72].includes(minute)) return
-    const tiredness = (item: LineupPlayer) =>
-      (item.player.fatigue ?? 0)
-      + minute * 0.9
-      + Math.max(0, 70 - item.player.physical) * 0.3
+  const matchImportance = (() => {
+    const competition = (fixture.competition_name ?? '').toLowerCase()
+    if (competition.includes('copa')) return fixture.round >= 5 ? 1.2 : 1.08
+    return fixture.round >= 25 ? 1.12 : 1
+  })()
+  const rotationIntensity = coachStyle === 'high_press' || coachStyle === 'gegenpressing'
+    ? 1.12
+    : coachStyle === 'defensive_block' || coachStyle === 'possession'
+      ? 0.94
+      : 1
+
+  const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away', own: TeamMetrics, opponent: TeamMetrics) => {
+    if (![55, 70, 80].includes(minute) || substitutionWindows[team].has(minute) || substitutionCount[team] >= 5) return
+    substitutionWindows[team].add(minute)
+
+    const scoreDifference = team === 'home' ? homeScore - awayScore : awayScore - homeScore
+    const protectingLead = scoreDifference > 0
+    const chasingGame = scoreDifference < 0
+    const tacticalUrgency = chasingGame ? (coachStyle === 'counter_attack' || coachStyle === 'direct' || coachStyle === 'high_press' ? 1.08 : 1.02) : protectingLead ? 0.94 : 1
+    const baseThreshold = minute < 65 ? 69 : minute < 76 ? 64 : 60
+    const fatigueThreshold = baseThreshold * matchImportance / rotationIntensity * tacticalUrgency
+
+    const tiredness = (item: LineupPlayer) => {
+      const ageLoad = Math.max(0, item.player.age - 28) * 0.8
+      const physicalLoad = Math.max(0, 70 - item.player.physical) * 0.3
+      const accumulatedFatigue = (item.player.fatigue ?? 0) * (1 + Math.max(0, 70 - item.player.physical) / 180)
+      const minuteLoad = minute * (coachStyle === 'high_press' || coachStyle === 'gegenpressing' ? 1 : 0.9)
+      return accumulatedFatigue + minuteLoad + physicalLoad + ageLoad
+    }
 
     const tired = active
-      .filter(item => tiredness(item) >= 60)
-      .sort((a, b) => tiredness(b) - tiredness(a))
-      .slice(0, 2)
-    for (const outgoing of tired) {
+      .filter(item => item.role !== 'GK' || tiredness(item) >= fatigueThreshold + 12)
+      .map(item => ({ item, value: tiredness(item) }))
+      .filter(({ value }) => value >= fatigueThreshold)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, Math.min(2, 5 - substitutionCount[team]))
+
+    for (const outgoingData of tired) {
+      const outgoing = outgoingData.item
       const replacement = [...bench]
         .filter(player => !substitutions.has(player.id))
-        .sort((a, b) => selectionScore(b, outgoing.role) - selectionScore(a, outgoing.role))[0]
+        .sort((a, b) => {
+          const aBase = selectionScore(a, outgoing.role)
+          const bBase = selectionScore(b, outgoing.role)
+          const attackNeed = chasingGame ? 5 : protectingLead ? -2 : 0
+          const defenseNeed = protectingLead ? 4 : chasingGame ? -1 : 0
+          const aTactical = (['ST', 'LW', 'RW', 'AM'].includes(a.position) ? attackNeed : 0) + (['GK', 'CB', 'LB', 'RB', 'DM'].includes(a.position) ? defenseNeed : 0)
+          const bTactical = (['ST', 'LW', 'RW', 'AM'].includes(b.position) ? attackNeed : 0) + (['GK', 'CB', 'LB', 'RB', 'DM'].includes(b.position) ? defenseNeed : 0)
+          return (bBase + bTactical) - (aBase + aTactical)
+        })[0]
       if (!replacement) continue
       const index = active.findIndex(item => item.player.id === outgoing.player.id)
       if (index < 0) continue
@@ -377,6 +417,7 @@ export function simulateMatch(
       minutesById.set(replacement.id, Math.max(0, 91 - minute))
       enteredAtById.set(replacement.id, minute)
       substitutions.add(replacement.id)
+      substitutionCount[team] += 1
       active[index] = { player: replacement, role: outgoing.role, slot: outgoing.slot }
       events.push({
         minute,
@@ -389,8 +430,8 @@ export function simulateMatch(
   }
 
   for (let minute = 1; minute <= 90; minute++) {
-    makeSubstitutions(minute, homeActive, homeBench, 'home')
-    makeSubstitutions(minute, awayActive, awayBench, 'away')
+    makeSubstitutions(minute, homeActive, homeBench, 'home', homeMetrics, awayMetrics)
+    makeSubstitutions(minute, awayActive, awayBench, 'away', awayMetrics, homeMetrics)
     const homeBefore = events.length
     simulateSide(minute, 'home', homeActive, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName, modifiers)
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
