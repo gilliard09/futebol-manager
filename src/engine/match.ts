@@ -1,4 +1,4 @@
-import type { Fixture, Formation, LineupPlayer, Player } from '../types/game'
+import type { CoachPersonality, CoachStyle, Fixture, Formation, LineupPlayer, Player } from '../types/game'
 import { FORMATIONS } from '../types/game'
 
 export type MatchEvent = {
@@ -188,10 +188,11 @@ export function selectStartingLineup(
   preferredIds: Record<number, string> = {},
   matchImportance = 1,
 ) {
+  const squadOverall = average(players.map(player => playerOverall(player)))
   const opponentOverall = opponentPlayers.length
     ? average(opponentPlayers.map(player => playerOverall(player)))
     : 60
-  const opponentPressure = Math.max(0, opponentOverall - average(players.map(player => playerOverall(player))))
+  const opponentPressure = opponentOverall - squadOverall
   const used = new Set<string>()
 
   const score = (player: Player, role: string, slot: number) => {
@@ -206,12 +207,18 @@ export function selectStartingLineup(
     const preferredBonus = preferredIds[slot] === player.id ? 12 : 0
     const fatiguePenalty = fatigue * (matchImportance >= 1.1 ? 0.14 : 0.22)
     const workloadPenalty = recentMinutes >= 900 ? (matchImportance >= 1.1 ? 2 : 7) : recentMinutes >= 600 ? (matchImportance >= 1.1 ? 1 : 3) : 0
+    const recentRatingBonus = recentRating > 0 ? (recentRating - 6.5) * 2.2 : 0
+    const appearanceBonus = Math.min(1.5, recentAppearances * 0.08)
     const rotationBonus = coachStyle === 'youth_focus' && player.age <= 23 ? 5 : 0
     const developmentBonus = player.age <= 23 && player.potential >= overall + 8 ? 2 : 0
     const veteranPenalty = player.age >= 31 && recentMinutes >= 900 && matchImportance < 1.1 ? 2 : 0
     const bigGameBonus = matchImportance >= 1.1 && overall >= opponentOverall ? 2 : 0
-    const pressureBonus = opponentPressure >= 5 && overall >= playerOverall(player) ? 0 : 0
-    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
+    const pressureBonus = opponentPressure >= 4
+      ? Math.max(0, Math.min(3, (overall - opponentOverall) * 0.5))
+      : opponentPressure <= -4 && matchImportance < 1.1
+        ? (player.age <= 23 || recentMinutes < 600 ? 1.5 : 0)
+        : 0
+    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + recentRatingBonus + appearanceBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
   }
 
   return FORMATIONS[formation].map((role, slot) => {
@@ -221,6 +228,30 @@ export function selectStartingLineup(
     used.add(player.id)
     return { player, role, slot }
   }).filter(Boolean) as LineupPlayer[]
+}
+
+export function getAiCoachProfile(clubId: string): {
+  style: CoachStyle
+  personality: CoachPersonality
+  formation: Formation
+  tactic: 'balanced' | 'offensive' | 'defensive'
+} {
+  let value = 2166136261
+  for (const char of clubId) {
+    value ^= char.charCodeAt(0)
+    value = Math.imul(value, 16777619)
+  }
+  const hash = value >>> 0
+  const styles: CoachStyle[] = ['high_press', 'possession', 'counter_attack', 'direct', 'tiki_taka', 'defensive_block', 'gegenpressing', 'set_pieces', 'youth_focus']
+  const personalities: CoachPersonality[] = ['motivator', 'disciplinarian', 'psychologist', 'visionary', 'negotiator', 'winning_mentality']
+  const formations: Formation[] = ['4-3-3', '4-4-2', '4-2-3-1', '3-5-2']
+  const tactics: Array<'balanced' | 'offensive' | 'defensive'> = ['balanced', 'offensive', 'defensive']
+  return {
+    style: styles[hash % styles.length],
+    personality: personalities[(hash >>> 4) % personalities.length],
+    formation: formations[(hash >>> 8) % formations.length],
+    tactic: tactics[(hash >>> 12) % tactics.length],
+  }
 }
 
 function chooseWeighted(players: LineupPlayer[], preferredRoles: string[], random: Random) {
