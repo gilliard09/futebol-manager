@@ -101,7 +101,10 @@ function transferNeed(player: WorldPlayer, club: WorldClub, squadSize: number, p
   const sportingUrgency = performance && (performance.position >= 13 || performance.recentPoints <= 4) ? 6 : 0
   const usageBonus = (player.seasonMinutes ?? 0) >= 900 ? 4 : (player.seasonMinutes ?? 0) < 180 ? -2 : 0
   const ratingBonus = (player.seasonAverageRating ?? 0) >= 7.2 ? 5 : (player.seasonAverageRating ?? 0) >= 6.8 ? 2 : (player.seasonAverageRating ?? 0) > 0 && (player.seasonAverageRating ?? 0) < 6 ? -2 : 0
-  return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0) + sportingUrgency + usageBonus + ratingBonus
+  const role = getSquadRole(player)
+  const roleBonus = role === 'starter' ? 4 : role === 'rotation' ? 2 : role === 'prospect' ? 1 : -2
+  const moraleBonus = player.morale <= 45 ? 3 : player.morale >= 80 ? -1 : 0
+  return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0) + sportingUrgency + usageBonus + ratingBonus + roleBonus + moraleBonus
 }
 
 const firstNames = ['Lucas', 'Gabriel', 'Pedro', 'Matheus', 'João', 'Rafael', 'Gustavo', 'Arthur', 'Miguel', 'Enzo', 'Caio', 'Felipe']
@@ -363,6 +366,28 @@ export function simulateWorldDay(
 
       if (moraleDelta !== 0) {
         player.morale = clamp(player.morale + moraleDelta, 25, 100)
+        evolvedPlayerIds.add(player.id)
+      }
+    }
+  }
+
+  // O papel no elenco também muda a dinâmica contratual: jogadores importantes
+  // custam mais para serem mantidos, enquanto reservas descontentes ficam mais suscetíveis
+  // a procurar uma mudança de clube.
+  for (const club of clubs) {
+    const squad = byClub.get(club.id) ?? []
+    if (!squad.length) continue
+    for (const player of squad) {
+      if (!player.contractUntil) continue
+      const role = getSquadRole(player)
+      const starts = player.seasonStarts ?? 0
+      const appearances = player.seasonAppearances ?? 0
+      if (role === 'starter' && starts >= 8 && player.morale >= 70) {
+        player.morale = clamp(player.morale + 1, 25, 100)
+        evolvedPlayerIds.add(player.id)
+      }
+      if ((role === 'backup' || role === 'prospect') && appearances <= 2 && player.morale <= 55) {
+        player.morale = clamp(player.morale - 1, 25, 100)
         evolvedPlayerIds.add(player.id)
       }
     }
