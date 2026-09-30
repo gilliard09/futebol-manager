@@ -2745,7 +2745,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 bg-[#101827] px-5 py-4 sm:px-7">
-                <div><p className="label-mono text-white/35">Data da partida</p><p className="mt-1 text-sm font-bold tabular-nums">{nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'}</p></div>
+                <div><p className="label-mono text-white/35">Data da partida</p><p className="mt-1 text-sm font-bold tabular-nums">{clock?.currentDate ? formatSeasonDate(clock.currentDate) : '—'}</p></div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
