@@ -87,6 +87,7 @@ export function evaluateLoanTarget(
   destinationSquadSize: number,
   destinationPositionDepth: number,
 ): LoanEvaluation {
+  const safeMarketValue = Number.isFinite(marketValue) ? marketValue : 0
   const overall = playerOverallForLoan(player)
   const room = Math.max(0, player.potential - overall)
   const isProspect = player.age <= 23 && room >= 8
@@ -96,10 +97,10 @@ export function evaluateLoanTarget(
   const strengthFit = Math.max(0, 10 - Math.abs(destinationClub.strength - overall) * 0.7)
   const developmentFit = isProspect ? playingOpportunity * 1.25 + (destinationBehavior === 'youth' ? 6 : 0) : playingOpportunity * 0.55
   const sellerMotivation = parentBehavior === 'seller' ? 5 : parentBehavior === 'youth' && isProspect ? 8 : 0
-  const affordability = destinationClub.budget <= 0 ? 0 : Math.max(0, Math.min(12, destinationClub.budget / Math.max(250000, marketValue * 0.12)))
+  const affordability = destinationClub.budget <= 0 ? 0 : Math.max(0, Math.min(12, destinationClub.budget / Math.max(250000, safeMarketValue * 0.12)))
   const score = Math.round(developmentFit + strengthFit + sellerMotivation + affordability + (destinationSquadSize < 20 ? 4 : 0) - (destinationSquadSize >= 25 ? 8 : 0) - (player.age >= 30 ? 5 : 0))
   const months = isProspect ? 6 : player.age <= 27 ? 5 : 4
-  const fee = calculateLoanFee(player, marketValue, months)
+  const fee = calculateLoanFee(player, safeMarketValue, months)
   const salaryShare = isProspect ? (destinationBehavior === 'conservative' ? 60 : 70) : 55
   const reason = isProspect ? 'jovem com potencial e espaço para ganhar minutos' : playingOpportunity >= 7 ? 'ganho de minutos para um jogador fora da rotação' : 'redução de folha e busca por utilização'
   return { score, fee, salaryShare: normalizeSalaryShare(salaryShare), months, reason }
