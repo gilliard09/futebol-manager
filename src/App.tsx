@@ -358,10 +358,21 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       return { ...player, clubId: row.club_id, marketValue: Number(row.market_value ?? 0), salary: Number(row.salary ?? 0), contractUntil: row.contract_until ?? null, clubPlayerId: row.id }
     })
     const result = simulateWorldDay(nextDate, season.id, worldClubs, playersForWorld, career.club.id)
-    const changedPlayers = playersForWorld.filter(player => player.age <= 23 || player.age >= 31)
-    for (const player of changedPlayers) {
-      await supabase.from('players').update({ pace: player.pace, shooting: player.shooting, passing: player.passing, dribbling: player.dribbling, defending: player.defending, physical: player.physical, goalkeeping: player.goalkeeping, mental: player.mental, form: player.form, morale: player.morale }).eq('id', player.id)
-    }
+    const changedPlayers = playersForWorld.filter(player => result.evolvedPlayerIds.includes(player.id))
+    await Promise.all(changedPlayers.map(player =>
+      supabase.from('players').update({
+        pace: player.pace,
+        shooting: player.shooting,
+        passing: player.passing,
+        dribbling: player.dribbling,
+        defending: player.defending,
+        physical: player.physical,
+        goalkeeping: player.goalkeeping,
+        mental: player.mental,
+        form: player.form,
+        morale: player.morale,
+      }).eq('id', player.id)
+    ))
     for (const transfer of result.transfers) {
       const row = playersForWorld.find(player => player.id === transfer.playerId)
       if (!row) continue
