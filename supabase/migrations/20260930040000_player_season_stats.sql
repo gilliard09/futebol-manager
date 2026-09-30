@@ -36,3 +36,7 @@ create index if not exists player_season_stats_season_club_idx
 
 create index if not exists player_season_stats_player_idx
   on public.player_season_stats (player_id);
+
+grant select, insert, update, delete
+  on public.player_season_stats
+  to anon, authenticated, service_role;
