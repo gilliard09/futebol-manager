@@ -1622,6 +1622,9 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           }
           if (event.type === 'red_card') {
             previous.redCards = Number(previous.redCards ?? current.redCards ?? 0) + 1
+            if (event.text.includes('Segundo amarelo')) {
+              previous.yellowCards = Number(previous.yellowCards ?? current.yellowCards ?? 0) + 1
+            }
             previous.suspendedUntil = addDays(matchDate, 7)
           }
           if (event.type === 'injury') {
@@ -1631,14 +1634,14 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         }
       }
       if (availabilityUpdates.size) {
-        await Promise.all([...availabilityUpdates.entries()].map(([playerId, values]) =>
-          supabase.from('players').update({
-            injured_until: values.injuredUntil,
-            suspended_until: values.suspendedUntil,
-            yellow_cards: values.yellowCards,
-            red_cards: values.redCards,
-          }).eq('id', playerId)
-        ))
+        await Promise.all([...availabilityUpdates.entries()].map(([playerId, values]) => {
+          const payload: Record<string, unknown> = {}
+          if (values.injuredUntil !== undefined) payload.injured_until = values.injuredUntil
+          if (values.suspendedUntil !== undefined) payload.suspended_until = values.suspendedUntil
+          if (values.yellowCards !== undefined) payload.yellow_cards = values.yellowCards
+          if (values.redCards !== undefined) payload.red_cards = values.redCards
+          return supabase.from('players').update(payload).eq('id', playerId)
+        }))
         setPlayers(current => current.map(player => {
           const values = availabilityUpdates.get(player.id)
           return values ? {
