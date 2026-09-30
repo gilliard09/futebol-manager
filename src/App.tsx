@@ -1354,7 +1354,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
-      const nextBalance = addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`)) ?? financeBalance
+      const salaryTransaction = createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`)
+      const sponsorTransaction = createTransaction(nextClock.currentDate, 'sponsorship', commercial.sponsor.name, commercial.sponsor.monthly, undefined, `sponsor:${career.season}:${nextClock.currentDate.slice(0, 7)}`)
+      const maintenanceTransaction = createTransaction(nextClock.currentDate, 'other', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`)
+      const nextBalance = addFinanceTransaction(salaryTransaction) ?? financeBalance
       const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
       localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
       onCareerUpdate(nextCareer)
@@ -1397,17 +1400,16 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
         if (nextClock.currentDate.slice(0, 7) !== current.currentDate.slice(0, 7)) {
           const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
-          const transaction = createTransaction(
-            nextClock.currentDate,
-            'salary',
-            `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`,
-            salaryExpense,
-            undefined,
-            `salary:${nextClock.currentDate.slice(0, 7)}`,
-          )
-          if (!nextTransactions.some(item => item.eventId === transaction.eventId)) {
-            nextTransactions = [...nextTransactions, transaction]
-            nextBalance = applyTransaction(nextBalance, transaction)
+          const monthlyTransactions = [
+            createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`),
+            createTransaction(nextClock.currentDate, 'sponsorship', commercial.sponsor.name, commercial.sponsor.monthly, undefined, `sponsor:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
+            createTransaction(nextClock.currentDate, 'other', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
+          ]
+          for (const transaction of monthlyTransactions) {
+            if (!nextTransactions.some(item => item.eventId === transaction.eventId)) {
+              nextTransactions = [...nextTransactions, transaction]
+              nextBalance = applyTransaction(nextBalance, transaction)
+            }
           }
         }
 
