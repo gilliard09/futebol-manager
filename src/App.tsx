@@ -35,7 +35,8 @@ const FINANCE_KEY = 'futebol-manager:finance'
 const INITIAL_SEASON_YEAR = 2026
 const SEASON_NAME = `Temporada ${INITIAL_SEASON_YEAR}`
 const seasonName = (year: number) => `Temporada ${year}`
-const SEASON_START = '2026-01-01'
+const seasonStart = (season: string) => `${Number(season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)}-01-01`
+const SEASON_START = seasonStart(SEASON_NAME)
 const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
 const WORLD_NEWS_KEY = 'futebol-manager:world-news'
@@ -264,6 +265,9 @@ function GameApp() {
 
     if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
     localStorage.removeItem(WORLD_NEWS_KEY)
+    localStorage.removeItem(CLOCK_KEY)
+    localStorage.removeItem(MATCHES_KEY)
+    localStorage.removeItem(TRAINING_KEY)
     Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':')).forEach(key => localStorage.removeItem(key))
     window.location.reload()
   }
@@ -660,7 +664,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         setUpcomingFixtures(scheduled)
         setNextFixture(fixture)
         if (!clock && fixture) {
-          const initialClock = createSeasonClock(SEASON_START, toDateKey(fixture.scheduled_at), 3)
+          const initialClock = createSeasonClock(seasonStart(career.season), toDateKey(fixture.scheduled_at), 3)
           setClock(initialClock)
           localStorage.setItem(CLOCK_KEY, JSON.stringify(initialClock))
         }
