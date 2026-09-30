@@ -27,7 +27,9 @@ const TRAINING_KEY = 'futebol-manager:training'
 const CLOCK_KEY = 'futebol-manager:season-clock'
 const CONTRACTS_KEY = 'futebol-manager:contracts'
 const FINANCE_KEY = 'futebol-manager:finance'
-const SEASON_NAME = 'Temporada 2026'
+const INITIAL_SEASON_YEAR = 2026
+const SEASON_NAME = `Temporada ${INITIAL_SEASON_YEAR}`
+const seasonName = (year: number) => `Temporada ${year}`
 const SEASON_START = '2026-01-01'
 const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
@@ -139,6 +141,62 @@ export default function App() {
     await supabase.from('seasons').update({ status: 'active', end_date: null, start_date: SEASON_START }).eq('id', season.id).eq('status', 'completed')
   }
 
+  async function startNextSeason() {
+    const currentYear = Number(career?.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
+    const nextYear = currentYear + 1
+    const nextSeasonName = seasonName(nextYear)
+
+    const { data: currentSeason } = await supabase.from('seasons').select('id,status').eq('name', career?.season ?? SEASON_NAME).maybeSingle()
+    if (!currentSeason?.id || currentSeason.status !== 'completed') return
+    const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+    const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
+    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+    if (!leagueId || !cupId) return
+
+    const { data: existing } = await supabase.from('seasons').select('id').eq('name', nextSeasonName).maybeSingle()
+    if (existing?.id) {
+      if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
+      window.location.reload(); return
+    }
+
+    const { data: clubsForSeason } = await supabase.from('clubs').select('id,name').eq('division', 1).order('name')
+    if (!clubsForSeason || clubsForSeason.length !== 16) return
+    const { data: newSeason, error: seasonError } = await supabase.from('seasons').insert({ name: nextSeasonName, year: nextYear, status: 'active', start_date: `${nextYear}-01-10`, end_date: `${nextYear}-08-01` }).select('id').single()
+    if (seasonError || !newSeason?.id) { console.error('Não foi possível criar a próxima temporada', seasonError); return }
+
+    const rotation = [...clubsForSeason]
+    const fixed = rotation.shift()!
+    const firstLeg: Array<Record<string, unknown>> = []
+    for (let round = 0; round < 15; round += 1) {
+      const order = [fixed, ...rotation]
+      for (let index = 0; index < 8; index += 1) {
+        const home = round % 2 === 0 ? order[index] : order[15 - index]
+        const away = round % 2 === 0 ? order[15 - index] : order[index]
+        const date = new Date(Date.UTC(nextYear, 0, 10 + round * 7, 22, 0, 0))
+        firstLeg.push({ competition_id: leagueId, season_id: newSeason.id, round: round + 1, home_club_id: home.id, away_club_id: away.id, scheduled_at: date.toISOString(), status: 'scheduled', stage: 'league', leg: 1 })
+      }
+      const last = rotation.pop()!
+      rotation.unshift(last)
+    }
+    const secondLeg = firstLeg.map(fixture => ({ ...fixture, round: Number(fixture.round) + 15, home_club_id: fixture.away_club_id, away_club_id: fixture.home_club_id, scheduled_at: new Date(Date.UTC(nextYear, 0, 10 + (Number(fixture.round) + 14) * 7, 22, 0, 0)).toISOString() }))
+    const { error: leagueError } = await supabase.from('fixtures').insert([...firstLeg, ...secondLeg])
+    if (leagueError) { console.error('Não foi possível criar a nova tabela da liga', leagueError); await supabase.from('seasons').delete().eq('id', newSeason.id); return }
+
+    const { data: previousFixtures } = await supabase.from('fixtures').select('round,status,home_club_id,away_club_id,home_score,away_score,winner_club_id').eq('season_id', currentSeason.id).eq('competition_id', leagueId).eq('status', 'completed')
+    const standings = buildStandings(clubsForSeason.map(club => ({ id: club.id, name: club.name })), previousFixtures as any)
+    const ranked = standings.map(item => clubsForSeason.find(club => club.id === item.id)!).filter(Boolean)
+    const cupFixtures: Array<Record<string, unknown>> = []
+    for (let index = 0; index < 8; index += 1) {
+      const first = ranked[index]; const second = ranked[15 - index]; const tieId = `r16-${nextYear}-${index + 1}`
+      const date1 = new Date(Date.UTC(nextYear, 1, 7 + (index % 2), 19, 0, 0)); const date2 = new Date(Date.UTC(nextYear, 1, 21 + (index % 2), 19, 0, 0))
+      cupFixtures.push({ competition_id: cupId, season_id: newSeason.id, round: 1, stage: 'round_of_16', tie_id: tieId, leg: 1, home_club_id: first.id, away_club_id: second.id, scheduled_at: date1.toISOString(), status: 'scheduled' }, { competition_id: cupId, season_id: newSeason.id, round: 2, stage: 'round_of_16', tie_id: tieId, leg: 2, home_club_id: second.id, away_club_id: first.id, scheduled_at: date2.toISOString(), status: 'scheduled' })
+    }
+    const { error: cupError } = await supabase.from('fixtures').insert(cupFixtures)
+    if (cupError) { console.error('Não foi possível criar a nova Copa', cupError); await supabase.from('fixtures').delete().eq('season_id', newSeason.id); await supabase.from('seasons').delete().eq('id', newSeason.id); return }
+
+    if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
+    window.location.reload()
+  }
   async function newCareer() {
     await resetSeasonForNewCareer()
     localStorage.removeItem(CAREER_KEY)
@@ -157,7 +215,7 @@ export default function App() {
     {screen === 'home' && <Home career={career} start={() => setScreen('manager')} continueCareer={() => setScreen('dashboard')} newCareer={newCareer} />}
     {screen === 'manager' && <Manager name={managerName} nationality={nationality} birthDate={birthDate} style={managerStyle} personality={managerPersonality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} onBirthDate={setBirthDate} onStyle={setManagerStyle} onPersonality={setManagerPersonality} back={() => setScreen('home')} next={() => setScreen('club')} />}
     {screen === 'club' && <ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => setScreen('manager')} confirm={confirmCareer} />}
-    {screen === 'dashboard' && career && <Dashboard career={career} clubs={clubs} newCareer={newCareer} onCareerUpdate={setCareer} />}
+    {screen === 'dashboard' && career && <Dashboard career={career} clubs={clubs} newCareer={newCareer} onNextSeason={startNextSeason} onCareerUpdate={setCareer} />}
   </div></div>
 }
 
@@ -186,7 +244,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
   return <main className="min-h-screen"><Top label="ESCOLHA SEU CLUBE" back={back} /><section className="mx-auto max-w-5xl px-6 py-12 md:px-10"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">02 / 02</span><h1 className="mt-3 text-4xl font-bold tracking-[-0.03em] md:text-5xl">Onde começa sua história?</h1><p className="mt-4 max-w-xl leading-7 text-white/45">Escolha um dos clubes disponíveis para iniciar a temporada 2026.</p>{selected && <div className="mt-6 inline-block rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm"><span className="text-white/35">Selecionado</span><p className="font-semibold text-emerald-300">{selected.name}</p></div>}{loading && <div className="py-20 text-center text-sm text-white/35">Carregando clubes...</div>}{error && <div className="mt-10 rounded-xl border border-red-400/15 bg-red-400/5 p-5 text-sm text-red-200">Não foi possível carregar os clubes. {error}</div>}{!loading && !error && <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{clubs.map(club => <button key={club.id} onClick={() => select(club)} className={`group rounded-2xl border p-5 text-left transition ${selected?.id === club.id ? 'border-emerald-400/50 bg-emerald-400/8' : 'border-white/6 bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.045]'}`}><div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5">{club.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <span className={selected?.id === club.id ? 'text-emerald-700' : 'text-slate-500'}>{club.short_name.slice(0, 3)}</span>}</div><ChevronRight size={17} className="text-white/15 group-hover:text-white/45" /></div><h2 className="mt-5 font-semibold">{club.name}</h2><div className="mt-2 flex items-center gap-2 text-xs text-white/35"><MapPin size={13} />{club.city}</div><div className="mt-5 flex items-center justify-between border-t border-white/6 pt-4 text-xs"><span className="text-white/30">Capital inicial</span><span className="font-semibold text-emerald-300/80">{money(club.budget)}</span></div></button>)}</div>}<div className="mt-10 flex justify-end"><button disabled={!selected} onClick={confirm} className="flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">Assumir o clube <ArrowRight size={17} /></button></div></section></main>
 }
 
-function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
+function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onNextSeason: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
@@ -226,7 +284,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const leagueFixtures = (fixtures ?? []).filter(item => item.competition_id === leagueId)
     const cupFixtures = (fixtures ?? []).filter(item => item.competition_id === cupId)
     const completion = buildSeasonCompletion(
-      { id: seasonId, name: SEASON_NAME },
+      { id: seasonId, name: career.season },
       leagueId,
       cupId,
       leagueFixtures,
@@ -1298,7 +1356,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
       return null
     })()}
-    {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">Temporada 2026 concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada 2026 não pode mais ser considerada em andamento.</p></section>}
+    {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">Temporada 2026 concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada atual não pode mais ser considerada em andamento.</p><button onClick={onNextSeason} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Começar a próxima temporada</button></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Calendário da temporada</p><h2 className="mt-2 text-2xl font-bold">{clock ? formatSeasonDate(clock.currentDate) : 'Preparando calendário'}</h2><p className="mt-2 text-sm text-white/35">{nextFixture && nextMatchDate ? (matchReady ? 'Dia de jogo.' : `${daysBetween(clock!.currentDate, nextMatchDate)} dias até a próxima partida.`) : 'Nenhuma partida pendente.'}</p></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="flex items-center justify-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-white/70 hover:border-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">{advancingDays ? 'Avançando...' : 'Descansar 1 dia'} <ArrowRight size={16} /></button>{nextFixture && <button onClick={advanceToNextMatch} disabled={!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">{advancingDays ? 'Avançando...' : 'Avançar até a partida'} <CalendarDays size={16} /></button>}{nextFixture && <div className="rounded-xl border border-white/6 bg-black/10 px-4 py-3 text-sm"><span className="text-white/30">Próximo jogo</span><span className="ml-2 font-semibold">{opponent?.short_name ?? 'A definir'} · {formatSeasonDate(nextMatchDate!)}</span></div>}</div><div className="mt-5 space-y-2">{upcomingFixtures.slice(0, 5).map(item => { const itemDate = toDateKey(item.scheduled_at); const itemOpponent = item.home_club_id === career.club.id ? item.away_club : item.home_club; return <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === nextFixture?.id ? 'border-emerald-400/20 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10'}`}><div><p className="text-sm font-semibold">{itemOpponent?.short_name ?? 'Adversário'} {item.home_club_id === career.club.id ? '· Casa' : '· Fora'}</p><p className="mt-1 text-xs text-white/30">{item.competition_name ?? 'Competição'} · Rodada {item.round}</p></div><span className="text-xs font-semibold text-white/45">{formatSeasonDate(itemDate)}</span></div> })}</div></section>
