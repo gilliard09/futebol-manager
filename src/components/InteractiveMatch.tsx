@@ -61,7 +61,7 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
       </div>
       <div>
         <p className="font-mono text-5xl font-bold tabular-nums">{homeScore}<span className="mx-2 text-white/20">:</span>{awayScore}</p>
-        <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold tabular-nums ${session.finished ? 'border-white/10 text-white/50' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'}`}>{finished ? 'FIM' : minute + "'"}</span>
+        <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold tabular-nums ${finished ? 'border-white/10 text-white/50' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'}`}>{finished ? 'FIM' : minute + "'"}</span>
       </div>
       <div>
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]"><Shield size={24} className="text-orange-300/70" /></div>
@@ -284,7 +284,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       </section>}
 
       {phase === 'postgame' && session && result && <section className="space-y-4">
-        <MatchHeader session={session} fixture={fixture} />
+        <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
         <div className="flex rounded-xl border border-white/6 bg-[#131b2a] p-1">
           <button onClick={() => setPostgameTab('events')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'events' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Lances</button>
           <button onClick={() => setPostgameTab('stats')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'stats' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Estatísticas</button>
