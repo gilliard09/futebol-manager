@@ -48,7 +48,7 @@ function eventLabel(type: string) {
   return 'LANCE'
 }
 
-function MatchHeader({ session, fixture }: { session: InteractiveMatchState; fixture: Fixture }) {
+function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixture: Fixture; homeScore: number; awayScore: number; minute: number; finished: boolean }) {
   return <div className="overflow-hidden rounded-3xl border border-white/8 bg-[#131b2a]">
     <div className="bg-[linear-gradient(135deg,#7c3aed_0%,#2563eb_52%,#a3e635_100%)] px-5 py-4 text-center">
       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/75">{fixture.competition_name ?? 'Competição'} · Rodada {fixture.round}</p>
@@ -60,8 +60,8 @@ function MatchHeader({ session, fixture }: { session: InteractiveMatchState; fix
         <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/25">CASA</p>
       </div>
       <div>
-        <p className="font-mono text-5xl font-bold tabular-nums">{session.homeScore}<span className="mx-2 text-white/20">:</span>{session.awayScore}</p>
-        <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold tabular-nums ${session.finished ? 'border-white/10 text-white/50' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'}`}>{session.finished ? 'FIM' : session.minute + "'"}</span>
+        <p className="font-mono text-5xl font-bold tabular-nums">{homeScore}<span className="mx-2 text-white/20">:</span>{awayScore}</p>
+        <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold tabular-nums ${session.finished ? 'border-white/10 text-white/50' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'}`}>{finished ? 'FIM' : minute + "'"}</span>
       </div>
       <div>
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]"><Shield size={24} className="text-orange-300/70" /></div>
@@ -234,7 +234,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
 
     <section className="mx-auto max-w-6xl px-4 py-5 md:px-8">
       {phase === 'pregame' && <section className="space-y-4">
-        <MatchHeader session={{ fixture, minute: 0, homeScore: 0, awayScore: 0, events: [], homeStats: { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0, xg: 0 }, awayStats: { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0, xg: 0 }, timeline: [], home: {} as any, away: {} as any, finished: false, rng: Math.random } as InteractiveMatchState} fixture={fixture} />
+        <MatchHeader fixture={fixture} homeScore={0} awayScore={0} minute={0} finished={false} />
         <div className="grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p>
@@ -251,7 +251,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       </section>}
 
       {phase === 'live' && session && <section className="space-y-4">
-        <MatchHeader session={session} fixture={fixture} />
+        <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
         <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
           <div className="flex items-center justify-between gap-3">
             <span className="font-mono text-xs font-bold text-white/50">{session.minute}'</span>
