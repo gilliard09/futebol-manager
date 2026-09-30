@@ -75,6 +75,36 @@ export function buildWorldNews(
     })
   }
 
+  for (const negotiation of result.negotiationEvents ?? []) {
+    const player = playerById.get(negotiation.playerId)
+    const buyer = clubName(negotiation.buyerId)
+    const seller = clubName(negotiation.sellerId)
+    const amount = negotiation.offer.toLocaleString('pt-BR')
+    const counter = negotiation.counterOffer ? ` A contraproposta chegou a R$ ${negotiation.counterOffer.toLocaleString('pt-BR')}.` : ''
+    const isUserSeller = negotiation.sellerId === userClubId
+    const title = negotiation.action === 'accepted'
+      ? 'Negociação concluída'
+      : negotiation.action === 'countered'
+        ? (isUserSeller ? 'Seu clube recebeu uma contraproposta' : 'Clube fez contraproposta')
+        : negotiation.action === 'rejected'
+          ? 'Proposta recusada'
+          : 'Clube desistiu da negociação'
+    const message = negotiation.action === 'accepted'
+      ? `${buyer} e ${seller} chegaram a um acordo por ${playerName(negotiation.playerId)} após uma proposta de R$ ${amount}.`
+      : negotiation.action === 'countered'
+        ? `${seller} respondeu à proposta de R$ ${amount} por ${playerName(negotiation.playerId)}.${counter}`
+        : `${seller} ${negotiation.action === 'rejected' ? 'recusou' : 'encerrou'} as conversas por ${playerName(negotiation.playerId)}. ${negotiation.reason}`
+    push({
+      date: result.date,
+      title,
+      message,
+      tone: negotiation.action === 'accepted' ? 'positive' : negotiation.action === 'countered' ? 'neutral' : 'warning',
+      category: 'market',
+      priority: isUserSeller ? 94 : negotiation.action === 'accepted' ? 58 : 68,
+      id: `negotiation:${result.date}:${negotiation.playerId}:${negotiation.buyerId}:${negotiation.round}:${negotiation.action}`,
+    })
+  }
+
   const offersByPlayer = new Map<string, typeof result.offers>()
   for (const offer of result.offers) {
     const current = offersByPlayer.get(offer.playerId) ?? []
