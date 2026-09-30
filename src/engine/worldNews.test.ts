@@ -104,3 +104,29 @@ it('creates a contextual crisis story for a high-reputation club', () => {
 
   expect(news.some(item => item.title === 'Grande clube vive momento difícil')).toBe(true)
 })
+
+
+it('creates player-focused stories from individual season stats', () => {
+  const clubs = [club('a', 'Clube A'), club('b', 'Clube B')]
+  const players = [player('p1', 'a'), player('p2', 'b')]
+  players[0].seasonAppearances = 8
+  players[0].seasonStarts = 7
+  players[0].seasonMinutes = 700
+  players[0].seasonGoals = 7
+  players[0].seasonAverageRating = 7.65
+  players[1].seasonAppearances = 8
+  players[1].seasonStarts = 7
+  players[1].seasonMinutes = 700
+  players[1].seasonGoals = 2
+  players[1].seasonAverageRating = 5.6
+
+  const simulation = result()
+  const news = buildWorldNews(simulation, clubs, players, {
+    a: { position: 2, points: 18, goalDifference: 6, played: 7, recentPoints: 10, recentResults: ['W', 'W', 'D', 'W', 'L'] },
+    b: { position: 8, points: 9, goalDifference: -2, played: 7, recentPoints: 4, recentResults: ['L', 'W', 'L', 'D', 'L'] },
+  }, 'a')
+
+  expect(news.some(item => item.title === 'Seu jogador é destaque na artilharia')).toBe(true)
+  expect(news.some(item => item.title === 'Um dos seus jogadores vive grande fase')).toBe(true)
+  expect(news.some(item => item.title === 'Titular entra na mira das críticas')).toBe(true)
+})
