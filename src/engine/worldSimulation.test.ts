@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { playerMarketCompetitionFactor, playerMarketPerformanceFactor, simulateWorldDay } from './worldSimulation'
+import { getClubEconomicProfile, playerMarketCompetitionFactor, playerMarketPerformanceFactor, simulateWorldDay } from './worldSimulation'
 import type { Club, Player } from '../types/game'
 
 const basePlayer = (id: string, clubId: string, position = 'ST'): Player & { clubId: string; marketValue: number; salary: number; contractUntil: string | null; clubPlayerId: string; seasonMinutes?: number; seasonAppearances?: number; seasonGoals?: number; seasonAssists?: number } => ({
@@ -13,6 +13,14 @@ const club = (id: string, budget: number, strength = 70): Club & { strength: num
 })
 
 describe('world simulation', () => {
+  it('assigns stable but distinct economic personalities to clubs', () => {
+    const profiles = ['ai-a', 'ai-b', 'ai-c', 'ai-d', 'ai-e'].map(id => getClubEconomicProfile(club(id, 5000000)))
+    expect(new Set(profiles.map(profile => profile.behavior)).size).toBeGreaterThanOrEqual(3)
+    expect(profiles.every(profile => profile.transferBudgetRatio > 0 && profile.transferBudgetRatio <= 0.9)).toBe(true)
+    expect(profiles.every(profile => profile.wageMultiplier >= 1)).toBe(true)
+  })
+
+
   it('releases players when their contracts expire', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
     const players = [basePlayer('expired', 'user')]
