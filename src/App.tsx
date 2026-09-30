@@ -1349,8 +1349,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
               }
               current.clubId = clubId
               current.appearances += 1
-              current.starts += 1
-              current.minutes += 90
+              if (rating.started) current.starts += 1
+              current.minutes += rating.minutes
               current.goals += rating.goals
               current.assists += rating.assists
               current.ratingTotal += rating.rating
