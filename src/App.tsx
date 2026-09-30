@@ -340,7 +340,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   }
   useEffect(() => {
     const nextView = pathView && dashboardViews.includes(pathView) ? pathView : 'overview'
-    goToView(current => current === nextView ? current : nextView)
+    setView(current => current === nextView ? current : nextView)
   }, [location.pathname])
   const [transferState, setTransferState] = useState<TransferState>(() => { try { return JSON.parse(localStorage.getItem(TRANSFERS_KEY) ?? '{"playerClubOverrides":{},"records":[]}') } catch { return { playerClubOverrides: {}, records: [] } } })
   const [loanState, setLoanState] = useState<LoanState>(() => { try { return JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}') } catch { return { records: [] } } })
