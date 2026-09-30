@@ -1354,10 +1354,13 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
-      const salaryTransaction = createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`)
-      const sponsorTransaction = createTransaction(nextClock.currentDate, 'sponsorship', commercial.sponsor.name, commercial.sponsor.monthly, undefined, `sponsor:${career.season}:${nextClock.currentDate.slice(0, 7)}`)
-      const maintenanceTransaction = createTransaction(nextClock.currentDate, 'other', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`)
-      const nextBalance = addFinanceTransaction(salaryTransaction) ?? financeBalance
+      const monthlyTransactions = [
+        createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`),
+        createTransaction(nextClock.currentDate, 'sponsorship', commercial.sponsor.name, commercial.sponsor.monthly, undefined, `sponsor:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
+        createTransaction(nextClock.currentDate, 'other', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
+      ]
+      let nextBalance = financeBalance
+      for (const transaction of monthlyTransactions) nextBalance = addFinanceTransaction(transaction) ?? nextBalance
       const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
       localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
       onCareerUpdate(nextCareer)
