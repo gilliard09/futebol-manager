@@ -113,7 +113,14 @@ function normalizeFixture(row: any): Fixture {
 
 function normalizePlayer(row: any): Player {
   const source = Array.isArray(row.players) ? row.players[0] : row.players
-  return { ...source, squad_number: row.squad_number } as Player
+  return {
+    ...source,
+    squad_number: row.squad_number,
+    injuredUntil: source?.injured_until ?? null,
+    suspendedUntil: source?.suspended_until ?? null,
+    yellowCards: Number(source?.yellow_cards ?? 0),
+    redCards: Number(source?.red_cards ?? 0),
+  } as Player
 }
 
 export default function App() {
