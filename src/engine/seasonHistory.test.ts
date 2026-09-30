@@ -19,3 +19,13 @@ describe('season history', () => {
     expect(result).toMatchObject({ championClubId: 'b', runnerUpClubId: 'a', topScorerGoals: 0 })
   })
 })
+
+
+import { resolveDivisionMovement } from './seasonHistory'
+
+describe('division movement', () => {
+  it('nao ativa rebaixamento antes da Serie B existir', () => {
+    const standings = [{ id: 'a', name: 'A', played: 1, wins: 1, draws: 0, losses: 0, gf: 1, ga: 0, points: 3 }, { id: 'b', name: 'B', played: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 1, points: 0 }]
+    expect(resolveDivisionMovement(standings)).toEqual({ relegatedClubIds: [], promotedClubIds: [], activated: false })
+  })
+})
