@@ -10,6 +10,8 @@ export type MatchEvent = {
   playerId?: string
   text: string
   assistPlayer?: string
+  assistPlayerId?: string
+  outgoingPlayerId?: string
 }
 
 export type MatchStats = {
@@ -400,8 +402,9 @@ function simulateSide(
   const possessionTarget = clamp(50 + midfieldControl * 0.45 + (tactic === 'offensive' ? 2 : tactic === 'defensive' ? -1 : 0))
   stats.possession += (possessionTarget - stats.possession) * 0.22
 
-  const pressure = clamp(0.9 + attackEdge / 65 + (coach?.attack ?? 0) / 12 + (tactic === 'offensive' ? 0.32 : tactic === 'defensive' ? -0.2 : 0) + stats.possession / 300, 0.15, 2.2)
-  const chanceProbability = 0.065 * pressure
+  const homeAdvantage = team === 'home' ? 3.5 : 0
+  const pressure = clamp(0.9 + (attackEdge + homeAdvantage) / 65 + (coach?.attack ?? 0) / 12 + (tactic === 'offensive' ? 0.32 : tactic === 'defensive' ? -0.2 : 0) + stats.possession / 300, 0.15, 2.2)
+  const chanceProbability = 0.045 * pressure
   if (random() > chanceProbability) return
 
   stats.chances++
@@ -428,7 +431,7 @@ function simulateSide(
   }
 
   stats.shotsOnTarget++
-  const saveChance = clamp(0.58 - (shotQuality - 50) / 170 + (keeper - 50) / 220, 0.18, 0.78)
+  const saveChance = clamp(0.64 - (shotQuality - 50) / 190 + (keeper - 50) / 230, 0.25, 0.84)
   if (random() < saveChance) {
     events.push({ minute, type: 'save', team: team === 'home' ? 'away' : 'home', player: 'Goleiro', text: 'Defesa importante do goleiro.' })
     return
@@ -508,6 +511,7 @@ export function simulateMatch(
     minutesById.set(item.player.id, 90)
     enteredAtById.set(item.player.id, 1)
   }
+  for (const player of [...homeBench, ...awayBench]) minutesById.set(player.id, 0)
 
   const rotationIntensityFor = (style: string) => style === 'high_press' || style === 'gegenpressing'
     ? 1.12
@@ -571,6 +575,8 @@ export function simulateMatch(
         type: 'substitution',
         team,
         player: replacement.first_name + ' ' + replacement.last_name,
+        playerId: replacement.id,
+        outgoingPlayerId: outgoing.player.id,
         text: replacement.first_name + ' ' + replacement.last_name + ' entra no lugar de ' + outgoing.player.first_name + ' ' + outgoing.player.last_name + '.',
       })
     }
@@ -632,7 +638,7 @@ export function simulateMatch(
       }
     }
 
-    if (random() < 0.008) {
+    if (random() < 0.004) {
       const team = random() < 0.5 ? 'home' : 'away'
       const stats = team === 'home' ? homeStats : awayStats
       const side = team === 'home' ? homeActive : awayActive
