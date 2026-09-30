@@ -335,10 +335,10 @@ function buildPlayerRatings(
 ): PlayerMatchRating[] {
   return lineup.map(item => {
     const name = item.player.first_name + ' ' + item.player.last_name
-    const playerEvents = events.filter(event => event.team === team && event.player === name)
-    const goals = playerEvents.filter(event => event.type === 'goal').length
-    const assists = 0
-    const cards = playerEvents.filter(event => event.type === 'card').length
+    const playerEvents = events.filter(event => event.team === team && event.playerId === item.player.id)
+    const goals = events.filter(event => event.team === team && event.type === 'goal' && event.playerId === item.player.id).length
+    const assists = events.filter(event => event.type === 'goal' && event.assistPlayerId === item.player.id).length
+    const cards = events.filter(event => event.team === team && (event.type === 'card' || event.type === 'red_card') && event.playerId === item.player.id).length
     const tackles = playerEvents.filter(event => event.type === 'tackle').length
     const chances = playerEvents.filter(event => event.type === 'chance').length
     const fatigue = clamp(28 + (100 - item.player.physical) * 0.62 + (tactic === 'offensive' ? 9 : tactic === 'defensive' ? 4 : 6))
@@ -437,7 +437,18 @@ function simulateSide(
     return
   }
 
-  events.push({ minute, type: 'goal', team, player: playerName, text: 'Gol do ' + clubName + '!' })
+  const assister = lineup.find(item => item.player.id !== attacker?.player.id && ['CM','AM','LW','RW','DM'].includes(item.role))
+  const assistName = assister ? assister.player.first_name + ' ' + assister.player.last_name : undefined
+  events.push({
+    minute,
+    type: 'goal',
+    team,
+    player: playerName,
+    playerId: attacker?.player.id,
+    assistPlayer: assistName,
+    assistPlayerId: assister?.player.id,
+    text: 'Gol do ' + clubName + '!' + (assistName ? ' Assistência: ' + assistName + '.' : ''),
+  }
 }
 
 export function simulateMatch(
