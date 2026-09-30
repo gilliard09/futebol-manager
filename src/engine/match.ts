@@ -94,6 +94,25 @@ function sector(lineup: LineupPlayer[], roles: string[]) {
   return average(lineup.filter(item => roles.includes(item.role)).map(item => performanceRating(item.player, item.role)))
 }
 
+function coachModifiers(style?: string, personality?: string) {
+  const modifier = { attack: 0, defense: 0, possession: 0, fatigue: 0, morale: 0, youth: 0 }
+  if (style === 'high_press') { modifier.attack += 3; modifier.fatigue += 5 }
+  if (style === 'possession') modifier.possession += 5
+  if (style === 'counter_attack') { modifier.attack += 3; modifier.possession -= 2 }
+  if (style === 'direct') { modifier.attack += 2; modifier.possession -= 3 }
+  if (style === 'tiki_taka') modifier.possession += 7
+  if (style === 'defensive_block') modifier.defense += 5
+  if (style === 'gegenpressing') { modifier.attack += 4; modifier.fatigue += 7 }
+  if (style === 'set_pieces') modifier.attack += 2
+  if (style === 'youth_focus') modifier.youth += 5
+  if (personality === 'motivator') modifier.morale += 5
+  if (personality === 'disciplinarian') modifier.defense += 3
+  if (personality === 'psychologist') modifier.morale += 4
+  if (personality === 'visionary') modifier.youth += 4
+  if (personality === 'winning_mentality') modifier.attack += 3
+  return modifier
+}
+
 function tacticalFit(lineup: LineupPlayer[], tactic: string, formation: Formation) {
   if (!lineup.length) return 50
   const defense = sector(lineup, ['GK', 'CB', 'LB', 'RB', 'DM'])
@@ -273,10 +292,18 @@ export function simulateMatch(
   homeLineup?: LineupPlayer[],
   awayLineup?: LineupPlayer[],
   random: Random = Math.random,
+  coachStyle?: string,
+  coachPersonality?: string,
 ): MatchResult {
   const home = normalizeLineup(homePlayers, formation, homeLineup)
   const away = normalizeLineup(awayPlayers, '4-3-3', awayLineup)
+  const modifiers = coachModifiers(coachStyle, coachPersonality)
   const homeMetrics = calculateTeamMetrics(home, tactic, formation)
+  homeMetrics.attack = clamp(homeMetrics.attack + modifiers.attack)
+  homeMetrics.defense = clamp(homeMetrics.defense + modifiers.defense)
+  homeMetrics.midfield = clamp(homeMetrics.midfield + modifiers.possession * 0.35)
+  homeMetrics.morale = clamp(homeMetrics.morale + modifiers.morale)
+  homeMetrics.overall = clamp(homeMetrics.overall + modifiers.attack * 0.25 + modifiers.defense * 0.25 + modifiers.possession * 0.15 + modifiers.morale * 0.15)
   const awayMetrics = calculateTeamMetrics(away, 'balanced', '4-3-3')
   const homeStats = emptyStats()
   const awayStats = emptyStats()
