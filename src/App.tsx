@@ -600,7 +600,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
 
   async function loadWorldState() {
-    const { data: season } = await supabase.from('seasons').select('id').eq('name', SEASON_NAME).maybeSingle()
+    const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
     if (!season?.id) return null
 
     const [{ data: clubRows }, { data: playerRows }] = await Promise.all([
@@ -694,6 +694,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const transfers = results.flatMap(result => result.transfers)
     const renewals = results.flatMap(result => result.renewals)
     const retirements = results.flatMap(result => result.retirements)
+    const expiredContracts = results.flatMap(result => result.expiredContracts)
     const youth = results.flatMap(result => result.youth)
     const changedClubs = new Set(results.flatMap(result => result.changedClubs))
 
@@ -752,6 +753,14 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const row = playersForWorld.find(player => player.id === playerId)
       return row
         ? supabase.from('club_players').delete().eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
+
+    const expiredIds = new Set(expiredContracts.map(item => item.playerId))
+    await Promise.all([...expiredIds].map(playerId => {
+      const row = playersForWorld.find(player => player.id === playerId)
+      return row
+        ? supabase.from('club_players').update({ club_id: null, salary: 0, contract_until: null }).eq('id', row.clubPlayerId)
         : Promise.resolve()
     }))
 
