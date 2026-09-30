@@ -203,7 +203,7 @@ export function calculatePlayerMarketValue(player: WorldPlayer, competitionCount
   return Math.max(100_000, Math.round((player.marketValue || 100_000) * performance * ageFactor * potentialFactor * competitionFactor / 10_000) * 10_000)
 }
 
-export function buildScoutingReport(player: WorldPlayer, scoutingLevel: 'basic' | 'detailed' | 'elite' = 'basic') {
+export function buildScoutingReport(player: Player | WorldPlayer, scoutingLevel: 'basic' | 'detailed' | 'elite' = 'basic') {
   const overall = playerOverall(player)
   const reliability = scoutingLevel === 'elite' ? 0.96 : scoutingLevel === 'detailed' ? 0.86 : 0.68
   const reveal = (value: number) => Math.round(value * reliability + (100 - reliability * 100) * 0.5)
