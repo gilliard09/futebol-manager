@@ -2896,7 +2896,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
 
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0d1421]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
       <div className="grid grid-cols-5 gap-1">
-        {[['overview','Dashboard',Settings],['calendar','Calendários',CalendarDays],['squad','Elencos',Users],['market','Mercado',ShoppingBag],['stats','Estatísticas',BarChart3]].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[9px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/35'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
+        {[['overview','Dashboard',House],['calendar','Calendários',CalendarDays],['squad','Elencos',Users],['market','Mercado',ShoppingBag],['stats','Estatísticas',BarChart3]].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[9px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/35'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
       </div>
     </nav>
   </div>
