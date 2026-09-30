@@ -401,8 +401,9 @@ export function simulateMatch(
   const matchImportance = competition.includes('copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1)
   const preferredHome = Object.fromEntries((homeLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
   const preferredAway = Object.fromEntries((awayLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
+  const awayCoach = getAiCoachProfile(fixture.away_club_id)
   const home = selectStartingLineup(homePlayers, formation, coachStyle, coachPersonality, awayPlayers, preferredHome, matchImportance)
-  const away = selectStartingLineup(awayPlayers, formation, undefined, undefined, homePlayers, preferredAway, matchImportance)
+  const away = selectStartingLineup(awayPlayers, awayCoach.formation, awayCoach.style, awayCoach.personality, homePlayers, preferredAway, matchImportance)
   const homeBench = homePlayers.filter(player => !home.some(item => item.player.id === player.id))
   const awayBench = awayPlayers.filter(player => !away.some(item => item.player.id === player.id))
   const homeActive = [...home]
@@ -423,7 +424,13 @@ export function simulateMatch(
   homeMetrics.midfield = clamp(homeMetrics.midfield + modifiers.possession * 0.35)
   homeMetrics.morale = clamp(homeMetrics.morale + modifiers.morale)
   homeMetrics.overall = clamp(homeMetrics.overall + modifiers.attack * 0.25 + modifiers.defense * 0.25 + modifiers.possession * 0.15 + modifiers.morale * 0.15)
-  const awayMetrics = calculateTeamMetrics(away, 'balanced', '4-3-3')
+  const awayModifiers = coachModifiers(awayCoach.style, awayCoach.personality)
+  const awayMetrics = calculateTeamMetrics(away, awayCoach.tactic, awayCoach.formation)
+  awayMetrics.attack = clamp(awayMetrics.attack + awayModifiers.attack)
+  awayMetrics.defense = clamp(awayMetrics.defense + awayModifiers.defense)
+  awayMetrics.midfield = clamp(awayMetrics.midfield + awayModifiers.possession * 0.35)
+  awayMetrics.morale = clamp(awayMetrics.morale + awayModifiers.morale)
+  awayMetrics.overall = clamp(awayMetrics.overall + awayModifiers.attack * 0.25 + awayModifiers.defense * 0.25 + awayModifiers.possession * 0.15 + awayModifiers.morale * 0.15)
   const homeStats = emptyStats()
   const awayStats = emptyStats()
   const events: MatchEvent[] = []
@@ -438,20 +445,22 @@ export function simulateMatch(
     enteredAtById.set(item.player.id, 1)
   }
 
-  const rotationIntensity = coachStyle === 'high_press' || coachStyle === 'gegenpressing'
+  const rotationIntensityFor = (style: string) => style === 'high_press' || style === 'gegenpressing'
     ? 1.12
-    : coachStyle === 'defensive_block' || coachStyle === 'possession'
+    : style === 'defensive_block' || style === 'possession'
       ? 0.94
       : 1
 
   const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away') => {
+    const teamCoachStyle = team === 'home' ? (coachStyle ?? 'balanced') : awayCoach.style
+    const rotationIntensity = rotationIntensityFor(teamCoachStyle)
     if (![55, 70, 80].includes(minute) || substitutionWindows[team].has(minute) || substitutionCount[team] >= 5) return
     substitutionWindows[team].add(minute)
 
     const scoreDifference = team === 'home' ? homeScore - awayScore : awayScore - homeScore
     const protectingLead = scoreDifference > 0
     const chasingGame = scoreDifference < 0
-    const tacticalUrgency = chasingGame ? (coachStyle === 'counter_attack' || coachStyle === 'direct' || coachStyle === 'high_press' ? 1.08 : 1.02) : protectingLead ? 0.94 : 1
+    const tacticalUrgency = chasingGame ? (teamCoachStyle === 'counter_attack' || teamCoachStyle === 'direct' || teamCoachStyle === 'high_press' ? 1.08 : 1.02) : protectingLead ? 0.94 : 1
     const baseThreshold = minute < 65 ? 69 : minute < 76 ? 64 : 60
     const fatigueThreshold = baseThreshold * matchImportance / rotationIntensity * tacticalUrgency
 
@@ -459,7 +468,7 @@ export function simulateMatch(
       const ageLoad = Math.max(0, item.player.age - 28) * 0.8
       const physicalLoad = Math.max(0, 70 - item.player.physical) * 0.3
       const accumulatedFatigue = (item.player.fatigue ?? 0) * (1 + Math.max(0, 70 - item.player.physical) / 180)
-      const minuteLoad = minute * (coachStyle === 'high_press' || coachStyle === 'gegenpressing' ? 1 : 0.9)
+      const minuteLoad = minute * (teamCoachStyle === 'high_press' || teamCoachStyle === 'gegenpressing' ? 1 : 0.9)
       return accumulatedFatigue + minuteLoad + physicalLoad + ageLoad
     }
 
@@ -511,7 +520,7 @@ export function simulateMatch(
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
 
     const awayBefore = events.length
-    simulateSide(minute, 'away', awayActive, awayMetrics, homeMetrics, 'balanced', awayStats, events, random, awayName)
+    simulateSide(minute, 'away', awayActive, awayMetrics, homeMetrics, awayCoach.tactic, awayStats, events, random, awayName, awayModifiers)
     if (events.slice(awayBefore).some(event => event.type === 'goal')) awayScore++
 
     const tackleProbability = clamp(0.16 + ((100 - ((homeMetrics.midfield + awayMetrics.midfield) / 2)) / 400), 0.08, 0.2)
@@ -564,7 +573,7 @@ export function simulateMatch(
   })
 
   const homeRatings = buildPlayerRatings([...home, ...homeBench.map(player => ({ player, role: player.position, slot: -1 }))], 'home', events, tactic, minutesById, startedIds).filter(player => player.minutes > 0)
-  const awayRatings = buildPlayerRatings([...away, ...awayBench.map(player => ({ player, role: player.position, slot: -1 }))], 'away', events, 'balanced', minutesById, startedIds).filter(player => player.minutes > 0)
+  const awayRatings = buildPlayerRatings([...away, ...awayBench.map(player => ({ player, role: player.position, slot: -1 }))], 'away', events, awayCoach.tactic, minutesById, startedIds).filter(player => player.minutes > 0)
   const playerRatings = [...homeRatings, ...awayRatings]
   const analysis = buildAnalysis(homeRatings, awayRatings, homeStats, awayStats)
 
