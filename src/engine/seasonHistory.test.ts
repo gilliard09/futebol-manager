@@ -24,6 +24,19 @@ describe('season history', () => {
 import { resolveDivisionMovement } from './seasonHistory'
 
 describe('division movement', () => {
+
+  it('calcula movimento quando uma segunda divisão estiver ativa', () => {
+    const standings = [
+      { id: 'a', name: 'A', played: 1, wins: 1, draws: 0, losses: 0, gf: 2, ga: 0, points: 3 },
+      { id: 'b', name: 'B', played: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 2, points: 0 },
+    ]
+    expect(resolveDivisionMovement(standings, { divisionsActive: true, relegationSlots: 1, promotionSlots: 1 })).toEqual({
+      relegatedClubIds: ['b'],
+      promotedClubIds: ['a'],
+      activated: true,
+    })
+  })
+
   it('nao ativa rebaixamento antes da Serie B existir', () => {
     const standings = [{ id: 'a', name: 'A', played: 1, wins: 1, draws: 0, losses: 0, gf: 1, ga: 0, points: 3 }, { id: 'b', name: 'B', played: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 1, points: 0 }]
     expect(resolveDivisionMovement(standings)).toEqual({ relegatedClubIds: [], promotedClubIds: [], activated: false })
