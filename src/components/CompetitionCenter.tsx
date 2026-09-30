@@ -195,3 +195,4 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       </>}
     </section>
   </main>
+}
