@@ -653,8 +653,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
     // Se o clube do treinador foi premiado, o mesmo efeito precisa chegar
     // imediatamente à carreira local e ao caixa exibido no dashboard.
-    const userEffect = achievementByClub.get(career.club.id)
-    if (userEffect) {
+    const userEffect = achievementByClub.get(career.club.id) ?? { budgetBonus: 0, reputationBonus: 0, strengthBonus: 0, marketMultiplier: 1 }
+    {
       const nextBudget = Math.max(0, Number(career.club.budget ?? 0) + userEffect.budgetBonus)
       const nextCareer: ManagerProfile = {
         ...career,
