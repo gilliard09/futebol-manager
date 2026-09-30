@@ -1,4 +1,5 @@
 import type { Fixture, Formation, LineupPlayer, Player } from '../types/game'
+import { FORMATIONS } from '../types/game'
 import { isPlayerAvailable } from './discipline'
 import {
   calculateTeamMetrics,
@@ -362,6 +363,22 @@ function aiSubstitution(state: InteractiveMatchState, teamName: InteractiveTeam)
   })
 }
 
+function reassignFormation(team: InteractiveTeamState, formation: Formation) {
+  const used = new Set<string>()
+  const lineup = FORMATIONS[formation].map((role, slot) => {
+    const candidates = team.lineup
+      .filter(item => !used.has(item.player.id))
+      .sort((a, b) => {
+        const aFit = (a.player.position === role ? 20 : 0) + playerOverall(a.player) + (['CB','LB','RB','DM'].includes(role) ? a.player.defending : ['ST','LW','RW','AM'].includes(role) ? a.player.shooting : a.player.passing)
+        const bFit = (b.player.position === role ? 20 : 0) + playerOverall(b.player) + (['CB','LB','RB','DM'].includes(role) ? b.player.defending : ['ST','LW','RW','AM'].includes(role) ? b.player.shooting : b.player.passing)
+        return bFit - aFit
+      })[0]
+    if (!candidates) return null
+    used.add(candidates.player.id)
+    return { player: candidates.player, role, slot }
+  }).filter(Boolean) as LineupPlayer[]
+  team.lineup = lineup
+}
 export function makeInteractiveSubstitution(
   state: InteractiveMatchState,
   teamName: InteractiveTeam,
@@ -399,7 +416,10 @@ export function changeInteractiveTactics(
   const next = cloneState(state)
   const team = teamName === 'home' ? next.home : next.away
   team.tactic = tactic
-  if (formation) team.formation = formation
+  if (formation) {
+    team.formation = formation
+    reassignFormation(team, formation)
+  }
   recalculateMetrics(team)
   next.events.push({
     minute: next.minute,
