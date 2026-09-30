@@ -529,13 +529,24 @@ export function simulateWorldDay(
       if (squad.length >= buyerProfile.reserveLimit && random01(date + buyer.id) < (buyerProfile.behavior === 'ambitious' ? 0.35 : 0.65)) continue
       if (buyer.budget < 750000) continue
 
-      const weakestPosition = positions
-        .map(position => {
-          const group = squad.filter(player => player.position === position)
-          const average = group.length ? group.reduce((sum, player) => sum + playerOverall(player), 0) / group.length : 0
-          return { position, average, count: group.length }
-        })
-        .sort((a, b) => a.average - b.average || a.count - b.count)[0]
+      const squadNeeds = evaluateSquadNeeds(squad)
+      const weakestPosition = squadNeeds.length
+        ? (() => {
+            const need = squadNeeds[0]
+            const group = squad.filter(player => player.position === need.position)
+            return {
+              position: need.position,
+              average: group.length ? group.reduce((sum, player) => sum + playerOverall(player), 0) / group.length : 0,
+              count: group.length,
+            }
+          })()
+        : positions
+            .map(position => {
+              const group = squad.filter(player => player.position === position)
+              const average = group.length ? group.reduce((sum, player) => sum + playerOverall(player), 0) / group.length : 0
+              return { position, average, count: group.length }
+            })
+            .sort((a, b) => a.average - b.average || a.count - b.count)[0]
 
       const matureTargets = marketInterest
         .filter(interest => interest.stage === 'proposal_ready' && interest.clubIds.includes(buyer.id))
