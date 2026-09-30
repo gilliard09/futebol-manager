@@ -28,7 +28,7 @@ export function calculateSuspensionReturnDate(
     .filter(date => date > matchDate)
     .sort()
   const lastSuspendedMatch = futureDates[Math.min(matches - 1, futureDates.length - 1)]
-  return lastSuspendedMatch ? addCalendarDays(lastSuspendedMatch, 1) : addCalendarDays(matchDate, 7)
+  return lastSuspendedMatch ? addCalendarDays(lastSuspendedMatch, 1) : addCalendarDays(matchDate, 7 * Math.max(1, matches))
 }
 
 export function shouldSuspendForYellowAccumulation(previousYellowCards: number, nextYellowCards: number) {
