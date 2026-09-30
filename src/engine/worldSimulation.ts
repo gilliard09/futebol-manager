@@ -685,20 +685,47 @@ export function simulateWorldDay(
       if (monthsToEnd > 6 || monthsToEnd < 0) continue
       const overall = playerOverall(player)
       const performance = performanceByClub[club.id]
+      const behavior = clubBehavior(club)
       const underPressure = Boolean(performance && (performance.position >= 13 || performance.recentPoints <= 4))
       const role = getSquadRole(player)
       const roleImportant = role === 'starter' || role === 'rotation' || (role === 'prospect' && player.potential >= 84)
-      const important = roleImportant && (underPressure
-        ? overall >= club.strength - 2 || player.potential >= 86
-        : overall >= club.strength - 4 || player.potential >= 84)
+
+      // A renovação segue a identidade do clube: desenvolvedores protegem jovens,
+      // vendedores evitam comprometer a folha, clubes ambiciosos seguram titulares
+      // e clubes conservadores só renovam quando o custo cabe com folga no caixa.
+      const strategicPriority =
+        behavior === 'youth'
+          ? (player.age <= 23 && player.potential >= overall + 8 ? 14 : 0)
+          : behavior === 'seller'
+            ? (player.age <= 24 || player.overall >= club.strength + 4 ? 4 : -8)
+            : behavior === 'ambitious'
+              ? (role === 'starter' ? 10 : 3)
+              : behavior === 'conservative'
+                ? (overall >= club.strength - 1 ? 5 : -5)
+                : 0
+
+      const important = roleImportant && strategicPriority >= -2 && (
+        underPressure
+          ? overall >= club.strength - 2 || player.potential >= 86
+          : overall >= club.strength - 4 || player.potential >= 84
+      )
       if (!important || club.budget < 250000) continue
-      const renewalChance = role === 'starter'
-        ? 0.88
-        : role === 'rotation'
-          ? 0.76
-          : 0.68
+
+      const renewalChance = Math.max(
+        0.35,
+        Math.min(
+          0.94,
+          (role === 'starter' ? 0.82 : role === 'rotation' ? 0.7 : 0.58) +
+          strategicPriority * 0.012 -
+          (underPressure && behavior === 'conservative' ? 0.08 : 0),
+        ),
+      )
       if (random01(`${date}:renew:${player.id}`) > renewalChance) continue
-      const salaryMultiplier = role === 'starter' ? 1.14 : role === 'rotation' ? 1.1 : 1.06
+      const salaryMultiplier = role === 'starter'
+        ? behavior === 'ambitious' ? 1.17 : behavior === 'conservative' ? 1.08 : 1.13
+        : role === 'rotation'
+          ? behavior === 'seller' ? 1.04 : 1.1
+          : behavior === 'youth' ? 1.03 : 1.06
       const salary = Math.round(Math.max(player.salary * salaryMultiplier, overall * 1200) / 500) * 500
       player.salary = salary
       player.contractUntil = addYears(date, 2)
