@@ -528,6 +528,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
             seasonStarts: Number(stats?.starts ?? 0),
             seasonMinutes: Number(stats?.minutes ?? 0),
             seasonAverageRating: Number(stats?.avg_rating ?? 0),
+        seasonGoals: Number(stats?.goals ?? 0),
+        seasonAssists: Number(stats?.assists ?? 0),
           }
         })
         try {
@@ -627,7 +629,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const [{ data: clubRows }, { data: playerRows }, { data: seasonStatRows }] = await Promise.all([
       supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name'),
       supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)'),
-      supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,avg_rating').eq('season_id', season.id),
+      supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,goals,assists,avg_rating').eq('season_id', season.id),
     ])
 
     if (!clubRows?.length || !playerRows?.length) return null
