@@ -7,7 +7,7 @@ import { buildPlayerCompetitionStats } from '../engine/competitionStats'
 
 function normalizeFixture(row: any): Fixture {
   return {
-    id: row.id, competition_id: row.competition_id, round: Number(row.round), scheduled_at: row.scheduled_at,
+    id: row.id, competition_id: row.competition_id, competition_name: row.competitions?.name ?? null, round: Number(row.round), scheduled_at: row.scheduled_at,
     status: row.status, home_club_id: row.home_club_id, away_club_id: row.away_club_id,
     home_score: row.home_score, away_score: row.away_score, winner_club_id: row.winner_club_id ?? null,
     home_club: Array.isArray(row.home_club) ? (row.home_club[0] ?? null) : (row.home_club ?? null),
@@ -146,7 +146,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
                     const awayAggregate = (first ? (first.home_club_id === awayId ? first.home_score ?? 0 : first.away_score ?? 0) : 0) + (second ? (second.home_club_id === awayId ? second.home_score ?? 0 : second.away_score ?? 0) : 0)
                     const winnerId = second?.winner_club_id ?? first?.winner_club_id ?? (stage.rounds.length === 1 && first && first.home_score != null && first.away_score != null ? (first.home_score > first.away_score ? first.home_club_id : first.away_score > first.home_score ? first.away_club_id : null) : null)
                     const completed = tie.filter(item => item.status === 'completed').length
-                    const score = (clubId: string) => stage.rounds.length === 1 ? (first?.home_club_id === clubId ? firstHome : firstAway) : (first?.home_club_id === clubId ? firstHome : firstAway) + ' / ' + (second ? (second.home_club_id === clubId ? secondHome : secondAway) : '—')
+                    const score = (clubId?: string) => stage.rounds.length === 1 ? (first?.home_club_id === clubId ? firstHome : firstAway) : (first?.home_club_id === clubId ? firstHome : firstAway) + ' / ' + (second ? (second.home_club_id === clubId ? secondHome : secondAway) : '—')
                     return <div key={index} className="relative rounded-xl border border-white/6 bg-black/15 p-3">
                       <div className="space-y-1"><div className={winnerId === homeId ? 'font-bold text-emerald-300' : 'font-medium'}><span className="inline-block w-[68%] truncate align-middle">{home?.short_name ?? 'A definir'}</span><span className="float-right">{score(homeId) ?? '—'}</span></div><div className={winnerId === awayId ? 'font-bold text-emerald-300' : 'font-medium'}><span className="inline-block w-[68%] truncate align-middle">{away?.short_name ?? 'A definir'}</span><span className="float-right">{score(awayId) ?? '—'}</span></div></div>
                       {stage.rounds.length > 1 && <p className="mt-2 border-t border-white/5 pt-2 text-[11px] text-white/30">Agregado <span className="font-bold text-white/65">{homeAggregate} × {awayAggregate}</span>{completed === 2 && winnerId ? <span className="ml-2 text-emerald-300">classificado</span> : ''}</p>}
