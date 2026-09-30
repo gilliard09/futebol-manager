@@ -23,7 +23,7 @@ import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPe
 import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
-import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
+import { calculateInjuryReturnDate, calculateSuspensionReturnDate, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
