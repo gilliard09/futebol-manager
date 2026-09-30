@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
-import { playerOverall, type MatchResult } from './engine/match'
+import { lineupFromPlayerIds, playerOverall, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
@@ -1835,7 +1835,25 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
     setPhase('live')
     const { simulateMatch } = await import('./engine/match')
     await new Promise(resolve => setTimeout(resolve, 300))
-    const match = simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation as Formation, undefined, undefined, Math.random, coachStyle, coachPersonality)
+    let savedLineup: Record<number, string> = {}
+    try {
+      savedLineup = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
+    } catch {}
+    const homeLineup = homePlayers.length && fixture.home_club_id === fixture.home_club_id
+      ? lineupFromPlayerIds(homePlayers, formation as Formation, savedLineup)
+      : []
+    const match = simulateMatch(
+      fixture,
+      homePlayers,
+      awayPlayers,
+      tactic,
+      formation as Formation,
+      fixture.home_club_id === fixture.home_club_id && homeLineup.length ? homeLineup : undefined,
+      undefined,
+      Math.random,
+      coachStyle,
+      coachPersonality,
+    )
     setResult(match)
     for (let minute = 1; minute <= 90; minute++) {
       await new Promise(resolve => setTimeout(resolve, 55))
