@@ -17,6 +17,7 @@ import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loan
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
+import { simulateWorldDay, type WorldClub } from './engine/worldSimulation'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -343,9 +344,39 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const nextMatchDate = nextFixture ? toDateKey(nextFixture.scheduled_at) : null
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
 
-  function restOneDay() {
+  async function simulateOtherClubs(nextDate: string) {
+    const { data: season } = await supabase.from('seasons').select('id').eq('name', SEASON_NAME).maybeSingle()
+    if (!season?.id) return
+    const { data: clubRows } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name')
+    const { data: playerRows } = await supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)')
+    if (!clubRows?.length || !playerRows?.length) return
+    const worldClubs = clubRows.map((club: any) => ({ ...club, budget: Number(club.budget ?? 0), strength: Number(club.strength ?? club.reputation ?? 60) })) as WorldClub[]
+    const playersForWorld = (playerRows as any[]).map(row => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players
+      return { ...player, clubId: row.club_id, marketValue: Number(row.market_value ?? 0), salary: Number(row.salary ?? 0), contractUntil: row.contract_until ?? null, clubPlayerId: row.id }
+    })
+    const result = simulateWorldDay(nextDate, season.id, worldClubs, playersForWorld, career.club.id)
+    const changedPlayers = playersForWorld.filter(player => player.age <= 23 || player.age >= 31)
+    for (const player of changedPlayers) {
+      await supabase.from('players').update({ pace: player.pace, shooting: player.shooting, passing: player.passing, dribbling: player.dribbling, defending: player.defending, physical: player.physical, goalkeeping: player.goalkeeping, mental: player.mental, form: player.form, morale: player.morale }).eq('id', player.id)
+    }
+    for (const transfer of result.transfers) {
+      const row = playersForWorld.find(player => player.id === transfer.playerId)
+      if (!row) continue
+      await supabase.from('club_players').update({ club_id: transfer.toClubId }).eq('id', row.clubPlayerId)
+      await supabase.from('clubs').update({ budget: worldClubs.find(club => club.id === transfer.fromClubId)?.budget ?? 0 }).eq('id', transfer.fromClubId)
+      await supabase.from('clubs').update({ budget: worldClubs.find(club => club.id === transfer.toClubId)?.budget ?? 0 }).eq('id', transfer.toClubId)
+      await supabase.from('world_transfers').upsert({ season_id: season.id, transfer_date: nextDate, player_id: transfer.playerId, from_club_id: transfer.fromClubId, to_club_id: transfer.toClubId, fee: transfer.fee, reason: 'ai_market' }, { onConflict: 'season_id,player_id,transfer_date' })
+    }
+    for (const club of worldClubs.filter(item => result.changedClubs.includes(item.id))) {
+      await supabase.from('clubs').update({ strength: club.strength }).eq('id', club.id)
+    }
+  }
+
+  async function restOneDay() {
     if (!clock || !canAdvanceDay(clock, nextMatchDate)) return
     const nextClock = advanceSeasonDay(clock)
+    await simulateOtherClubs(nextClock.currentDate)
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== clock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
