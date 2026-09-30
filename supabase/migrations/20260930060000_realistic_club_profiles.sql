@@ -35,8 +35,7 @@ set
   strength = p.strength,
   budget = p.budget
 from profile p
-where lower(regexp_replace(c.name, '[^a-zA-Z0-9]+', '', 'g'))
-    = lower(regexp_replace(p.name, '[^a-zA-Z0-9]+', '', 'g'));
+where lower(c.name) like '%' || lower(p.name) || '%';
 
 -- O reset de nova carreira usa este baseline; portanto os valores
 -- atualizados precisam ser refletidos também na fotografia inicial do mundo.
