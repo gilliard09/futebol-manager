@@ -170,7 +170,11 @@ function GameApp() {
     if (!selectedClub || !canContinue) return
     const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: SEASON_NAME }
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
-    localStorage.setItem(FINANCE_KEY, JSON.stringify([createTransaction(SEASON_START, 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget')]))
+    const initialSponsor = { ...chooseSponsor(next.club.reputation ?? 50), seasonId: next.season }
+    localStorage.setItem(FINANCE_KEY, JSON.stringify([
+      createTransaction(SEASON_START, 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget'),
+      createTransaction(SEASON_START, 'sponsorship', initialSponsor.name, initialSponsor.upfront, undefined, 'sponsor:upfront:' + next.season),
+    ]))
     setCareer(next); navigate('/dashboard')
   }
 
