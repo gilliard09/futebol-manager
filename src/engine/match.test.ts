@@ -42,6 +42,19 @@ describe('match engine', () => {
     expect(result.awayStats.xg).toBeGreaterThanOrEqual(0)
   })
 
+  it('does not select injured or suspended players for the next match', () => {
+    const squad = lineup().map(item => item.player)
+    const injured = { ...squad[9], injuredUntil: '2026-02-20' }
+    const suspended = { ...squad[8], suspendedUntil: '2026-02-20' }
+    const home = squad.map(item => item.id === injured.id ? injured : item.id === suspended.id ? suspended : item)
+    const matchFixture = { ...fixture, scheduled_at: '2026-02-10T19:00:00.000Z' }
+    const result = simulateMatch(matchFixture, home, squad.map((item, index) => ({ ...item, id: 'away-' + index })), 'balanced', '4-3-3', undefined, undefined, () => 0.5)
+    const selectedIds = result.playerRatings.filter(item => item.team === 'home' && item.started).map(item => item.playerId)
+
+    expect(selectedIds).not.toContain(injured.id)
+    expect(selectedIds).not.toContain(suspended.id)
+  })
+
   it('keeps player ratings in a football-like 5-10 range', () => {
     const result = simulateMatch(fixture, lineup().map(x => x.player), lineup().map(x => x.player), 'balanced', '4-3-3', lineup(), lineup(), () => 0.5)
     expect(result.playerRatings).toHaveLength(22)
