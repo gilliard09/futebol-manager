@@ -12,6 +12,7 @@ type Contract = {
   joined_at: string | null
 }
 type SavedContract = { contract_until: string | null; salary: number; market_value: number }
+type SeasonStats = { appearances: number; starts: number; minutes: number; goals: number; assists: number; avg_rating: number }
 
 function money(value: number | null) {
   if (value === null || value === undefined) return '—'
@@ -35,24 +36,51 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
   const [loading, setLoading] = useState(true)
   const [renewing, setRenewing] = useState(false)
   const [years, setYears] = useState(2)
+  const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null)
 
   useEffect(() => {
     let active = true
     async function loadContract() {
-      const { data, error } = await supabase
-        .from('club_players')
-        .select('contract_until,salary,market_value,joined_at')
-        .eq('player_id', player.id)
-        .maybeSingle()
+      const [contractResult, seasonResult] = await Promise.all([
+        supabase
+          .from('club_players')
+          .select('contract_until,salary,market_value,joined_at')
+          .eq('player_id', player.id)
+          .maybeSingle(),
+        supabase
+          .from('seasons')
+          .select('id')
+          .eq('year', Number(today.slice(0, 4)))
+          .maybeSingle(),
+      ])
 
       if (active) {
-        let next = error ? null : data as Contract
+        let next = contractResult.error ? null : contractResult.data as Contract
         try {
           const saved = JSON.parse(localStorage.getItem('futebol-manager:contracts') ?? '{}')
           const override = saved[player.id] as SavedContract | undefined
           if (override) next = { ...(next ?? { contract_until: null, salary: 0, market_value: 0, joined_at: null }), contract_until: override.contract_until, salary: override.salary, market_value: override.market_value }
         } catch {}
         setContract(next)
+
+        if (seasonResult.data?.id) {
+          const { data: stats } = await supabase
+            .from('player_season_stats')
+            .select('appearances,starts,minutes,goals,assists,avg_rating')
+            .eq('season_id', seasonResult.data.id)
+            .eq('player_id', player.id)
+            .maybeSingle()
+          setSeasonStats(stats ? {
+            appearances: Number(stats.appearances ?? 0),
+            starts: Number(stats.starts ?? 0),
+            minutes: Number(stats.minutes ?? 0),
+            goals: Number(stats.goals ?? 0),
+            assists: Number(stats.assists ?? 0),
+            avg_rating: Number(stats.avg_rating ?? 0),
+          } : null)
+        } else {
+          setSeasonStats(null)
+        }
         setLoading(false)
       }
     }
@@ -107,6 +135,18 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
       <div className={`mt-5 rounded-xl border px-4 py-3 text-sm ${status === 'expired' || status === 'critical' ? 'border-amber-400/20 bg-amber-400/5 text-amber-200' : 'border-white/6 bg-black/10 text-white/45'}`}><div className="flex items-center justify-between gap-3"><span>{statusLabel}</span>{status !== 'safe' && <span className="text-xs font-semibold">Renovação necessária</span>}</div></div>
 
       <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Renovar contrato</p><p className="mt-2 text-sm text-white/40">Nova duração e salário proposto para esta carreira.</p></div><span className="text-sm font-bold text-emerald-300">{money(renewalSalary)}/mês</span></div><div className="mt-4 flex flex-col gap-3 sm:flex-row"><select value={years} onChange={e => setYears(Number(e.target.value))} className="rounded-xl border border-white/8 bg-[#0d1015] px-4 py-3 text-sm outline-none"><option value={1}>1 ano</option><option value={2}>2 anos</option><option value={3}>3 anos</option><option value={4}>4 anos</option></select><button onClick={renew} disabled={renewing || loading} className="flex-1 rounded-xl bg-emerald-400 px-4 py-3 text-sm font-bold text-[#06100c] disabled:opacity-40">{renewing ? 'Renovando...' : `Renovar por ${years} anos`}</button></div></div>
+
+      <div className="mt-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Temporada atual</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-6">
+          <Info label="Jogos" value={String(seasonStats?.appearances ?? 0)} />
+          <Info label="Titular" value={String(seasonStats?.starts ?? 0)} />
+          <Info label="Minutos" value={String(seasonStats?.minutes ?? 0)} />
+          <Info label="Gols" value={String(seasonStats?.goals ?? 0)} />
+          <Info label="Assistências" value={String(seasonStats?.assists ?? 0)} />
+          <Info label="Nota média" value={seasonStats ? seasonStats.avg_rating.toFixed(1) : '—'} />
+        </div>
+      </div>
 
       <div className="mt-7">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Atributos</p>
