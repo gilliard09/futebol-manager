@@ -172,7 +172,6 @@ export function buildWorldNews(
           id: 'market-scorer:' + result.date + ':' + topScorer.id + ':' + topScorer.seasonGoals,
         })
       }
-      const isUser = topScorer.clubId === userClubId
       push({
         date: result.date,
         title: isUser ? 'Seu jogador é destaque na artilharia' : 'Artilheiro começa a chamar atenção',
