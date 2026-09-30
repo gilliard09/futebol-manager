@@ -387,6 +387,34 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         .eq('id', player.id)
     }
 
+    // Se o clube do treinador foi premiado, o mesmo efeito precisa chegar
+    // imediatamente à carreira local e ao caixa exibido no dashboard.
+    const userEffect = achievementByClub.get(career.club.id)
+    if (userEffect) {
+      const nextBudget = Math.max(0, Number(career.club.budget ?? 0) + userEffect.budgetBonus)
+      const nextCareer: ManagerProfile = {
+        ...career,
+        club: {
+          ...career.club,
+          budget: nextBudget,
+          reputation: Math.max(35, Math.min(95, Number(career.club.reputation ?? 50) + userEffect.reputationBonus)),
+          strength: Math.max(35, Math.min(95, Number(career.club.strength ?? 50) + userEffect.strengthBonus)),
+        },
+      }
+      onCareerUpdate(nextCareer)
+
+      if (userEffect.budgetBonus > 0) {
+        addFinanceTransaction(createTransaction(
+          toDateKey(new Date().toISOString()),
+          'other',
+          'Premiação por desempenho da temporada',
+          userEffect.budgetBonus,
+          undefined,
+          `season:achievement:${seasonId}`,
+        ))
+      }
+    }
+
     setSeasonClosed(true)
     setSeasonCompletion(completion)
   }
