@@ -141,13 +141,33 @@ export function calculateTeamMetrics(lineup: LineupPlayer[], tactic = 'balanced'
   return { overall: overall * 0.97 + fit * 0.03, goalkeeper, defense, midfield, attack, form, morale, tacticalFit: fit }
 }
 
+function selectionScore(player: Player, role: string) {
+  const roleFit = player.position === role ? 8 : 0
+  const formBonus = (player.form - 50) * 0.08
+  const moraleBonus = (player.morale - 50) * 0.04
+  const fatiguePenalty = (player.fatigue ?? 0) * 0.16
+  return rating(player, role) + roleFit + formBonus + moraleBonus - fatiguePenalty
+}
+
 function fallbackLineup(players: Player[], formation: Formation): LineupPlayer[] {
   const used = new Set<string>()
   return FORMATIONS[formation].map((role, slot) => {
     const candidates = players.filter(player => !used.has(player.id))
-    const player = candidates.find(p => p.position === role) ?? candidates.sort((a, b) => playerOverall(b) - playerOverall(a))[0]
+    const player = [...candidates].sort((a, b) => selectionScore(b, role) - selectionScore(a, role))[0]
     if (!player) return null
     used.add(player.id)
+    return { player, role, slot }
+  }).filter(Boolean) as LineupPlayer[]
+}
+
+export function lineupFromPlayerIds(players: Player[], formation: Formation, ids: Record<number, string>): LineupPlayer[] {
+  const used = new Set<string>()
+  return FORMATIONS[formation].map((role, slot) => {
+    const id = ids[slot]
+    if (!id || used.has(id)) return null
+    const player = players.find(item => item.id === id)
+    if (!player) return null
+    used.add(id)
     return { player, role, slot }
   }).filter(Boolean) as LineupPlayer[]
 }
