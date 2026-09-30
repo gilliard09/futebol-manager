@@ -689,9 +689,29 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         .eq('club_id', career.club.id)
         .maybeSingle()
 
-      if (row?.id) {
+      const { data: buyer } = await supabase
+        .from('clubs')
+        .select('id,budget')
+        .eq('id', pendingEvent.toClubId)
+        .maybeSingle()
+
+      const buyerBudget = Number(buyer?.budget ?? 0)
+      if (row?.id && buyer && buyerBudget >= pendingEvent.fee) {
         const { error } = await supabase.from('club_players').update({ club_id: pendingEvent.toClubId }).eq('id', row.id)
         if (!error) {
+          await Promise.all([
+            supabase.from('clubs').update({ budget: buyerBudget - pendingEvent.fee }).eq('id', pendingEvent.toClubId),
+            supabase.from('world_transfers').upsert({
+              season_id: career.season === SEASON_NAME ? (await supabase.from('seasons').select('id').eq('name', SEASON_NAME).maybeSingle()).data?.id : undefined,
+              transfer_date: pendingEvent.date,
+              player_id: pendingEvent.playerId,
+              from_club_id: career.club.id,
+              to_club_id: pendingEvent.toClubId,
+              fee: pendingEvent.fee,
+              reason: 'ai_offer',
+            }, { onConflict: 'season_id,player_id,transfer_date' }),
+          ])
+
           const transaction = createTransaction(
             pendingEvent.date,
             'transfer_in',
