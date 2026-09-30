@@ -11,6 +11,8 @@ function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
 }
 
+const FREE_AGENT_ID = 'free-agent'
+
 type MarketPlayer = {
   player: Player
   club: Club
@@ -66,7 +68,11 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
         const player = Array.isArray(row.players) ? row.players[0] : row.players
         const currentClubId = state.playerClubOverrides[player.id] ?? row.club_id
         if (getActiveLoan(player.id, today, loanState)) return []
-        const seller = byId.get(currentClubId)
+        const seller = currentClubId
+          ? byId.get(currentClubId)
+          : clubs[0]
+            ? { ...clubs[0], id: FREE_AGENT_ID, name: 'Sem clube', short_name: 'Livre' }
+            : null
         if (!seller) return []
         return [{
           player: { ...player, squad_number: row.squad_number } as Player,
@@ -97,13 +103,17 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
     }).sort((a, b) => playerOverall(b.player) - playerOverall(a.player))
   }, [marketPlayers, position, search, club.id])
 
-  const selectedAsking = selected ? calculateAskingPrice(selected.player, selected.marketValue) : 0
-  const negotiation = selected ? negotiateTransfer(selectedAsking, offer, personality) : null
+  const selectedAsking = selected ? (selected.club.id === FREE_AGENT_ID ? 0 : calculateAskingPrice(selected.player, selected.marketValue)) : 0
+  const negotiation = selected
+    ? selected.club.id === FREE_AGENT_ID
+      ? { accepted: true, minimum: 0, counterOffer: 0 }
+      : negotiateTransfer(selectedAsking, offer, personality)
+    : null
 
   function openPlayer(item: MarketPlayer, nextMode: 'buy' | 'sell') {
     setSelected(item)
     setMode(nextMode)
-    setOffer(calculateAskingPrice(item.player, item.marketValue))
+    setOffer(item.club.id === FREE_AGENT_ID ? 0 : calculateAskingPrice(item.player, item.marketValue))
     setBuyerId(clubs.find(item => item.id !== club.id)?.id ?? '')
     setMessage(null)
   }
@@ -220,15 +230,15 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Valor de mercado</p><p className="mt-1 font-semibold">{money(selected.marketValue)}</p></div>
-          <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Preço pedido</p><p className="mt-1 font-semibold">{money(selectedAsking)}</p></div>
+          <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Preço pedido</p><p className="mt-1 font-semibold">{selected.club.id === FREE_AGENT_ID ? 'Grátis' : money(selectedAsking)}</p></div>
           <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Salário atual</p><p className="mt-1 font-semibold">{money(selected.salary)}/mês</p></div>
-          <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Contrato</p><p className="mt-1 font-semibold">{selected.contractUntil ? new Intl.DateTimeFormat('pt-BR').format(new Date(selected.contractUntil + 'T00:00:00')) : '—'}</p></div>
+          <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Contrato</p><p className="mt-1 font-semibold">{selected.club.id === FREE_AGENT_ID ? 'Jogador livre' : selected.contractUntil ? new Intl.DateTimeFormat('pt-BR').format(new Date(selected.contractUntil + 'T00:00:00')) : '—'}</p></div>
         </div>
         <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
           <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Sua proposta</p><p className="mt-2 text-sm text-white/35">O clube aceita propostas a partir de 90% do preço pedido.</p></div><Tag size={20} className="text-emerald-300/50" /></div>
           {mode === 'sell' && <label className="mt-4 block text-xs text-white/35">Clube comprador<select value={buyerId} onChange={e => setBuyerId(e.target.value)} className="mt-2 w-full rounded-xl border border-white/8 bg-[#0d1015] px-4 py-3 text-sm text-white outline-none">{clubs.filter(item => item.id !== club.id).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
-          <input type="range" min={calculateAskingPrice(selected.player, selected.marketValue) * 0.75} max={calculateAskingPrice(selected.player, selected.marketValue) * 1.15} step={10000} value={offer} onChange={e => setOffer(Number(e.target.value))} className="mt-5 w-full" />
-          <div className="mt-3 flex items-center justify-between text-sm"><span className="text-white/30">Oferta</span><span className="font-bold text-emerald-300">{money(offer)}</span></div>
+          {selected.club.id !== FREE_AGENT_ID && <input type="range" min={calculateAskingPrice(selected.player, selected.marketValue) * 0.75} max={calculateAskingPrice(selected.player, selected.marketValue) * 1.15} step={10000} value={offer} onChange={e => setOffer(Number(e.target.value))} className="mt-5 w-full" />}
+          <div className="mt-3 flex items-center justify-between text-sm"><span className="text-white/30">Oferta</span><span className="font-bold text-emerald-300">{selected.club.id === FREE_AGENT_ID ? 'Sem taxa' : money(offer)}</span></div>
           {negotiation && <p className={`mt-3 text-xs ${negotiation.accepted ? 'text-emerald-300/70' : 'text-amber-200/70'}`}>{negotiation.accepted ? 'Oferta dentro da margem de negociação.' : `Abaixo do mínimo de ${money(negotiation.minimum)}.`}</p>}
           {message && <p className="mt-3 rounded-lg border border-white/6 bg-black/10 px-3 py-2 text-xs text-white/45">{message}</p>}
           <button onClick={submitTransfer} disabled={saving || !negotiation?.accepted || (mode === 'buy' && !canCompleteTransfer(club, offer))} className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30"><ShoppingBag size={16} /> {mode === 'sell' ? 'Aceitar proposta e vender' : canCompleteTransfer(club, offer) ? 'Enviar proposta e contratar' : 'Orçamento insuficiente'}</button>
