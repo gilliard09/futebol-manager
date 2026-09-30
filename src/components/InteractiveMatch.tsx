@@ -15,7 +15,7 @@ import {
 import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/match'
 import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
-import { playMatchSound } from '../engine/matchAudio'
+import { playMatchSound, startMatchAmbient, stopMatchAmbient } from '../engine/matchAudio'
 
 
 type Props = {
@@ -214,6 +214,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     setSession(next)
     setPhase('live')
     setPaused(false)
+    startMatchAmbient()
   }
 
   useEffect(() => {
