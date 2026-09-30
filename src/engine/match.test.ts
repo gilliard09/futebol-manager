@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTeamMetrics, getAiCoachProfile, selectStartingLineup, simulateMatch } from './match'
+import { calculateTeamMetrics, getAiCoachProfile, getSquadRole, selectStartingLineup, simulateMatch } from './match'
 import type { Fixture, LineupPlayer, Player } from '../types/game'
 
 function player(id: string, position: Player['position'], base = 70): Player {
@@ -61,6 +61,13 @@ describe('match engine', () => {
     expect(striker?.player.id).toBe(freshStriker.id)
     expect(selected).toHaveLength(11)
     expect(new Set(selected.map(item => item.player.id)).size).toBe(11)
+  })
+
+  it('classifies squad hierarchy from season usage and development profile', () => {
+    expect(getSquadRole({ ...player('starter', 'ST', 70), seasonAppearances: 12, seasonStarts: 9, seasonMinutes: 900 })).toBe('starter')
+    expect(getSquadRole({ ...player('rotation', 'ST', 70), seasonAppearances: 7, seasonStarts: 2, seasonMinutes: 360 })).toBe('rotation')
+    expect(getSquadRole({ ...player('prospect', 'ST', 66), age: 20, potential: 82, seasonAppearances: 2, seasonStarts: 0, seasonMinutes: 120 })).toBe('prospect')
+    expect(getSquadRole({ ...player('backup', 'ST', 70), seasonAppearances: 1, seasonStarts: 0, seasonMinutes: 45 })).toBe('backup')
   })
 
   it('uses season starts as part of the squad hierarchy', () => {
