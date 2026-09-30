@@ -1,4 +1,4 @@
-export type FinanceTransactionType = 'match_revenue' | 'salary' | 'training' | 'transfer_in' | 'transfer_out' | 'bonus' | 'other'
+export type FinanceTransactionType = 'match_revenue' | 'salary' | 'training' | 'transfer_in' | 'transfer_out' | 'bonus' | 'prize' | 'sponsorship' | 'other'
 
 export type FinanceTransaction = {
   id: string
@@ -51,4 +51,33 @@ export function calculateTrainingExpense(cost: number) {
 
 export function createTransaction(date: string, type: FinanceTransactionType, description: string, amount: number, id = crypto.randomUUID(), eventId?: string): FinanceTransaction {
   return { id, date, type, description, amount, eventId }
+}
+
+
+export function calculatePrizeMoney(position: number, competition: 'league' | 'cup', champion = false) {
+  if (competition === 'cup') {
+    if (champion) return 2_000_000
+    if (position === 2) return 1_000_000
+    if (position >= 3 && position <= 4) return 500_000
+    return 0
+  }
+  if (position === 1) return 3_000_000
+  if (position === 2) return 1_500_000
+  if (position >= 3 && position <= 4) return 750_000
+  return 0
+}
+
+export function calculateMatchRevenueFromAttendance(attendance: number, ticketPrice = 35, result: 'W' | 'D' | 'L' = 'D') {
+  const resultMultiplier = result === 'W' ? 1.05 : result === 'L' ? 0.95 : 1
+  return Math.max(0, Math.round(attendance * ticketPrice * resultMultiplier))
+}
+
+export function summarizeFinance(transactions: FinanceTransaction[], balance: number, monthlyPayroll: number) {
+  const revenue = transactions.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0)
+  const expenses = transactions.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  const transferSpend = transactions.filter(item => item.type === 'transfer_out').reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  const transferIncome = transactions.filter(item => item.type === 'transfer_in').reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  const matchRevenue = transactions.filter(item => item.type === 'match_revenue').reduce((sum, item) => sum + item.amount, 0)
+  const prizes = transactions.filter(item => item.type === 'prize').reduce((sum, item) => sum + item.amount, 0)
+  return { balance, monthlyPayroll, revenue, expenses, transferSpend, transferIncome, matchRevenue, prizes }
 }
