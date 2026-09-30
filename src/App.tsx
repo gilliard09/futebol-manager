@@ -155,7 +155,7 @@ function GameApp() {
     let active = true
     async function loadClubs() {
       setLoading(true); setError(null)
-      const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url').order('name')
+      const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,stadium_capacity,founded_year,logo_url,strength').order('name')
       if (!active) return
       if (error) setError(error.message); else setClubs(data ?? [])
       setLoading(false)
@@ -534,7 +534,7 @@ function GameApp() {
         }
       : {
           sponsor: { ...chooseSponsor(career?.club.reputation ?? 50), seasonId: nextSeasonName },
-          stadium: createStadium(career?.club.id ?? '', nextSeasonName, career?.club.stadium ?? 'Estádio Municipal'),
+          stadium: createStadium(career?.club.id ?? '', nextSeasonName, career?.club.stadium ?? 'Estádio Municipal', career?.club.stadium_capacity ?? 12000),
         }
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify(nextCommercial))
     if (nextCommercial.sponsor.upfront > 0) {
@@ -692,7 +692,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       if (saved) return saved
     } catch {}
     const sponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
-    return { sponsor, stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal') }
+    return { sponsor, stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal', career.club.stadium_capacity ?? 12000) }
   })
 
   const [fanState, setFanState] = useState<FanState>(() => {
