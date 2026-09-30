@@ -88,6 +88,41 @@ export function playerOverall(player: Player) {
   return Math.round(rating(player))
 }
 
+export type SquadRole = 'starter' | 'rotation' | 'backup' | 'prospect'
+
+export function getSquadRole(player: Player): SquadRole {
+  const appearances = player.seasonAppearances ?? 0
+  const starts = player.seasonStarts ?? 0
+  const minutes = player.seasonMinutes ?? 0
+  const startRate = appearances > 0 ? starts / appearances : 0
+  const overall = playerOverall(player)
+  const developmentRoom = player.potential - overall
+
+  if (
+    appearances >= 6 &&
+    starts >= 4 &&
+    startRate >= 0.6 &&
+    minutes >= 360
+  ) {
+    return 'starter'
+  }
+
+  if (
+    player.age <= 23 &&
+    developmentRoom >= 8 &&
+    minutes < 450 &&
+    starts < 4
+  ) {
+    return 'prospect'
+  }
+
+  if (appearances >= 4 || minutes >= 240 || starts >= 2) {
+    return 'rotation'
+  }
+
+  return 'backup'
+}
+
 function performanceRating(player: Player, role = player.position) {
   return rating(player, role) * (1 - Math.min(0.2, (player.fatigue ?? 0) * 0.002))
 }
@@ -212,6 +247,14 @@ export function selectStartingLineup(
     const recentRatingBonus = recentRating > 0 ? (recentRating - 6.5) * 2.2 : 0
     const appearanceBonus = Math.min(1.5, recentAppearances * 0.08)
     const hierarchyBonus = Math.min(8, startRate * 8)
+    const squadRole = getSquadRole(player)
+    const roleHierarchyBonus = squadRole === 'starter'
+      ? 3
+      : squadRole === 'rotation'
+        ? 1.2
+        : squadRole === 'prospect'
+          ? 0.6
+          : 0
     const rotationBonus = coachStyle === 'youth_focus' && player.age <= 23 ? 5 : 0
     const developmentBonus = player.age <= 23 && player.potential >= overall + 8 ? 2 : 0
     const veteranPenalty = player.age >= 31 && recentMinutes >= 900 && matchImportance < 1.1 ? 2 : 0
@@ -221,7 +264,7 @@ export function selectStartingLineup(
       : opponentPressure <= -4 && matchImportance < 1.1
         ? (player.age <= 23 || recentMinutes < 600 ? 1.5 : 0)
         : 0
-    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + recentRatingBonus + appearanceBonus + hierarchyBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
+    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + recentRatingBonus + appearanceBonus + hierarchyBonus + roleHierarchyBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
   }
 
   return FORMATIONS[formation].map((role, slot) => {
