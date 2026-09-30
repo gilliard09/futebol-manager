@@ -1,6 +1,7 @@
 import type { Club, Player } from '../types/game'
 import { getSquadRole, playerOverall } from './match'
 import { calculateTargetPriority, decideTransferNegotiation } from './marketNegotiation'
+import { calculateLoanFee, normalizeSalaryShare, type LoanRecord } from './loans'
 
 export type WorldClub = Club & { strength: number }
 
@@ -40,6 +41,7 @@ export type WorldSimulationResult = {
   date: string
   transfers: Array<{ playerId: string; fromClubId: string | null; toClubId: string; fee: number }>
   offers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  loans: LoanRecord[]
   negotiationEvents: Array<{
     playerId: string
     buyerId: string
@@ -108,6 +110,26 @@ function clamp(value: number, min: number, max: number) {
 function addYears(date: string, years: number) {
   const [year, month, day] = date.split('-').map(Number)
   return `${year + years}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function isLoanActiveOnDate(loan: LoanRecord, date: string) {
+  return loan.startDate <= date && date < loan.endDate
+}
+
+function evaluateLoanForWorld(player: WorldPlayer, parent: WorldClub, destination: WorldClub, destinationPositionDepth: number) {
+  const overall = playerOverall(player)
+  const room = Math.max(0, player.potential - overall)
+  const youthBonus = player.age <= 23 && room >= 8 ? 12 : 0
+  const playingOpportunity = Math.max(0, 10 - destinationPositionDepth * 3)
+  const fit = Math.max(0, 10 - Math.abs(destination.strength - overall) * 0.6)
+  const parentBehavior = clubBehavior(parent)
+  const parentBonus = parentBehavior === 'youth' ? youthBonus : parentBehavior === 'seller' ? 5 : 0
+  const destinationBonus = clubBehavior(destination) === 'youth' ? 6 : clubBehavior(destination) === 'ambitious' ? 2 : 0
+  const score = Math.round(playingOpportunity * 1.4 + fit + parentBonus + destinationBonus)
+  const months = player.age <= 23 ? 6 : 5
+  const fee = calculateLoanFee(player, player.marketValue, months)
+  const salaryShare = player.age <= 23 ? 70 : 55
+  return { score, fee, salaryShare, months }
 }
 
 function addMonths(date: string, months: number) {
@@ -202,11 +224,13 @@ export function simulateWorldDay(
   userClubId: string,
   performanceByClub: Record<string, WorldClubPerformance> = {},
   previousMarketInterest: MarketInterest[] = [],
+  activeLoans: LoanRecord[] = [],
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
   const negotiationEvents: WorldSimulationResult['negotiationEvents'] = []
+  const loans: LoanRecord[] = []
   const marketInterest: WorldSimulationResult['marketInterest'] = []
   const expiredContracts: WorldSimulationResult['expiredContracts'] = []
   const renewals: WorldSimulationResult['renewals'] = []
@@ -623,6 +647,51 @@ export function simulateWorldDay(
     }
   }
 
+  // Empréstimos: o mercado também resolve excesso de elenco e desenvolvimento.
+  if ([10, 20].includes(day)) {
+    const activeLoanPlayerIds = new Set(activeLoans.filter(loan => isLoanActiveOnDate(loan, date)).map(loan => loan.playerId))
+    const destinations = aiClubs.filter(club => (byClub.get(club.id) ?? []).length < 24).sort((a, b) => (byClub.get(a.id)?.length ?? 0) - (byClub.get(b.id)?.length ?? 0))
+    for (const destination of destinations.slice(0, 6)) {
+      const destinationSquad = byClub.get(destination.id) ?? []
+      const depth = new Map<string, number>()
+      for (const player of destinationSquad) depth.set(player.position, (depth.get(player.position) ?? 0) + 1)
+      const candidates = aiClubs
+        .filter(parent => parent.id !== destination.id && (byClub.get(parent.id) ?? []).length >= 19)
+        .flatMap(parent => (byClub.get(parent.id) ?? []).map(player => ({ parent, player })))
+        .filter(({ parent, player }) => {
+          if (activeLoanPlayerIds.has(player.id) || !player.contractUntil || player.contractUntil < date || player.age > 29) return false
+          const role = getSquadRole(player)
+          const room = Math.max(0, player.potential - playerOverall(player))
+          const behavior = clubBehavior(parent)
+          if (behavior === 'youth') return player.age <= 23 && room >= 7 && role !== 'starter'
+          if (behavior === 'seller') return player.age <= 24 || role === 'backup' || role === 'prospect'
+          return role === 'backup' || role === 'prospect' || (player.age <= 23 && room >= 10)
+        })
+        .map(({ parent, player }) => ({ parent, player, evaluation: evaluateLoanForWorld(player, parent, destination, depth.get(player.position) ?? 0) }))
+        .filter(item => item.evaluation.score >= 20 && item.evaluation.fee <= destination.budget * 0.18)
+        .sort((a, b) => b.evaluation.score - a.evaluation.score)
+      const selected = candidates[0]
+      if (!selected) continue
+      const { parent, player, evaluation } = selected
+      const seed = 'loan:' + seasonId + ':' + date + ':' + parent.id + ':' + destination.id + ':' + player.id
+      if (hash(seed) % 100 >= Math.min(78, 38 + evaluation.score)) continue
+      const fee = Math.max(25000, evaluation.fee)
+      const salaryShare = normalizeSalaryShare(evaluation.salaryShare)
+      const destinationCost = fee + Math.round(player.salary * (salaryShare / 100) * evaluation.months)
+      if (destinationCost > destination.budget) continue
+      const record: LoanRecord = {
+        id: 'loan:' + seasonId + ':' + date + ':' + player.id + ':' + destination.id,
+        date, startDate: date, endDate: addMonths(date, evaluation.months),
+        playerId: player.id, playerName: player.first_name + ' ' + player.last_name,
+        parentClubId: parent.id, loanClubId: destination.id, fee, salary: Math.max(0, player.salary), salaryShare,
+      }
+      loans.push(record)
+      activeLoanPlayerIds.add(player.id)
+      parent.budget += fee + Math.round(player.salary * (1 - salaryShare / 100))
+      destination.budget = Math.max(0, destination.budget - destinationCost)
+      changedClubs.add(parent.id); changedClubs.add(destination.id)
+    }
+  }
   // Carreira: o contexto do jogador também pesa no ambiente do elenco.
   // Contrato perto do fim, salário muito abaixo do padrão e desempenho coletivo ruim
   // podem reduzir o ânimo. Um bom momento esportivo e uma posição importante no elenco
@@ -861,5 +930,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, offers, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
+  return { date, transfers, offers, loans, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
 }
