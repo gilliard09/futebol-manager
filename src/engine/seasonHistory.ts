@@ -109,3 +109,41 @@ export function resolveDivisionMovement(standings: StandingRow[], options: { rel
     activated: true,
   }
 }
+
+
+export type SeasonCompletion = {
+  seasonId: string
+  seasonName: string
+  league: CompetitionHistoryResult
+  cup: CompetitionHistoryResult
+}
+
+export function buildSeasonCompletion(
+  season: { id: string; name: string },
+  leagueId: string,
+  cupId: string,
+  leagueFixtures: Array<{
+    round: number
+    status: string
+    home_club_id: string
+    away_club_id: string
+    home_score: number | null
+    away_score: number | null
+    winner_club_id?: string | null
+  }>,
+  cupFixtures: Array<{
+    round: number
+    status: string
+    home_club_id: string
+    away_club_id: string
+    home_score: number | null
+    away_score: number | null
+    winner_club_id?: string | null
+  }>,
+  matches: PlayedMatch[],
+): SeasonCompletion | null {
+  const league = buildCompetitionHistoryResult(leagueId, leagueFixtures, matches, true)
+  const cup = buildCompetitionHistoryResult(cupId, cupFixtures, matches, false)
+  if (!league || !cup) return null
+  return { seasonId: season.id, seasonName: season.name, league, cup }
+}
