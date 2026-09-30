@@ -291,6 +291,35 @@ function GameApp() {
         }
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify(nextCommercial))
 
+    // A virada da temporada também é uma janela de planejamento para a IA.
+    // Usamos o desempenho encerrado no ano anterior para que cada clube entre
+    // na nova temporada corrigindo posições carentes, renovando contratos e
+    // movimentando o elenco antes da primeira rodada.
+    const previousWorld = await loadWorldState()
+    if (previousWorld) {
+      const activeLoans: LoanRecord[] = (() => {
+        try {
+          const stored: LoanState = JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}')
+          return stored.records ?? []
+        } catch {
+          return []
+        }
+      })()
+      const transitionResult = simulateWorldDay(
+        `${nextYear}-01-10`,
+        newSeason.id,
+        previousWorld.worldClubs,
+        previousWorld.playersForWorld,
+        career.club.id,
+        previousWorld.performanceByClub,
+        [],
+        activeLoans,
+      )
+      await persistWorldState(newSeason.id, previousWorld.worldClubs, previousWorld.playersForWorld, [transitionResult])
+      localStorage.setItem(marketInterestStorageKey(nextSeasonName), JSON.stringify(transitionResult.marketInterest))
+      appendWorldNews(buildWorldNews(transitionResult, previousWorld.worldClubs, previousWorld.playersForWorld, previousWorld.performanceByClub, career.club.id))
+    }
+
     if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
     localStorage.removeItem(WORLD_NEWS_KEY)
     localStorage.removeItem(CLOCK_KEY)
