@@ -179,6 +179,50 @@ export function normalizeLineup(players: Player[], formation: Formation, lineup?
   return fallbackLineup(players, formation)
 }
 
+export function selectStartingLineup(
+  players: Player[],
+  formation: Formation,
+  coachStyle = 'balanced',
+  coachPersonality = 'motivator',
+  opponentPlayers: Player[] = [],
+  preferredIds: Record<number, string> = {},
+  matchImportance = 1,
+) {
+  const opponentOverall = opponentPlayers.length
+    ? average(opponentPlayers.map(player => playerOverall(player)))
+    : 60
+  const opponentPressure = Math.max(0, opponentOverall - average(players.map(player => playerOverall(player))))
+  const used = new Set<string>()
+
+  const score = (player: Player, role: string, slot: number) => {
+    const overall = rating(player, role)
+    const fatigue = player.fatigue ?? 0
+    const recentMinutes = player.seasonMinutes ?? 0
+    const recentAppearances = player.seasonAppearances ?? 0
+    const recentRating = player.seasonAverageRating ?? 0
+    const formBonus = (player.form - 50) * 0.12
+    const moraleBonus = (player.morale - 50) * (coachPersonality === 'psychologist' ? 0.07 : 0.04)
+    const roleBonus = player.position === role ? 10 : 0
+    const preferredBonus = preferredIds[slot] === player.id ? 12 : 0
+    const fatiguePenalty = fatigue * (matchImportance >= 1.1 ? 0.14 : 0.22)
+    const workloadPenalty = recentMinutes >= 900 ? (matchImportance >= 1.1 ? 2 : 7) : recentMinutes >= 600 ? (matchImportance >= 1.1 ? 1 : 3) : 0
+    const rotationBonus = coachStyle === 'youth_focus' && player.age <= 23 ? 5 : 0
+    const developmentBonus = player.age <= 23 && player.potential >= overall + 8 ? 2 : 0
+    const veteranPenalty = player.age >= 31 && recentMinutes >= 900 && matchImportance < 1.1 ? 2 : 0
+    const bigGameBonus = matchImportance >= 1.1 && overall >= opponentOverall ? 2 : 0
+    const pressureBonus = opponentPressure >= 5 && overall >= playerOverall(player) ? 0 : 0
+    return overall + formBonus + moraleBonus + roleBonus + preferredBonus + rotationBonus + developmentBonus + bigGameBonus + pressureBonus - fatiguePenalty - workloadPenalty - veteranPenalty
+  }
+
+  return FORMATIONS[formation].map((role, slot) => {
+    const candidates = players.filter(player => !used.has(player.id))
+    const player = [...candidates].sort((a, b) => score(b, role, slot) - score(a, role, slot))[0]
+    if (!player) return null
+    used.add(player.id)
+    return { player, role, slot }
+  }).filter(Boolean) as LineupPlayer[]
+}
+
 function chooseWeighted(players: LineupPlayer[], preferredRoles: string[], random: Random) {
   const pool = players.filter(item => preferredRoles.includes(item.role))
   const source = pool.length ? pool : players
@@ -322,8 +366,12 @@ export function simulateMatch(
   coachStyle?: string,
   coachPersonality?: string,
 ): MatchResult {
-  const home = normalizeLineup(homePlayers, formation, homeLineup)
-  const away = normalizeLineup(awayPlayers, '4-3-3', awayLineup)
+  const competition = (fixture.competition_name ?? '').toLowerCase()
+  const matchImportance = competition.includes('copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1)
+  const preferredHome = Object.fromEntries((homeLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
+  const preferredAway = Object.fromEntries((awayLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
+  const home = selectStartingLineup(homePlayers, formation, coachStyle, coachPersonality, awayPlayers, preferredHome, matchImportance)
+  const away = selectStartingLineup(awayPlayers, formation, undefined, undefined, homePlayers, preferredAway, matchImportance)
   const homeBench = homePlayers.filter(player => !home.some(item => item.player.id === player.id))
   const awayBench = awayPlayers.filter(player => !away.some(item => item.player.id === player.id))
   const homeActive = [...home]
