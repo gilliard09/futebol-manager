@@ -35,12 +35,16 @@ describe('world news', () => {
     simulation.renewals.push({ playerId: 'p2', clubId: 'b', salary: 40000, contractUntil: '2028-06-10' })
     simulation.evolvedPlayerIds.push('p2')
     simulation.evolvedPlayers = 1
+    players[1].seasonMinutes = 900
+    players[1].seasonAppearances = 10
+    players[1].seasonStarts = 8
+
 
     const news = buildWorldNews(simulation, clubs, players, {}, 'a')
 
     expect(news.some(item => item.title === 'Mercado em movimento')).toBe(true)
-    expect(news.some(item => item.title === 'Contrato renovado')).toBe(true)
-    expect(news.some(item => item.title === 'Jogador em evolução')).toBe(true)
+    expect(news.some(item => item.title === 'Clube segurou uma peça importante')).toBe(true)
+    expect(news.some(item => item.title === 'Jovem ganha espaço')).toBe(true)
     expect(news.every(item => item.date === simulation.date)).toBe(true)
     expect(news.find(item => item.title === 'Mercado em movimento')?.priority).toBe(42)
   })
