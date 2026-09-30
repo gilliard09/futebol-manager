@@ -12,7 +12,7 @@ import {
   type InteractiveTactic,
   type InteractiveTeam,
 } from '../engine/interactiveMatch'
-import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/match'
+import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/matchCore'
 import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
 import { playMatchSound, startMatchAmbient, stopMatchAmbient } from '../engine/matchAudio'
