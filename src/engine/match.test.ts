@@ -63,6 +63,16 @@ describe('match engine', () => {
     expect(new Set(selected.map(item => item.player.id)).size).toBe(11)
   })
 
+  it('uses season starts as part of the squad hierarchy', () => {
+    const starters = lineup(70).map(item => item.player)
+    const established = { ...starters[9], seasonAppearances: 12, seasonStarts: 12, seasonMinutes: 980, seasonAverageRating: 7.4, form: 78 }
+    const challenger = { ...player('challenger-st', 'ST', 69), seasonAppearances: 4, seasonStarts: 0, seasonMinutes: 160, seasonAverageRating: 6.9, form: 78 }
+    const squad = starters.map(item => item.id === established.id ? established : item).concat(challenger)
+    const selected = selectStartingLineup(squad, '4-3-3', 'balanced', 'motivator', [], {}, 1)
+    const striker = selected.find(item => item.role === 'ST')
+    expect(striker?.player.id).toBe(established.id)
+  })
+
   it('keeps AI coach profiles deterministic and makes opponent strength influence selection', () => {
     const first = getAiCoachProfile('club-alpha')
     expect(getAiCoachProfile('club-alpha')).toEqual(first)
