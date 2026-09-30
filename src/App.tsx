@@ -2834,9 +2834,9 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     {
       label: 'Clube',
       items: [
-        { key: 'calendar', label: 'Calendários', icon: CalendarDays },
+        { key: 'calendar', label: 'Calendário', icon: CalendarDays },
         { key: 'news', label: 'Notícias', icon: Newspaper },
-        { key: 'squad', label: 'Elencos', icon: Users },
+        { key: 'squad', label: 'Elenco', icon: Users },
         { key: 'tactics', label: 'Táticas', icon: Shield },
         { key: 'finance', label: 'Finanças', icon: WalletCards },
         { key: 'stadium', label: 'Estádio', icon: Building2 },
@@ -2861,9 +2861,9 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
       <div className="flex h-16 items-center border-b border-white/5 px-5">
         <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400 text-[11px] font-black text-[#06100c]">FM</div><div><p className="font-display text-sm font-bold tracking-wide">FUTEBOL MANAGER</p><p className="label-mono text-white/25">Carreira</p></div></div>
       </div>
-      <nav className="flex-1 overflow-hidden px-3 py-3">
+      <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
         {groups.map(group => <div key={group.label} className="mb-3">
-          <p className="px-3 pb-1.5 label-mono text-white/20">{group.label}</p>
+          <p className="px-3 pb-1.5 label-mono text-white/30">{group.label}</p>
           <div className="space-y-0.5">{group.items.map(item => {
             const Icon = item.icon
             const active = activeView === item.key
@@ -2886,7 +2886,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
             </div>
             <div className="min-w-0"><p className="truncate text-xs font-bold">{career.club.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">{career.name}</p></div>
           </div>
-          <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/25">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">—</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
+          <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/35">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">{career.season.match(/\d{4}/)?.[0] ?? '2026'}</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
         </div>
         <button onClick={() => onNavigate('settings')} className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold text-white/35 hover:bg-white/[0.035] hover:text-white/75"><Settings size={16} /><span>Configurações</span></button>
       </div>
@@ -2901,8 +2901,12 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     </div>
 
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0d1421]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
-      <div className="grid grid-cols-5 gap-1">
-        {[['overview','Dashboard',House],['calendar','Calendários',CalendarDays],['squad','Elencos',Users],['market','Mercado',ShoppingBag],['stats','Estatísticas',BarChart3]].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[9px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/35'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
+      <div className="flex gap-1 overflow-x-auto overscroll-contain pb-1">
+        {[
+          ['overview','Dashboard',House],['calendar','Calendário',CalendarDays],['news','Notícias',Newspaper],['squad','Elenco',Users],
+          ['tactics','Táticas',Shield],['finance','Finanças',WalletCards],['stadium','Estádio',Building2],['market','Mercado',ShoppingBag],
+          ['stats','Estatísticas',BarChart3],['training','Treinamento',Dumbbell],['trophies','Troféus',Trophy],['settings','Configurações',Settings],
+        ].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex min-w-[72px] shrink-0 flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/40'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
       </div>
     </nav>
   </div>
