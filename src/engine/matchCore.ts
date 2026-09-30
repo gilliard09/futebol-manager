@@ -1,6 +1,17 @@
 import type { CoachPersonality, CoachStyle, Formation, LineupPlayer, Player } from '../types/game'
 import { FORMATIONS } from '../types/game'
 
+export type TeamMetrics = {
+  overall: number
+  goalkeeper: number
+  defense: number
+  midfield: number
+  attack: number
+  form: number
+  morale: number
+  tacticalFit: number
+}
+
 function average(values: number[]) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 50
 }
