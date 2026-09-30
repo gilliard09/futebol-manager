@@ -697,7 +697,7 @@ export function simulateWorldDay(
         behavior === 'youth'
           ? (player.age <= 23 && player.potential >= overall + 8 ? 14 : 0)
           : behavior === 'seller'
-            ? (player.age <= 24 || player.overall >= club.strength + 4 ? 4 : -8)
+            ? (player.age <= 24 || overall >= club.strength + 4 ? 4 : -8)
             : behavior === 'ambitious'
               ? (role === 'starter' ? 10 : 3)
               : behavior === 'conservative'
