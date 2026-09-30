@@ -79,6 +79,19 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       ]
     : []
 
+  const history = useMemo(() => {
+    const completed = fixtures.filter(item => item.status === 'completed')
+    if (competition === 'Liga Nacional do Brasil') {
+      const standings = buildStandings(clubs.map(c => ({ id: c.id, name: c.short_name })), fixtures)
+      const championId = standings[0]?.id
+      return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === standings[1]?.id) ?? null, completed: completed.length === fixtures.length && fixtures.length > 0 }
+    }
+    const final = fixtures.find(item => item.round === 7 && item.status === 'completed')
+    const championId = final?.winner_club_id ?? (final && final.home_score != null && final.away_score != null ? (final.home_score > final.away_score ? final.home_club_id : final.away_score > final.home_score ? final.away_club_id : null) : null)
+    const runnerUpId = championId && final ? (championId === final.home_club_id ? final.away_club_id : final.home_club_id) : null
+    return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === runnerUpId) ?? null, completed: Boolean(final) }
+  }, [competition, fixtures, clubs])
+
   const champion = competition === 'Copa Nacional do Brasil'
     ? fixtures.find(item => item.round === 7 && item.status === 'completed')?.home_club_id && fixtures.find(item => item.round === 7 && item.status === 'completed')?.away_club_id
       ? (() => {
@@ -194,6 +207,17 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           </tbody></table></div>
           <p className="mt-3 text-xs text-white/25">Zona de rebaixamento preparada: últimos {BRAZIL_LEAGUE_RULES.relegationSlots} clubes. A segunda divisão ainda não está ativa no universo.</p>
         </section>}
+
+        <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <p className="text-xs uppercase tracking-[0.18em] text-white/30">Histórico</p>
+          <h2 className="mt-2 text-2xl font-bold">Temporada 2026</h2>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <Info label="Campeão" value={history.champion?.short_name ?? 'Em aberto'} />
+            <Info label="Vice-campeão" value={history.runnerUp?.short_name ?? 'Em aberto'} />
+            <Info label="Status" value={history.completed ? 'Competição encerrada' : 'Em andamento'} />
+          </div>
+          <p className="mt-3 text-xs text-white/25">O registro persistente será gravado no encerramento da temporada. Esta área antecipa a leitura do histórico da competição.</p>
+        </section>
 
         {stats.length > 0 && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
