@@ -60,6 +60,7 @@ export function evaluateBoard(
   performance: { position: number; played: number; recentPoints: number; points: number },
   financial: { balance: number; monthlyPayroll: number },
   date: string,
+  fanPressure = 0,
 ): BoardState {
   let delta = 0
   let result = 'Desempenho dentro do esperado'
@@ -94,6 +95,9 @@ export function evaluateBoard(
 
   if (financial.balance < 0 || financial.balance < Math.max(250_000, financial.monthlyPayroll * 0.5)) delta -= 4
   else if (financial.balance > Math.max(1_500_000, financial.monthlyPayroll * 8)) delta += 2
+
+  if (fanPressure >= 75) delta -= 3
+  else if (fanPressure <= 25) delta += 1
 
   const confidence = clamp(state.confidence + delta)
   const consecutivePoorResults = performance.recentPoints <= 3 && performance.played >= 5
