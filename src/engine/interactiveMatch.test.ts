@@ -110,7 +110,7 @@ describe('interactive match', () => {
     const initial = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
     const next = changeInteractiveTactics(initial, 'home', 'balanced', '4-4-2')
     expect(next.home.lineup).toHaveLength(11)
-    expect(next.home.lineup.map(item => item.role)).toEqual(['GK','LB','CB','CB','RB','CM','CM','CM','ST','ST','ST'])
+    expect(next.home.lineup.map(item => item.role)).toEqual(['GK','LB','CB','CB','RB','LW','CM','CM','RW','ST','ST'])
   })
 
   it('finishes at minute 90 instead of calculating the whole match upfront', () => {
