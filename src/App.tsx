@@ -726,6 +726,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       return {
         ...player,
         clubId: row.club_id ?? '',
+        injuredUntil: player.injured_until ?? null,
+        suspendedUntil: player.suspended_until ?? null,
+        yellowCards: Number(player.yellow_cards ?? 0),
+        redCards: Number(player.red_cards ?? 0),
         marketValue: Number(row.market_value ?? 0),
         salary: Number(row.salary ?? 0),
         contractUntil: row.contract_until ?? null,
