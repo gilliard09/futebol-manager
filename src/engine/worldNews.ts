@@ -82,7 +82,7 @@ export function buildWorldNews(
     offersByPlayer.set(offer.playerId, current)
   }
 
-  for (const interest of result.marketInterest) {
+  for (const interest of result.marketInterest ?? []) {
     const player = playerById.get(interest.playerId)
     const interestedClubs = interest.clubIds.map(clubName)
     const isUserPlayer = player?.clubId === userClubId
