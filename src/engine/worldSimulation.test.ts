@@ -146,6 +146,35 @@ describe('world simulation', () => {
     expect(backup.marketValue).toBeLessThanOrEqual(beforeBackup)
   })
 
+  it('creates world interest around standout players', () => {
+    const clubs = [
+      club('user', 1000000, 70),
+      club('ai-a', 7000000, 70),
+      club('ai-b', 7000000, 70),
+      club('ai-c', 7000000, 70),
+      club('ai-d', 7000000, 70),
+    ]
+    const player = basePlayer('world-star', 'ai-a', 'ST')
+    player.shooting = 90
+    player.pace = 88
+    player.dribbling = 84
+    player.mental = 82
+    player.potential = 94
+    player.seasonAppearances = 12
+    player.seasonStarts = 11
+    player.seasonMinutes = 1050
+    player.seasonGoals = 11
+    player.seasonAssists = 5
+    player.seasonAverageRating = 7.7
+
+    const result = simulateWorldDay('2026-06-10', 'world-interest-test', clubs, [player], 'user')
+    const interest = result.marketInterest.find(item => item.playerId === player.id)
+
+    expect(interest).toBeDefined()
+    expect(interest?.clubIds.length ?? 0).toBeGreaterThanOrEqual(2)
+    expect(new Set(interest?.clubIds).size).toBe(interest?.clubIds.length)
+  })
+
   it('creates competing offers for a standout user player and raises the fee', () => {
     const clubs = [
       club('user', 1000000, 70),
