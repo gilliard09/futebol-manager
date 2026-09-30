@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Newspaper, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
@@ -18,6 +18,7 @@ import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
 import { simulateWorldDay, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
+import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -33,6 +34,7 @@ const seasonName = (year: number) => `Temporada ${year}`
 const SEASON_START = '2026-01-01'
 const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
+const WORLD_NEWS_KEY = 'futebol-manager:world-news'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -210,6 +212,7 @@ export default function App() {
     localStorage.removeItem(TACTIC_KEY)
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
+    localStorage.removeItem(WORLD_NEWS_KEY)
     setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); setScreen('manager')
   }
 
@@ -270,6 +273,9 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
   const [seasonClosed, setSeasonClosed] = useState(false)
   const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
+  const [worldNews, setWorldNews] = useState<WorldNews[]>(() => {
+    try { return JSON.parse(localStorage.getItem(WORLD_NEWS_KEY) ?? '[]') } catch { return [] }
+  })
 
   async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
     const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
@@ -823,11 +829,26 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     ))
   }
 
+  function appendWorldNews(items: WorldNews[]) {
+    if (!items.length) return
+    setWorldNews(current => {
+      const merged = [...items, ...current]
+        .filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 20)
+      localStorage.setItem(WORLD_NEWS_KEY, JSON.stringify(merged))
+      return merged
+    })
+  }
+
   async function simulateOtherClubs(nextDate: string) {
     const state = await loadWorldState()
-    if (!state) return
+    if (!state) return []
     const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
+    const news = buildWorldNews(result, state.worldClubs, state.playersForWorld)
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
+    appendWorldNews(news)
+    return news
   }
 
   async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
@@ -835,6 +856,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     if (!state) return { date: startDate, event: null as ImportantEvent | null }
 
     const results: WorldSimulationResult[] = []
+    const news: WorldNews[] = []
     let currentDate = startDate
     let event: ImportantEvent | null = null
 
@@ -842,6 +864,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
       const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
       results.push(result)
+      news.push(...buildWorldNews(result, state.worldClubs, state.playersForWorld))
       const offer = result.offers[0]
       if (offer) {
         event = { type: 'player_offer', date: result.date, ...offer }
@@ -855,7 +878,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     }
 
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, results)
-    return { date: event?.date ?? targetDate, event }
+    appendWorldNews(news)
+    return { date: event?.date ?? targetDate, event, news }
   }
 
   type ImportantEvent =
@@ -1644,6 +1668,34 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
       return null
     })()}
+    {worldNews.length > 0 && <section className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Ao redor do seu clube</p>
+          <h2 className="mt-2 text-2xl font-bold">Notícias do mundo</h2>
+          <p className="mt-2 text-sm text-white/35">Enquanto você trabalha no seu clube, o restante do futebol continua se movimentando.</p>
+        </div>
+        <Newspaper size={22} className="text-white/25" />
+      </div>
+      <div className="mt-5 space-y-2">
+        {worldNews.slice(0, 6).map(item => {
+          const toneClass = item.tone === 'positive'
+            ? 'border-emerald-400/10 bg-emerald-400/[0.025]'
+            : item.tone === 'warning'
+              ? 'border-amber-400/10 bg-amber-400/[0.025]'
+              : 'border-white/5 bg-black/10'
+          return <div key={item.id} className={`rounded-xl border px-4 py-3 ${toneClass}`}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">{item.title}</p>
+                <p className="mt-1 text-xs leading-5 text-white/40">{item.message}</p>
+              </div>
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-white/20">{formatSeasonDate(item.date)}</span>
+            </div>
+          </div>
+        })}
+      </div>
+    </section>}
     {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">{career.season} concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada atual não pode mais ser considerada em andamento.</p><button onClick={onNextSeason} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Começar a próxima temporada</button></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
