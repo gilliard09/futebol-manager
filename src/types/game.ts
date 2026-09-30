@@ -5,6 +5,8 @@ export type Club = {
   city: string
   country: string
   stadium?: string
+  stadium_capacity?: number
+  founded_year?: number
   logo_url?: string
   division: number
   budget: number
