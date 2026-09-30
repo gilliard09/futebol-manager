@@ -318,6 +318,21 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
   }
 }
 
+function aiTacticalAdjustment(state: InteractiveMatchState, teamName: InteractiveTeam) {
+  if (![55, 70].includes(state.minute)) return
+  const team = teamName === 'home' ? state.home : state.away
+  const scoreDiff = teamName === 'home' ? state.homeScore - state.awayScore : state.awayScore - state.homeScore
+  if (scoreDiff < 0 && team.tactic !== 'offensive') {
+    team.tactic = 'offensive'
+    recalculateMetrics(team)
+    pushEvent(state, { minute: state.minute, type: 'tactical_change', team: teamName, player: 'Comissão técnica', text: 'A IA aumenta a pressão e adota uma postura ofensiva.' })
+  } else if (scoreDiff > 0 && state.minute >= 70 && team.tactic !== 'defensive') {
+    team.tactic = 'defensive'
+    recalculateMetrics(team)
+    pushEvent(state, { minute: state.minute, type: 'tactical_change', team: teamName, player: 'Comissão técnica', text: 'A IA protege a vantagem e fecha mais a equipe.' })
+  }
+}
+
 function aiSubstitution(state: InteractiveMatchState, teamName: InteractiveTeam) {
   const team = teamName === 'home' ? state.home : state.away
   if (team.substitutions >= 5 || team.bench.length === 0 || ![55, 70, 80].includes(state.minute)) return
@@ -401,6 +416,7 @@ export function advanceInteractiveMinute(state: InteractiveMatchState, controlle
   next.minute += 1
 
   const aiTeam: InteractiveTeam = controlledTeam === 'home' ? 'away' : 'home'
+  aiTacticalAdjustment(next, aiTeam)
   aiSubstitution(next, aiTeam)
   simulateTeamMinute(next, 'home')
   simulateTeamMinute(next, 'away')
