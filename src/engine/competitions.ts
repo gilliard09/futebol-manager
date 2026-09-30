@@ -127,7 +127,7 @@ export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound:
   const firstRound = currentRound - 1
   const completed = fixtures.filter(f => (f.round === firstRound || f.round === currentRound) && f.status === 'completed' && f.home_score != null && f.away_score != null)
     .sort((a, b) => a.round - b.round || a.scheduled_at.localeCompare(b.scheduled_at))
-  if (completed.length !== 8) return null
+  if (completed.length < 4 || completed.length % 2 !== 0) return null
 
   const ties = new Map<string, Fixture[]>()
   for (const fixture of completed) {
@@ -136,7 +136,7 @@ export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound:
     tie.push(fixture)
     ties.set(key, tie)
   }
-  if (ties.size !== 4 || [...ties.values()].some(tie => tie.length !== 2)) return null
+  if (ties.size < 2 || [...ties.values()].some(tie => tie.length !== 2)) return null
 
   const winners: string[] = []
   for (const tie of ties.values()) {
