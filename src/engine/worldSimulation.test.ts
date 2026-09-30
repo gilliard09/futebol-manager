@@ -120,6 +120,32 @@ describe('world simulation', () => {
     expect(starter.morale).toBeGreaterThanOrEqual(90)
   })
 
+
+  it('uses squad hierarchy in player market value', () => {
+    const clubs = [club('user', 1000000), club('ai', 5000000)]
+    const starter = basePlayer('value-starter', 'ai')
+    starter.age = 27
+    starter.seasonAppearances = 12
+    starter.seasonStarts = 10
+    starter.seasonMinutes = 1000
+    starter.seasonAverageRating = 7.5
+    const backup = basePlayer('value-backup', 'ai')
+    backup.age = 27
+    backup.seasonAppearances = 1
+    backup.seasonStarts = 0
+    backup.seasonMinutes = 30
+    backup.seasonAverageRating = 5.8
+    const before = starter.marketValue
+    const beforeBackup = backup.marketValue
+
+    simulateWorldDay('2026-01-01', 'season-role-value-test', clubs, [starter, backup], 'user', {
+      ai: { position: 6, points: 9, goalDifference: 0, played: 5, recentPoints: 6, recentResults: ['W', 'D', 'L'] },
+    })
+
+    expect(starter.marketValue).toBeGreaterThan(before)
+    expect(backup.marketValue).toBeLessThanOrEqual(beforeBackup)
+  })
+
   it('can evolve young players on development days', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
     const players = Array.from({ length: 6 }, (_, i) => basePlayer('p' + i, 'ai', i === 0 ? 'GK' : 'ST'))
