@@ -420,10 +420,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       await supabase.from('world_transfers').upsert(transferRows, { onConflict: 'season_id,player_id,transfer_date' })
     }
 
-    await Promise.all(transfers.map(transfer => {
-      const row = playersForWorld.find(player => player.id === transfer.playerId)
+    const transferredPlayerIds = new Set(transfers.map(transfer => transfer.playerId))
+    await Promise.all([...transferredPlayerIds].map(playerId => {
+      const row = playersForWorld.find(player => player.id === playerId)
       return row
-        ? supabase.from('club_players').update({ club_id: transfer.toClubId }).eq('id', row.clubPlayerId)
+        ? supabase.from('club_players').update({ club_id: row.clubId }).eq('id', row.clubPlayerId)
         : Promise.resolve()
     }))
 
