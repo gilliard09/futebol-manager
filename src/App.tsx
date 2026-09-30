@@ -498,7 +498,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     let currentDate = startDate
 
     while (currentDate < targetDate) {
-      currentDate = advanceSeasonDay(createSeasonClock(currentDate, targetDate, 0)).currentDate
+      currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
       results.push(simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id))
     }
 
