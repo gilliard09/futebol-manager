@@ -6,6 +6,7 @@ export type MatchEvent = {
   type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'red_card' | 'corner' | 'foul' | 'tackle' | 'substitution' | 'tactical_change' | 'injury' | 'offside'
   team: 'home' | 'away'
   player: string
+  playerId?: string
   text: string
 }
 
