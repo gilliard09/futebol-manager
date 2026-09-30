@@ -1761,7 +1761,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
+    return <Match key={activeMatchFixture.id} userClubId={career.club.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
@@ -2125,7 +2125,7 @@ function TrainingReportView({ report, close }: { report: TrainingReport; close: 
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; coachStyle: ManagerProfile['style']; coachPersonality: ManagerProfile['personality']; back: (result: MatchResult) => void }) {
+function Match({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back }: { fixture: Fixture; userClubId: string; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; coachStyle: ManagerProfile['style']; coachPersonality: ManagerProfile['personality']; back: (result: MatchResult) => void }) {
   const [phase, setPhase] = useState<'pregame' | 'live' | 'postgame'>('pregame')
   const [result, setResult] = useState<MatchResult | null>(null)
   const [currentMinute, setCurrentMinute] = useState(0)
@@ -2146,19 +2146,38 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
     try {
       savedLineup = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
     } catch {}
-    const homeLineup = lineupFromPlayerIds(homePlayers, formation as Formation, savedLineup)
-    const awayLineup = lineupFromPlayerIds(awayPlayers, formation as Formation, savedLineup)
+    const userIsHome = fixture.home_club_id === userClubId
+    const userIsAway = fixture.away_club_id === userClubId
+    const aiAway = getAiCoachProfile(fixture.away_club_id)
+    const aiHome = getAiCoachProfile(fixture.home_club_id)
+    const userLineup = userIsHome
+      ? lineupFromPlayerIds(homePlayers, formation as Formation, savedLineup)
+      : lineupFromPlayerIds(awayPlayers, formation as Formation, savedLineup)
+    const homeFormation = userIsHome ? formation as Formation : aiHome.formation
+    const awayFormation = userIsAway ? formation as Formation : aiAway.formation
+    const homeTactic = userIsHome ? tactic as 'balanced' | 'offensive' | 'defensive' : aiHome.tactic
+    const awayTactic = userIsAway ? tactic as 'balanced' | 'offensive' | 'defensive' : aiAway.tactic
+    const homeStyle = userIsHome ? coachStyle : aiHome.style
+    const awayStyle = userIsAway ? coachStyle : aiAway.style
+    const homePersonality = userIsHome ? coachPersonality : aiHome.personality
+    const awayPersonality = userIsAway ? coachPersonality : aiAway.personality
+    const homeLineup = userIsHome ? userLineup : lineupFromPlayerIds(homePlayers, homeFormation, {})
+    const awayLineup = userIsAway ? userLineup : lineupFromPlayerIds(awayPlayers, awayFormation, {})
     const match = simulateMatch(
       fixture,
       homePlayers,
       awayPlayers,
-      tactic,
-      formation as Formation,
+      homeTactic,
+      homeFormation,
       homeLineup.length >= 7 ? homeLineup : undefined,
       awayLineup.length >= 7 ? awayLineup : undefined,
       Math.random,
-      coachStyle,
-      coachPersonality,
+      homeStyle,
+      homePersonality,
+      awayTactic,
+      awayFormation,
+      awayStyle,
+      awayPersonality,
     )
     setResult(match)
     for (let minute = 1; minute <= 90; minute++) {
@@ -2200,8 +2219,16 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
   try {
     preferredLineup = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
   } catch {}
-  const projectedHomeLineup = selectStartingLineup(homePlayers, formation as Formation, coachStyle, coachPersonality, awayPlayers, preferredLineup, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
-  const projectedAwayLineup = selectStartingLineup(awayPlayers, formation as Formation, undefined, undefined, homePlayers, {}, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
+  const userIsHome = fixture.home_club_id === userClubId
+  const userIsAway = fixture.away_club_id === userClubId
+  const aiHome = getAiCoachProfile(fixture.home_club_id)
+  const aiAway = getAiCoachProfile(fixture.away_club_id)
+  const projectedHomeLineup = userIsHome
+    ? selectStartingLineup(homePlayers, formation as Formation, coachStyle, coachPersonality, awayPlayers, preferredLineup, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
+    : selectStartingLineup(homePlayers, aiHome.formation, aiHome.style, aiHome.personality, awayPlayers, {}, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
+  const projectedAwayLineup = userIsAway
+    ? selectStartingLineup(awayPlayers, formation as Formation, coachStyle, coachPersonality, homePlayers, preferredLineup, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
+    : selectStartingLineup(awayPlayers, aiAway.formation, aiAway.style, aiAway.personality, homePlayers, {}, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
 
   function LineupList({ title, players }: { title: string; players: Player[] }) {
     return <div className="rounded-2xl border border-white/6 bg-black/10 p-5">
