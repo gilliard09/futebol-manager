@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
-import { lineupFromPlayerIds, playerOverall, type MatchResult } from './engine/match'
+import { lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
@@ -1902,6 +1902,12 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
   const stadium = fixture.home_club?.name ? `Estádio ${fixture.home_club.name.replace(/ FC$/, '')}` : 'Estádio Municipal'
   const refereeNames = ['Carlos Almeida', 'Rafael Martins', 'Bruno Ferreira', 'Marcos Ribeiro', 'André Costa']
   const referee = refereeNames[fixture.round % refereeNames.length]
+  let preferredLineup: Record<number, string> = {}
+  try {
+    preferredLineup = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
+  } catch {}
+  const projectedHomeLineup = selectStartingLineup(homePlayers, formation as Formation, coachStyle, coachPersonality, awayPlayers, preferredLineup, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
+  const projectedAwayLineup = selectStartingLineup(awayPlayers, formation as Formation, undefined, undefined, homePlayers, {}, fixture.competition_name?.includes('Copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1))
 
   function LineupList({ title, players }: { title: string; players: Player[] }) {
     return <div className="rounded-2xl border border-white/6 bg-black/10 p-5">
@@ -1945,7 +1951,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
           <section><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Destaques da partida</p><div className="mt-3 grid gap-3 md:grid-cols-2">{homeStar && <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs text-white/30">{matchTeams.home}</p><div className="mt-3 flex items-end justify-between"><div><p className="text-lg font-bold">{homeStar.first_name} {homeStar.last_name}</p><p className="mt-1 text-xs text-white/35">{homeStar.position}</p></div><span className="text-3xl font-bold text-emerald-300">{playerOverall(homeStar)}</span></div></div>}{awayStar && <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs text-white/30">{matchTeams.away}</p><div className="mt-3 flex items-end justify-between"><div><p className="text-lg font-bold">{awayStar.first_name} {awayStar.last_name}</p><p className="mt-1 text-xs text-white/35">{awayStar.position}</p></div><span className="text-3xl font-bold text-emerald-300">{playerOverall(awayStar)}</span></div></div>}</div></section>
         </div>}
 
-        {pregameTab === 'lineup' && <div className="mt-4 grid gap-4 md:grid-cols-2"><LineupList title={matchTeams.home} players={homePlayers} /><LineupList title={matchTeams.away} players={awayPlayers} /></div>}
+        {pregameTab === 'lineup' && <div className="mt-4 grid gap-4 md:grid-cols-2"><LineupList title={matchTeams.home} players={projectedHomeLineup.map(item => item.player)} /><LineupList title={matchTeams.away} players={projectedAwayLineup.map(item => item.player)} /></div>}
       </section>}
 
       {phase !== 'pregame' && <section className="mt-8 rounded-3xl border border-white/6 bg-white/[0.02] p-6 md:p-8">
