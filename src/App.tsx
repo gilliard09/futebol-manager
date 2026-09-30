@@ -418,12 +418,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
   }
 
-  async function restOneDay() {
-    if (!clock || !canAdvanceDay(clock, nextMatchDate)) return
-    const nextClock = advanceSeasonDay(clock)
+  const [advancingDays, setAdvancingDays] = useState(false)
+
+  async function advanceOneDay(fromClock = clock) {
+    if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate) || advancingDays) return false
+    const nextClock = advanceSeasonDay(fromClock)
     await simulateOtherClubs(nextClock.currentDate)
     const nextPlayers = recoverPlayers(players, 8)
-    if (nextClock.currentDate.slice(0, 7) !== clock.currentDate.slice(0, 7)) {
+    if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
       const nextBalance = addFinanceTransaction(createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`)) ?? financeBalance
       const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
@@ -435,6 +437,32 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const savedTraining = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...savedTraining, players: Object.fromEntries(nextPlayers.map(player => [player.id, player])) }))
     localStorage.setItem(CLOCK_KEY, JSON.stringify(nextClock))
+    return true
+  }
+
+  async function restOneDay() {
+    if (!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays) return
+    setAdvancingDays(true)
+    try {
+      await advanceOneDay(clock)
+    } finally {
+      setAdvancingDays(false)
+    }
+  }
+
+  async function advanceToNextMatch() {
+    if (!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays) return
+    setAdvancingDays(true)
+    try {
+      let current = clock
+      while (current.currentDate < nextMatchDate) {
+        const advanced = await advanceOneDay(current)
+        if (!advanced) break
+        current = advanceSeasonDay(current)
+      }
+    } finally {
+      setAdvancingDays(false)
+    }
   }
 
   if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} back={() => setView('overview')} />
@@ -635,7 +663,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">Temporada 2026 concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada 2026 não pode mais ser considerada em andamento.</p></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
-      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Calendário da temporada</p><h2 className="mt-2 text-2xl font-bold">{clock ? formatSeasonDate(clock.currentDate) : 'Preparando calendário'}</h2><p className="mt-2 text-sm text-white/35">{nextFixture && nextMatchDate ? (matchReady ? 'Dia de jogo.' : `${daysBetween(clock!.currentDate, nextMatchDate)} dias até a próxima partida.`) : 'Nenhuma partida pendente.'}</p></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate)} className="flex items-center justify-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-white/70 hover:border-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">Descansar 1 dia <ArrowRight size={16} /></button>{nextFixture && <div className="rounded-xl border border-white/6 bg-black/10 px-4 py-3 text-sm"><span className="text-white/30">Próximo jogo</span><span className="ml-2 font-semibold">{opponent?.short_name ?? 'A definir'} · {formatSeasonDate(nextMatchDate!)}</span></div>}</div><div className="mt-5 space-y-2">{upcomingFixtures.slice(0, 5).map(item => { const itemDate = toDateKey(item.scheduled_at); const itemOpponent = item.home_club_id === career.club.id ? item.away_club : item.home_club; return <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === nextFixture?.id ? 'border-emerald-400/20 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10'}`}><div><p className="text-sm font-semibold">{itemOpponent?.short_name ?? 'Adversário'} {item.home_club_id === career.club.id ? '· Casa' : '· Fora'}</p><p className="mt-1 text-xs text-white/30">{item.competition_name ?? 'Competição'} · Rodada {item.round}</p></div><span className="text-xs font-semibold text-white/45">{formatSeasonDate(itemDate)}</span></div> })}</div></section>
+      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Calendário da temporada</p><h2 className="mt-2 text-2xl font-bold">{clock ? formatSeasonDate(clock.currentDate) : 'Preparando calendário'}</h2><p className="mt-2 text-sm text-white/35">{nextFixture && nextMatchDate ? (matchReady ? 'Dia de jogo.' : `${daysBetween(clock!.currentDate, nextMatchDate)} dias até a próxima partida.`) : 'Nenhuma partida pendente.'}</p></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="flex items-center justify-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-white/70 hover:border-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">{advancingDays ? 'Avançando...' : 'Descansar 1 dia'} <ArrowRight size={16} /></button>{nextFixture && <button onClick={advanceToNextMatch} disabled={!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">{advancingDays ? 'Avançando...' : 'Avançar até a partida'} <CalendarDays size={16} /></button>}{nextFixture && <div className="rounded-xl border border-white/6 bg-black/10 px-4 py-3 text-sm"><span className="text-white/30">Próximo jogo</span><span className="ml-2 font-semibold">{opponent?.short_name ?? 'A definir'} · {formatSeasonDate(nextMatchDate!)}</span></div>}</div><div className="mt-5 space-y-2">{upcomingFixtures.slice(0, 5).map(item => { const itemDate = toDateKey(item.scheduled_at); const itemOpponent = item.home_club_id === career.club.id ? item.away_club : item.home_club; return <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === nextFixture?.id ? 'border-emerald-400/20 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10'}`}><div><p className="text-sm font-semibold">{itemOpponent?.short_name ?? 'Adversário'} {item.home_club_id === career.club.id ? '· Casa' : '· Fora'}</p><p className="mt-1 text-xs text-white/30">{item.competition_name ?? 'Competição'} · Rodada {item.round}</p></div><span className="text-xs font-semibold text-white/45">{formatSeasonDate(itemDate)}</span></div> })}</div></section>
       {rosterAlerts.length > 0 && <section className="mt-4 rounded-2xl border border-amber-400/10 bg-amber-400/[0.025] p-6"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/50">Gestão do elenco</p><h2 className="mt-2 text-xl font-bold">{rosterAlerts.length} ponto{rosterAlerts.length === 1 ? '' : 's'} pedindo atenção</h2></div><div className="mt-5 grid gap-2 md:grid-cols-2">{rosterAlerts.map(alert => <div key={alert.kind} className="rounded-xl border border-white/5 bg-black/10 px-4 py-3"><p className="text-sm font-semibold">{alert.title}</p><p className="mt-1 text-xs leading-5 text-white/35">{alert.description}</p></div>)}</div></section>}
       {contractAlerts.length > 0 && <section className="mt-4 rounded-2xl border border-amber-400/10 bg-amber-400/[0.025] p-6"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/50">Contratos</p><h2 className="mt-2 text-xl font-bold">{contractAlerts.length} contrato{contractAlerts.length === 1 ? '' : 's'} pedindo atenção</h2></div><button onClick={() => setView('squad')} className="text-xs font-semibold text-emerald-300">Ver elenco</button></div><div className="mt-5 space-y-2">{contractAlerts.slice(0, 5).map(item => <div key={item.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{item.name}</p><p className="text-xs text-white/30">{item.status === 'expired' ? 'Contrato vencido' : `Vence em ${item.days} dias`}</p></div><span className="text-xs font-bold text-amber-200/70">Renovar</span></div>)}</div></section>}
       <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
