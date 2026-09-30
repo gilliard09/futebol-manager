@@ -86,7 +86,7 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
     }
     loadContract()
     return () => { active = false }
-  }, [club.id, player.id])
+  }, [club.id, player.id, today])
 
   const status = getContractStatus(contract?.contract_until ?? null, today)
   const remaining = daysUntilContractEnd(contract?.contract_until ?? null, today)
