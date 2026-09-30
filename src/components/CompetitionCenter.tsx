@@ -96,7 +96,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const position = table.findIndex(item => item.id === currentClubId) + 1
   const rules = competition === 'Liga Nacional do Brasil' ? BRAZIL_LEAGUE_RULES : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
-  const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId), [playedMatches, competitionId, seasonId])
+  const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId ?? undefined), [playedMatches, competitionId, seasonId])
   const filteredStats = useMemo(() => {
     const scoped = statsScope === 'club' ? stats.filter(player => player.clubId === currentClubId) : stats
     return [...scoped].sort((a, b) => {
