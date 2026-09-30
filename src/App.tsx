@@ -18,7 +18,7 @@ import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loan
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
-import { simulateWorldDay, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
+import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
@@ -36,6 +36,21 @@ const SEASON_START = '2026-01-01'
 const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
 const WORLD_NEWS_KEY = 'futebol-manager:world-news'
+const MARKET_INTEREST_KEY = 'futebol-manager:market-interest'
+
+
+function marketInterestStorageKey(seasonId: string) {
+  return `${MARKET_INTEREST_KEY}:${seasonId}`
+}
+
+function loadMarketInterest(seasonId: string): MarketInterest[] {
+  try {
+    const stored = localStorage.getItem(marketInterestStorageKey(seasonId))
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
@@ -201,6 +216,7 @@ export default function App() {
 
     if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
     localStorage.removeItem(WORLD_NEWS_KEY)
+    Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':')).forEach(key => localStorage.removeItem(key))
     window.location.reload()
   }
   async function newCareer() {
@@ -215,6 +231,7 @@ export default function App() {
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(WORLD_NEWS_KEY)
+    Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':')).forEach(key => localStorage.removeItem(key))
     setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); setScreen('manager')
   }
 
@@ -848,7 +865,9 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   async function simulateOtherClubs(nextDate: string) {
     const state = await loadWorldState()
     if (!state) return []
-    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
+    const previousMarketInterest = loadMarketInterest(state.seasonId)
+    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest)
+    localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
     const news = buildWorldNews(result, state.worldClubs, state.playersForWorld, state.performanceByClub, career.club.id)
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
     appendWorldNews(news)
@@ -866,7 +885,9 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
     while (currentDate < targetDate) {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
-      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
+      const previousMarketInterest = loadMarketInterest(state.seasonId)
+      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest)
+      localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
       results.push(result)
       news.push(...buildWorldNews(result, state.worldClubs, state.playersForWorld))
       const offer = result.offers[0]
