@@ -842,6 +842,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     | { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number }
     | { type: 'board_message'; date: string; title: string; message: string; tone: 'positive' | 'warning' }
     | { type: 'player_message'; date: string; playerId: string; title: string; message: string }
+    | { type: 'player_request'; date: string; playerId: string; request: 'renewal' | 'leave'; title: string; message: string }
     | { type: 'manager_offer'; date: string; fromClubId: string; message: string }
 
   const [advancingDays, setAdvancingDays] = useState(false)
@@ -896,16 +897,45 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const concerned = [...players]
         .filter(player => player.morale <= 48 || player.form <= 45)
         .sort((a, b) => a.morale - b.morale || a.form - b.form)[0]
-      if (concerned && eventHash(date + ':player:' + concerned.id) % 100 < 28) {
-        const reason = concerned.morale <= 48
-          ? 'Ele sente que precisa de mais atenção e quer conversar sobre seu momento no elenco.'
-          : 'Ele acredita que pode render mais e quer entender como recuperar seu espaço e sua melhor forma.'
-        return {
-          type: 'player_message',
-          date,
-          playerId: concerned.id,
-          title: concerned.first_name + ' ' + concerned.last_name + ' quer falar com você',
-          message: reason,
+
+      if (concerned) {
+        const monthsToEnd = concerned.contractUntil
+          ? Math.round((new Date(concerned.contractUntil).getTime() - new Date(date).getTime()) / (30 * 86400000))
+          : 99
+
+        if (monthsToEnd >= 0 && monthsToEnd <= 6 && concerned.morale <= 48 && eventHash(date + ':renew-request:' + concerned.id) % 100 < 42) {
+          return {
+            type: 'player_request',
+            date,
+            playerId: concerned.id,
+            request: 'renewal',
+            title: concerned.first_name + ' ' + concerned.last_name + ' quer renovar o contrato',
+            message: 'Ele quer saber se faz parte dos seus planos para as próximas temporadas e espera uma definição sobre seu futuro.',
+          }
+        }
+
+        if (concerned.morale <= 35 && eventHash(date + ':leave-request:' + concerned.id) % 100 < 26) {
+          return {
+            type: 'player_request',
+            date,
+            playerId: concerned.id,
+            request: 'leave',
+            title: concerned.first_name + ' ' + concerned.last_name + ' quer deixar o clube',
+            message: 'O jogador está insatisfeito com seu momento e pediu para ser colocado à disposição do mercado.',
+          }
+        }
+
+        if (eventHash(date + ':player:' + concerned.id) % 100 < 28) {
+          const reason = concerned.morale <= 48
+            ? 'Ele sente que precisa de mais atenção e quer conversar sobre seu momento no elenco.'
+            : 'Ele acredita que pode render mais e quer entender como recuperar seu espaço e sua melhor forma.'
+          return {
+            type: 'player_message',
+            date,
+            playerId: concerned.id,
+            title: concerned.first_name + ' ' + concerned.last_name + ' quer falar com você',
+            message: reason,
+          }
         }
       }
     }
@@ -1072,6 +1102,41 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     setPendingEvent(null)
   }
 
+  async function respondToPlayerRequest(action: 'renew' | 'transfer' | 'continue') {
+    if (!pendingEvent || pendingEvent.type !== 'player_request') return
+    const player = players.find(item => item.id === pendingEvent.playerId)
+    if (!player) { setPendingEvent(null); return }
+
+    if (action === 'renew') {
+      const row = await supabase.from('club_players').select('id,salary').eq('player_id', player.id).eq('club_id', career.club.id).maybeSingle()
+      if (row.data?.id) {
+        const nextSalary = Math.round(Math.max(Number(row.data.salary ?? player.salary) * 1.12, playerOverall(player) * 1200) / 500) * 500
+        const currentDate = clock?.currentDate ?? pendingEvent.date
+        const base = player.contractUntil && new Date(player.contractUntil).getTime() > new Date(currentDate).getTime() ? new Date(player.contractUntil) : new Date(currentDate)
+        base.setUTCFullYear(base.getUTCFullYear() + 2)
+        const nextContract = base.toISOString().slice(0, 10)
+        const { error: updateError } = await supabase.from('club_players').update({ salary: nextSalary, contract_until: nextContract }).eq('id', row.data.id)
+        if (!updateError) {
+          const nextPlayer = { ...player, salary: nextSalary, contractUntil: nextContract, morale: Math.min(100, player.morale + 12) }
+          const nextPlayers = players.map(item => item.id === player.id ? nextPlayer : item)
+          setPlayers(nextPlayers)
+          localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}'), players: Object.fromEntries(nextPlayers.map(item => [item.id, item])) }))
+        }
+      }
+    }
+
+    if (action === 'transfer') {
+      const nextPlayer = { ...player, morale: Math.min(100, player.morale + 5) }
+      setPlayers(players.map(item => item.id === player.id ? nextPlayer : item))
+    }
+
+    if (action === 'continue') {
+      const nextPlayer = { ...player, morale: Math.min(100, player.morale + (pendingEvent.request === 'leave' ? 2 : 1)) }
+      setPlayers(players.map(item => item.id === player.id ? nextPlayer : item))
+    }
+
+    setPendingEvent(null)
+  }
   async function respondToImportantEvent(action: 'accept' | 'continue') {
     if (!pendingEvent) return
 
@@ -1320,7 +1385,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     {pendingEvent && (() => {
       const offeredPlayer = pendingEvent.type === 'player_offer' ? players.find(item => item.id === pendingEvent.playerId) : null
       const buyerClub = pendingEvent.type === 'player_offer' ? clubs.find(item => item.id === pendingEvent.toClubId) : null
-      const messagePlayer = pendingEvent.type === 'player_message' ? players.find(item => item.id === pendingEvent.playerId) : null
+      const messagePlayer = (pendingEvent.type === 'player_message' || pendingEvent.type === 'player_request') ? players.find(item => item.id === pendingEvent.playerId) : null
       const managerClub = pendingEvent.type === 'manager_offer' ? clubs.find(item => item.id === pendingEvent.fromClubId) : null
 
       if (pendingEvent.type === 'player_offer' && offeredPlayer && buyerClub) {
@@ -1354,6 +1419,24 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         </section>
       }
 
+      if (pendingEvent.type === 'player_request' && messagePlayer) {
+        const renewal = pendingEvent.request === 'renewal'
+        return <section className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300/70">Decisão sobre o elenco</p>
+          <h2 className="mt-2 text-2xl font-bold">{pendingEvent.title}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
+          <p className="mt-4 text-xs text-white/25">{messagePlayer.position} · {messagePlayer.age} anos · Moral {messagePlayer.morale} · {messagePlayer.contractUntil ? 'Contrato até ' + messagePlayer.contractUntil : 'Sem contrato'}</p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            {renewal ? <>
+              <button onClick={() => respondToPlayerRequest('renew')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Abrir negociação</button>
+              <button onClick={() => respondToPlayerRequest('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Ainda não</button>
+            </> : <>
+              <button onClick={() => respondToPlayerRequest('transfer')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Colocar no mercado</button>
+              <button onClick={() => respondToPlayerRequest('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Conversar e manter</button>
+            </>}
+          </div>
+        </section>
+      }
       if (pendingEvent.type === 'manager_offer' && managerClub) {
         return <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-400/[0.05] p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300/70">Proposta para o treinador</p>
