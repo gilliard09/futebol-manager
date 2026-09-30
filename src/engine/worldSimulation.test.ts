@@ -199,9 +199,22 @@ describe('world simulation', () => {
     player.seasonAssists = 5
     player.seasonAverageRating = 7.7
 
-    const result = simulateWorldDay('2026-06-10', 'market-race-test', clubs, [player], 'user')
-    const playerOffers = result.offers.filter(offer => offer.playerId === player.id)
+    const day10 = simulateWorldDay('2026-06-10', 'market-race-test', clubs, [player], 'user')
+    expect(day10.marketInterest.find(item => item.playerId === player.id)?.stage).toBe('monitoring')
+    expect(day10.offers.filter(offer => offer.playerId === player.id)).toHaveLength(0)
 
+    const day20 = simulateWorldDay('2026-06-20', 'market-race-test', clubs, [player], 'user', {}, day10.marketInterest)
+    expect(day20.marketInterest.find(item => item.playerId === player.id)?.stage).toBe('monitoring')
+    expect(day20.offers.filter(offer => offer.playerId === player.id)).toHaveLength(0)
+
+    const day30 = simulateWorldDay('2026-06-30', 'market-race-test', clubs, [player], 'user', {}, day20.marketInterest)
+    expect(day30.marketInterest.find(item => item.playerId === player.id)?.stage).toBe('scouting')
+    expect(day30.offers.filter(offer => offer.playerId === player.id)).toHaveLength(0)
+
+    const day40 = simulateWorldDay('2026-07-10', 'market-race-test', clubs, [player], 'user', {}, day30.marketInterest)
+    const playerOffers = day40.offers.filter(offer => offer.playerId === player.id)
+
+    expect(day40.marketInterest.find(item => item.playerId === player.id)?.stage).toBe('proposal_ready')
     expect(playerOffers.length).toBeGreaterThanOrEqual(2)
     expect(new Set(playerOffers.map(offer => offer.toClubId)).size).toBe(playerOffers.length)
     expect(playerOffers.every(offer => offer.fee > 1180000)).toBe(true)
