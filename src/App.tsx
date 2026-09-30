@@ -283,6 +283,7 @@ function GameApp() {
       <Route path="*" element={<Navigate to={career ? '/dashboard' : '/'} replace />} />
     </Routes>
   </div></div>
+}
 
 function Top({ label, back }: { label?: string; back?: () => void }) {
   return <header className="flex h-20 items-center justify-between border-b border-white/6 px-6 md:px-10"><button onClick={back} className={back ? 'flex items-center gap-3 text-sm font-semibold text-white/60 hover:text-white' : 'pointer-events-none text-sm font-semibold'}>{back && <ArrowLeft size={18} />} FUTEBOL MANAGER</button>{label && <span className="text-xs uppercase tracking-[0.18em] text-white/30">{label}</span>}</header>
