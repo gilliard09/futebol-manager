@@ -36,11 +36,29 @@ describe('world news', () => {
     simulation.evolvedPlayerIds.push('p2')
     simulation.evolvedPlayers = 1
 
-    const news = buildWorldNews(simulation, clubs, players)
+    const news = buildWorldNews(simulation, clubs, players, {}, 'a')
 
     expect(news.some(item => item.title === 'Mercado em movimento')).toBe(true)
     expect(news.some(item => item.title === 'Contrato renovado')).toBe(true)
     expect(news.some(item => item.title === 'Jogador em evolução')).toBe(true)
     expect(news.every(item => item.date === simulation.date)).toBe(true)
+    expect(news.find(item => item.title === 'Mercado em movimento')?.priority).toBe(42)
   })
+})
+
+
+it('prioritizes news involving the user club and major events', () => {
+  const clubs = [club('a', 'Clube A'), club('b', 'Clube B')]
+  const players = [player('p1', 'a'), player('p2', 'b')]
+  const simulation = result()
+  simulation.offers.push({ playerId: 'p1', fromClubId: 'a', toClubId: 'b', fee: 3500000 })
+  simulation.transfers.push({ playerId: 'p2', fromClubId: 'a', toClubId: 'b', fee: 3500000 })
+
+  const news = buildWorldNews(simulation, clubs, players, {
+    b: { position: 15, points: 8, goalDifference: -4, played: 8, recentPoints: 3, recentResults: ['L', 'L', 'D', 'L', 'L'] },
+  }, 'a')
+
+  expect(news[0].title).toBe('Seu clube recebeu uma proposta')
+  expect(news[0].priority).toBe(100)
+  expect(news.some(item => item.title === 'Crise de resultados')).toBe(true)
 })
