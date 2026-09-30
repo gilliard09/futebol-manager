@@ -3,7 +3,7 @@ import { FORMATIONS } from '../types/game'
 
 export type MatchEvent = {
   minute: number
-  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'corner' | 'foul' | 'tackle' | 'substitution'
+  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'red_card' | 'corner' | 'foul' | 'tackle' | 'substitution' | 'injury' | 'offside'
   team: 'home' | 'away'
   player: string
   text: string
@@ -18,6 +18,9 @@ export type MatchStats = {
   corners: number
   fouls: number
   yellowCards: number
+  redCards?: number
+  offsides?: number
+  injuries?: number
   xg: number
 }
 
@@ -314,7 +317,7 @@ function chooseWeighted(players: LineupPlayer[], preferredRoles: string[], rando
 }
 
 function emptyStats(): MatchStats {
-  return { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0, xg: 0 }
+  return { possession: 50, shots: 0, shotsOnTarget: 0, chances: 0, tackles: 0, corners: 0, fouls: 0, yellowCards: 0, redCards: 0, offsides: 0, injuries: 0, xg: 0 }
 }
 
 function buildPlayerRatings(
@@ -442,14 +445,22 @@ export function simulateMatch(
   random: Random = Math.random,
   coachStyle?: string,
   coachPersonality?: string,
+  awayTactic?: 'balanced' | 'offensive' | 'defensive',
+  awayFormation?: Formation,
+  awayCoachStyle?: string,
+  awayCoachPersonality?: string,
 ): MatchResult {
   const competition = (fixture.competition_name ?? '').toLowerCase()
   const matchImportance = competition.includes('copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1)
   const preferredHome = Object.fromEntries((homeLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
   const preferredAway = Object.fromEntries((awayLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
   const awayCoach = getAiCoachProfile(fixture.away_club_id)
+  const effectiveAwayTactic = awayTactic ?? awayCoach.tactic
+  const effectiveAwayFormation = awayFormation ?? awayCoach.formation
+  const effectiveAwayStyle = awayCoachStyle ?? awayCoach.style
+  const effectiveAwayPersonality = awayCoachPersonality ?? awayCoach.personality
   const home = selectStartingLineup(homePlayers, formation, coachStyle, coachPersonality, awayPlayers, preferredHome, matchImportance)
-  const away = selectStartingLineup(awayPlayers, awayCoach.formation, awayCoach.style, awayCoach.personality, homePlayers, preferredAway, matchImportance)
+  const away = selectStartingLineup(awayPlayers, effectiveAwayFormation, effectiveAwayStyle, effectiveAwayPersonality, homePlayers, preferredAway, matchImportance)
   const homeBench = homePlayers.filter(player => !home.some(item => item.player.id === player.id))
   const awayBench = awayPlayers.filter(player => !away.some(item => item.player.id === player.id))
   const homeActive = [...home]
@@ -470,8 +481,8 @@ export function simulateMatch(
   homeMetrics.midfield = clamp(homeMetrics.midfield + modifiers.possession * 0.35)
   homeMetrics.morale = clamp(homeMetrics.morale + modifiers.morale)
   homeMetrics.overall = clamp(homeMetrics.overall + modifiers.attack * 0.25 + modifiers.defense * 0.25 + modifiers.possession * 0.15 + modifiers.morale * 0.15)
-  const awayModifiers = coachModifiers(awayCoach.style, awayCoach.personality)
-  const awayMetrics = calculateTeamMetrics(away, awayCoach.tactic, awayCoach.formation)
+  const awayModifiers = coachModifiers(effectiveAwayStyle, effectiveAwayPersonality)
+  const awayMetrics = calculateTeamMetrics(away, effectiveAwayTactic, effectiveAwayFormation)
   awayMetrics.attack = clamp(awayMetrics.attack + awayModifiers.attack)
   awayMetrics.defense = clamp(awayMetrics.defense + awayModifiers.defense)
   awayMetrics.midfield = clamp(awayMetrics.midfield + awayModifiers.possession * 0.35)
@@ -498,7 +509,7 @@ export function simulateMatch(
       : 1
 
   const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away') => {
-    const teamCoachStyle = team === 'home' ? (coachStyle ?? 'balanced') : awayCoach.style
+    const teamCoachStyle = team === 'home' ? (coachStyle ?? 'balanced') : effectiveAwayStyle
     const rotationIntensity = rotationIntensityFor(teamCoachStyle)
     if (![55, 70, 80].includes(minute) || substitutionWindows[team].has(minute) || substitutionCount[team] >= 5) return
     substitutionWindows[team].add(minute)
@@ -566,7 +577,7 @@ export function simulateMatch(
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
 
     const awayBefore = events.length
-    simulateSide(minute, 'away', awayActive, awayMetrics, homeMetrics, awayCoach.tactic, awayStats, events, random, awayName, awayModifiers)
+    simulateSide(minute, 'away', awayActive, awayMetrics, homeMetrics, effectiveAwayTactic, awayStats, events, random, awayName, awayModifiers)
     if (events.slice(awayBefore).some(event => event.type === 'goal')) awayScore++
 
     const tackleProbability = clamp(0.16 + ((100 - ((homeMetrics.midfield + awayMetrics.midfield) / 2)) / 400), 0.08, 0.2)
@@ -588,9 +599,43 @@ export function simulateMatch(
       const name = player ? player.player.first_name + ' ' + player.player.last_name : 'Jogador'
       stats.fouls++
       events.push({ minute, type: 'foul', team, player: name, text: name + ' comete falta.' })
-      if (random() < 0.2) {
+      if (player && random() < 0.2) {
         stats.yellowCards++
-        events.push({ minute, type: 'card', team, player: name, text: 'Cartão amarelo.' })
+        const previousYellows = events.filter(event => event.team === team && event.player === name && event.type === 'card').length
+        if (previousYellows >= 1 || random() < 0.035) {
+          stats.redCards = (stats.redCards ?? 0) + 1
+          events.push({ minute, type: 'red_card', team, player: name, text: previousYellows >= 1 ? 'Segundo amarelo. Expulso!' : 'Cartão vermelho direto. Expulso!' })
+          const index = side.findIndex(item => item.player.id === player.player.id)
+          if (index >= 0 && player.player.position !== 'GK') side.splice(index, 1)
+        } else {
+          events.push({ minute, type: 'card', team, player: name, text: 'Cartão amarelo.' })
+        }
+      }
+    }
+
+    if (random() < 0.018) {
+      const team = random() < 0.5 ? 'home' : 'away'
+      const stats = team === 'home' ? homeStats : awayStats
+      const side = team === 'home' ? homeActive : awayActive
+      const player = chooseWeighted(side, ['ST', 'LW', 'RW', 'AM', 'CM'], random)
+      if (player) {
+        const name = player.player.first_name + ' ' + player.player.last_name
+        stats.offsides = (stats.offsides ?? 0) + 1
+        events.push({ minute, type: 'offside', team, player: name, text: name + ' está impedido.' })
+      }
+    }
+
+    if (random() < 0.008) {
+      const team = random() < 0.5 ? 'home' : 'away'
+      const stats = team === 'home' ? homeStats : awayStats
+      const side = team === 'home' ? homeActive : awayActive
+      const player = chooseWeighted(side, ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'LW', 'RW', 'ST'], random)
+      if (player && player.player.position !== 'GK') {
+        const name = player.player.first_name + ' ' + player.player.last_name
+        stats.injuries = (stats.injuries ?? 0) + 1
+        const index = side.findIndex(item => item.player.id === player.player.id)
+        if (index >= 0) side.splice(index, 1)
+        events.push({ minute, type: 'injury', team, player: name, text: name + ' sente uma lesão e deixa a partida.' })
       }
     }
 
@@ -619,7 +664,7 @@ export function simulateMatch(
   })
 
   const homeRatings = buildPlayerRatings([...home, ...homeBench.map(player => ({ player, role: player.position, slot: -1 }))], 'home', events, tactic, minutesById, startedIds).filter(player => player.minutes > 0)
-  const awayRatings = buildPlayerRatings([...away, ...awayBench.map(player => ({ player, role: player.position, slot: -1 }))], 'away', events, awayCoach.tactic, minutesById, startedIds).filter(player => player.minutes > 0)
+  const awayRatings = buildPlayerRatings([...away, ...awayBench.map(player => ({ player, role: player.position, slot: -1 }))], 'away', events, effectiveAwayTactic, minutesById, startedIds).filter(player => player.minutes > 0)
   const playerRatings = [...homeRatings, ...awayRatings]
   const analysis = buildAnalysis(homeRatings, awayRatings, homeStats, awayStats)
 
