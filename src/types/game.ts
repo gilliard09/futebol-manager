@@ -9,6 +9,7 @@ export type Club = {
   division: number
   budget: number
   reputation: number
+  strength?: number
 }
 
 export type Player = {
