@@ -221,22 +221,6 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     })
   }
 
-  const persistMatchIncidents = (matchResult: MatchResult) => {
-    try {
-      const saved = JSON.parse(localStorage.getItem('futebol-manager:training') ?? '{}')
-      const playersById = { ...(saved.players ?? {}) }
-      const incidentDate = toDateKey(fixture.scheduled_at)
-      const injuryIds = new Set(matchResult.events.filter(event => event.type === 'injury' && event.playerId).map(event => event.playerId as string))
-      const suspensionIds = new Set(matchResult.events.filter(event => event.type === 'red_card' && event.playerId).map(event => event.playerId as string))
-      const allPlayers = [...homePlayers, ...awayPlayers]
-      for (const player of allPlayers) {
-        if (injuryIds.has(player.id)) playersById[player.id] = { ...(playersById[player.id] ?? player), injuredUntil: addDaysLocal(incidentDate, 14) }
-        if (suspensionIds.has(player.id)) playersById[player.id] = { ...(playersById[player.id] ?? player), suspendedUntil: addDaysLocal(incidentDate, 7), redCards: (playersById[player.id]?.redCards ?? player.redCards ?? 0) + 1 }
-      }
-      localStorage.setItem('futebol-manager:training', JSON.stringify({ ...saved, players: playersById }))
-    } catch {}
-  }
-
   const restart = () => {
     setSession(null)
     setPhase('pregame')
@@ -325,7 +309,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-wider text-white/25">{teamName(fixture, 'away')}</p><div className="mt-4 space-y-2">{[['Posse', result.awayStats.possession + '%'],['Finalizações', String(result.awayStats.shots)],['No alvo', String(result.awayStats.shotsOnTarget)],['xG', result.awayStats.xg.toFixed(1)],['Cartões', String(result.awayStats.yellowCards)],['Vermelhos', String(result.awayStats.redCards ?? 0)],['Impedimentos', String(result.awayStats.offsides ?? 0)],['Lesões', String(result.awayStats.injuries ?? 0)]].map(([label,value]) => <div key={label} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2.5"><span className="text-xs text-white/35">{label}</span><span className="font-mono text-xs font-bold">{value}</span></div>)}</div></div>
         </section>}
         <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-wider text-white/25">Notas dos jogadores</p><div className="mt-4 grid gap-2 md:grid-cols-2">{result.playerRatings.sort((a,b) => b.rating-a.rating).map(player => <div key={player.playerId + player.team} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3"><div><p className="text-sm font-semibold">{player.name}</p><p className="text-xs text-white/30">{player.team === 'home' ? teamName(fixture, 'home') : teamName(fixture, 'away')} · {player.position}</p></div><span className="rounded-lg bg-emerald-400/10 px-2.5 py-1.5 font-mono text-xs font-bold text-emerald-300">{player.rating.toFixed(1)}</span></div>)}</div></section>
-        <button onClick={() => { persistMatchIncidents(result); back(result) }} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao clube <ArrowLeft size={16} /></button>
+        <button onClick={() => back(result)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao clube <ArrowLeft size={16} /></button>
         <button onClick={restart} className="mx-auto flex items-center gap-2 text-xs font-semibold text-white/30 hover:text-white"><RotateCcw size={14} /> Repetir partida</button>
       </section>}
     </section>
