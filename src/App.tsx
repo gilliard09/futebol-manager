@@ -500,19 +500,31 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     let active = true
     async function loadDashboard() {
       setLoading(true)
-      const [squadResult, fixtureResult, tableResult, clubsResult, salaryResult] = await Promise.all([
+      const [squadResult, fixtureResult, tableResult, clubsResult, salaryResult, seasonStatsResult] = await Promise.all([
         supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').order('squad_number'),
         supabase.from('fixtures').select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('scheduled_at'),
         supabase.from('fixtures').select('id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional do Brasil'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url').order('name'),
         supabase.from('club_players').select('player_id,club_id,salary,contract_until,players!inner(first_name,last_name)').order('player_id'),
+        supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,avg_rating,seasons!inner(name)').eq('seasons.name', career.season),
       ])
       if (!active) return
       if (!squadResult.error) {
-        const loaded = (squadResult.data ?? []).filter((row: any) => (getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === career.club.id)).map(normalizePlayer)
+        const seasonStats = new Map((seasonStatsResult.data ?? []).map((row: any) => [row.player_id, row]))
+        const loaded = (squadResult.data ?? []).filter((row: any) => (getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === career.club.id)).map((row: any) => {
+          const player = normalizePlayer(row)
+          const stats = seasonStats.get(player.id)
+          return {
+            ...player,
+            seasonAppearances: Number(stats?.appearances ?? 0),
+            seasonStarts: Number(stats?.starts ?? 0),
+            seasonMinutes: Number(stats?.minutes ?? 0),
+            seasonAverageRating: Number(stats?.avg_rating ?? 0),
+          }
+        })
         try {
           const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
-          let restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
+          const restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
           setPlayers(restored)
         } catch {
           setPlayers(loaded)
