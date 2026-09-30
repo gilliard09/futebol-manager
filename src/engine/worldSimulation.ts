@@ -39,6 +39,7 @@ export type WorldSimulationResult = {
     clubId: string
   }>
   evolvedPlayers: number
+  evolvedPlayerIds: string[]
   changedClubs: string[]
 }
 
@@ -135,6 +136,7 @@ export function simulateWorldDay(
   const youth: WorldSimulationResult['youth'] = []
   const changedClubs = new Set<string>()
   let evolvedPlayers = 0
+  const evolvedPlayerIds = new Set<string>()
 
   const byClub = new Map<string, WorldPlayer[]>()
   for (const player of players) {
@@ -154,6 +156,7 @@ export function simulateWorldDay(
     player.form = clamp(player.form + (delta > 0 ? 1 : 0), 1, 100)
     player.morale = clamp(player.morale + (delta > 0 ? 1 : -1), 1, 100)
     evolvedPlayers++
+    evolvedPlayerIds.add(player.id)
   }
 
   const day = Number(date.slice(8, 10))
