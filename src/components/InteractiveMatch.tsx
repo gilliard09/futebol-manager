@@ -218,6 +218,10 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   }
 
   useEffect(() => {
+    return () => stopMatchAmbient()
+  }, [])
+
+  useEffect(() => {
     if (!session || phase !== 'live' || paused || session.finished) return
     const timer = window.setTimeout(() => {
       setSession(current => current ? advanceInteractiveMinute(current, userTeam) : current)
@@ -230,6 +234,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     if (session.events.length > lastEventCount) setLastEventCount(session.events.length)
     if (session.finished && phase === 'live') {
       playMatchSound('whistle')
+      stopMatchAmbient()
       setPaused(true)
       setPhase('postgame')
       setPostgameTab('events')
