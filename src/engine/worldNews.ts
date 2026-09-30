@@ -75,6 +75,22 @@ export function buildWorldNews(
     })
   }
 
+  for (const loan of result.loans ?? []) {
+    const player = playerById.get(loan.playerId)
+    if (!player) continue
+    const parent = clubName(loan.parentClubId)
+    const destination = clubName(loan.loanClubId)
+    const months = Math.max(1, Math.round((new Date(loan.endDate).getTime() - new Date(loan.startDate).getTime()) / (30 * 86400000)))
+    push({
+      date: result.date,
+      title: 'Empréstimo confirmado',
+      message: `${playerName(loan.playerId)} foi emprestado pelo ${parent} ao ${destination} por ${months} meses.`,
+      tone: 'neutral',
+      category: 'market',
+      priority: 58,
+      id: `loan:${result.date}:${loan.playerId}:${loan.loanClubId}`,
+    })
+  }
   for (const negotiation of result.negotiationEvents ?? []) {
     const player = playerById.get(negotiation.playerId)
     const buyer = clubName(negotiation.buyerId)
