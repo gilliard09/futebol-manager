@@ -1246,7 +1246,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const { simulateMatch } = await import('./engine/match')
       const { data: roundFixtures } = await supabase
         .from('fixtures')
-        .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,competitions!fixtures_competition_id_fkey(name),home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url)')
+        .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,competitions!inner(name),home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url)')
         .eq('competition_id', activeMatchFixture.competition_id)
         .eq('round', activeMatchFixture.round)
         .eq('status', 'scheduled')
