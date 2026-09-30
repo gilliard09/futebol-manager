@@ -5,11 +5,11 @@ function average(values: number[]) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 50
 }
 
-function clamp(value: number, min = 0, max = 100) {
+export function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value))
 }
 
-function rating(player: Player, role = player.position) {
+export function rating(player: Player, role = player.position) {
   if (role === 'GK') return player.goalkeeping * 0.8 + player.mental * 0.2
   if (['CB', 'LB', 'RB', 'DM'].includes(role)) return player.defending * 0.45 + player.physical * 0.2 + player.mental * 0.15 + player.passing * 0.2
   if (['CM', 'AM'].includes(role)) return player.passing * 0.35 + player.dribbling * 0.2 + player.mental * 0.2 + player.physical * 0.1 + player.shooting * 0.15
@@ -56,7 +56,7 @@ export function getSquadRole(player: Player): SquadRole {
   return 'backup'
 }
 
-function performanceRating(player: Player, role = player.position) {
+export function performanceRating(player: Player, role = player.position) {
   return rating(player, role) * (1 - Math.min(0.2, (player.fatigue ?? 0) * 0.002))
 }
 
@@ -64,7 +64,7 @@ function sector(lineup: LineupPlayer[], roles: string[]) {
   return average(lineup.filter(item => roles.includes(item.role)).map(item => performanceRating(item.player, item.role)))
 }
 
-function coachModifiers(style?: string, personality?: string) {
+export function coachModifiers(style?: string, personality?: string) {
   const modifier = { attack: 0, defense: 0, possession: 0, fatigue: 0, morale: 0, youth: 0 }
   if (style === 'high_press') { modifier.attack += 3; modifier.fatigue += 5 }
   if (style === 'possession') modifier.possession += 5
@@ -111,7 +111,7 @@ export function calculateTeamMetrics(lineup: LineupPlayer[], tactic = 'balanced'
   return { overall: overall * 0.97 + fit * 0.03, goalkeeper, defense, midfield, attack, form, morale, tacticalFit: fit }
 }
 
-function selectionScore(player: Player, role: string) {
+export function selectionScore(player: Player, role: string) {
   const roleFit = player.position === role ? 8 : 0
   const formBonus = (player.form - 50) * 0.08
   const moraleBonus = (player.morale - 50) * 0.04
