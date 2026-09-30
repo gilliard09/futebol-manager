@@ -43,9 +43,9 @@ export type CompetitionHistoryResult = {
   topScorerGoals: number
 }
 
-export function getCompetitionTopScorer(matches: PlayedMatch[], competitionId: string) {
+export function getCompetitionTopScorer(matches: PlayedMatch[], competitionId: string, seasonId?: string) {
   const totals = new Map<string, { playerId: string; name: string; goals: number }>()
-  for (const match of matches.filter(item => item.competition_id === competitionId)) {
+  for (const match of matches.filter(item => item.competition_id === competitionId && (!seasonId || item.season_id === seasonId))) {
     for (const rating of match.playerRatings) {
       const current = totals.get(rating.playerId) ?? { playerId: rating.playerId, name: rating.name, goals: 0 }
       current.goals += rating.goals
@@ -68,6 +68,7 @@ export function buildCompetitionHistoryResult(
   }>,
   matches: PlayedMatch[],
   league = false,
+  seasonId?: string,
 ): CompetitionHistoryResult | null {
   const completed = fixtures.filter(item => item.status === 'completed')
   if (!completed.length) return null
@@ -88,7 +89,7 @@ export function buildCompetitionHistoryResult(
     runnerUpClubId = final.home_club_id === championClubId ? final.away_club_id : final.home_club_id
   }
 
-  const scorer = getCompetitionTopScorer(matches, competitionId)
+  const scorer = getCompetitionTopScorer(matches, competitionId, seasonId)
   return {
     championClubId,
     runnerUpClubId,
@@ -142,8 +143,8 @@ export function buildSeasonCompletion(
   }>,
   matches: PlayedMatch[],
 ): SeasonCompletion | null {
-  const league = buildCompetitionHistoryResult(leagueId, leagueFixtures, matches, true)
-  const cup = buildCompetitionHistoryResult(cupId, cupFixtures, matches, false)
+  const league = buildCompetitionHistoryResult(leagueId, leagueFixtures, matches, true, season.id)
+  const cup = buildCompetitionHistoryResult(cupId, cupFixtures, matches, false, season.id)
   if (!league || !cup) return null
   return { seasonId: season.id, seasonName: season.name, league, cup }
 }
