@@ -268,7 +268,7 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
       stats.yellowCards += 1
       if (yellows >= 1 || random() < 0.025) {
         stats.redCards = (stats.redCards ?? 0) + 1
-        pushEvent(state, { minute: state.minute, type: 'red_card', team: teamName, player: name, text: yellows >= 1 ? 'Segundo amarelo. Expulso!' : 'Cartão vermelho direto. Expulso!' })
+        pushEvent(state, { minute: state.minute, type: 'red_card', team: teamName, player: name, playerId: fouler.player.id, text: yellows >= 1 ? 'Segundo amarelo. Expulso!' : 'Cartão vermelho direto. Expulso!' })
         const index = team.lineup.findIndex(item => item.player.id === fouler.player.id)
         if (index >= 0 && fouler.player.position !== 'GK') {
           team.lineup.splice(index, 1)
@@ -297,7 +297,7 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
       team.removed.add(injured.player.id)
       const index = team.lineup.findIndex(item => item.player.id === injured.player.id)
       if (index >= 0) team.lineup.splice(index, 1)
-      pushEvent(state, { minute: state.minute, type: 'injury', team: teamName, player: name, text: name + ' sente uma lesão e deixa a partida.' })
+      pushEvent(state, { minute: state.minute, type: 'injury', team: teamName, player: name, playerId: injured.player.id, text: name + ' sente uma lesão e deixa a partida.' })
     }
   }
 }
@@ -378,12 +378,13 @@ export function changeInteractiveTactics(
   return next
 }
 
-export function advanceInteractiveMinute(state: InteractiveMatchState): InteractiveMatchState {
+export function advanceInteractiveMinute(state: InteractiveMatchState, controlledTeam: InteractiveTeam = 'home'): InteractiveMatchState {
   if (state.finished || state.minute >= 90) return { ...state, finished: true, minute: 90 }
   const next = cloneState(state)
   next.minute += 1
 
-  aiSubstitution(next, 'away')
+  const aiTeam: InteractiveTeam = controlledTeam === 'home' ? 'away' : 'home'
+  aiSubstitution(next, aiTeam)
   simulateTeamMinute(next, 'home')
   simulateTeamMinute(next, 'away')
   simulateDisciplineAndIncidents(next)
