@@ -109,21 +109,53 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         </div>
 
         {competition === 'Copa Nacional do Brasil' && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">Caminho do título</p><h2 className="mt-2 text-2xl font-bold">Mata-mata</h2></div><Trophy className="text-emerald-300/50" /></div>
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
-            {stageRounds.map(stage => {
+          <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">Caminho do título</p><h2 className="mt-2 text-2xl font-bold">Chaveamento</h2></div><Trophy className="text-emerald-300/50" /></div>
+          <div className="mt-6 overflow-x-auto pb-3"><div className="grid min-w-[1080px] grid-cols-4 gap-4">
+            {[
+              { label: 'Oitavas', rounds: [1, 2] },
+              { label: 'Quartas', rounds: [3, 4] },
+              { label: 'Semifinal', rounds: [5, 6] },
+              { label: 'Final', rounds: [7] },
+            ].map(stage => {
               const stageFixtures = fixtures.filter(item => stage.rounds.includes(item.round))
-              const completed = stageFixtures.filter(item => item.status === 'completed').length
-              const total = stage.rounds.reduce((sum, r) => sum + fixtures.filter(item => item.round === r).length, 0)
-              const active = stage.rounds.includes(round)
-              return <button key={stage.label} onClick={() => setRound(stage.rounds.find(r => fixtures.some(f => f.round === r)) ?? stage.rounds[0])} className={`rounded-xl border p-4 text-left ${active ? 'border-emerald-400/25 bg-emerald-400/[0.05]' : 'border-white/5 bg-black/10'}`}>
-                <p className="text-xs text-white/30">{stage.label}</p>
-                <p className="mt-2 text-lg font-bold">{total ? `${completed}/${total}` : 'Aguardando'}</p>
-                <p className="mt-1 text-xs text-white/25">{stage.rounds.length === 1 ? 'jogo único' : 'ida e volta'}</p>
-              </button>
+              const ties = new Map<string, Fixture[]>()
+              for (const item of stageFixtures) {
+                const key = [item.home_club_id, item.away_club_id].sort().join(':')
+                const tie = ties.get(key) ?? []
+                tie.push(item)
+                ties.set(key, tie)
+              }
+              const cards = [...ties.values()].sort((a,b) => (a[0]?.scheduled_at ?? '').localeCompare(b[0]?.scheduled_at ?? ''))
+              return <div key={stage.label} className="flex flex-col">
+                <button onClick={() => setRound(stage.rounds.find(r => fixtures.some(f => f.round === r)) ?? stage.rounds[0])} className="mb-3 text-left"><p className="text-xs uppercase tracking-[0.16em] text-white/25">{stage.label}</p><p className="mt-1 text-sm font-bold">{stage.rounds.length === 1 ? 'Jogo único' : 'Ida e volta'}</p></button>
+                <div className="flex flex-1 flex-col justify-around gap-3">
+                  {cards.map((tie, index) => {
+                    const first = tie.find(item => item.round === stage.rounds[0])
+                    const second = tie.find(item => item.round === stage.rounds[1])
+                    const home = first?.home_club ?? second?.away_club
+                    const away = first?.away_club ?? second?.home_club
+                    const homeId = first?.home_club_id ?? second?.away_club_id
+                    const awayId = first?.away_club_id ?? second?.home_club_id
+                    const firstHome = first?.home_score
+                    const firstAway = first?.away_score
+                    const secondHome = second?.home_score
+                    const secondAway = second?.away_score
+                    const homeAggregate = (first ? (first.home_club_id === homeId ? first.home_score ?? 0 : first.away_score ?? 0) : 0) + (second ? (second.home_club_id === homeId ? second.home_score ?? 0 : second.away_score ?? 0) : 0)
+                    const awayAggregate = (first ? (first.home_club_id === awayId ? first.home_score ?? 0 : first.away_score ?? 0) : 0) + (second ? (second.home_club_id === awayId ? second.home_score ?? 0 : second.away_score ?? 0) : 0)
+                    const winnerId = second?.winner_club_id ?? (stage.rounds.length === 1 && first && first.home_score != null && first.away_score != null ? (first.home_score > first.away_score ? first.home_club_id : first.away_score > first.home_score ? first.away_club_id : null) : null)
+                    const completed = tie.filter(item => item.status === 'completed').length
+                    const score = (clubId: string) => stage.rounds.length === 1 ? (first?.home_club_id === clubId ? firstHome : firstAway) : (first?.home_club_id === clubId ? firstHome : firstAway) + ' / ' + (second ? (second.home_club_id === clubId ? secondHome : secondAway) : '—')
+                    return <div key={index} className="relative rounded-xl border border-white/6 bg-black/15 p-3">
+                      <div className="space-y-1"><div className={winnerId === homeId ? 'font-bold text-emerald-300' : 'font-medium'}><span className="inline-block w-[68%] truncate align-middle">{home?.short_name ?? 'A definir'}</span><span className="float-right">{score(homeId) ?? '—'}</span></div><div className={winnerId === awayId ? 'font-bold text-emerald-300' : 'font-medium'}><span className="inline-block w-[68%] truncate align-middle">{away?.short_name ?? 'A definir'}</span><span className="float-right">{score(awayId) ?? '—'}</span></div></div>
+                      {stage.rounds.length > 1 && <p className="mt-2 border-t border-white/5 pt-2 text-[11px] text-white/30">Agregado <span className="font-bold text-white/65">{homeAggregate} × {awayAggregate}</span>{completed === 2 && winnerId ? <span className="ml-2 text-emerald-300">classificado</span> : ''}</p>}
+                      {stage.rounds.length === 1 && completed === 1 && winnerId && <p className="mt-2 border-t border-white/5 pt-2 text-[11px] text-emerald-300">Classificado</p>}
+                    </div>
+                  })}
+                  {cards.length === 0 && <div className="rounded-xl border border-dashed border-white/6 p-4 text-xs text-white/25">Aguardando definição</div>}
+                </div>
+              </div>
             })}
-          </div>
-          {champion && <div className="mt-4 rounded-xl border border-amber-300/10 bg-amber-300/[0.03] p-4"><p className="text-xs uppercase tracking-[0.18em] text-amber-200/50">Campeão</p><p className="mt-1 font-bold">{champion.name}</p></div>}
+          </div></div>
         </section>}
 
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
