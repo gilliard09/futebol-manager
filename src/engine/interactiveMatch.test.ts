@@ -5,6 +5,7 @@ import {
   changeInteractiveTactics,
   createInteractiveMatch,
   makeInteractiveSubstitution,
+  resolveInteractivePenalty,
 } from './interactiveMatch'
 
 function player(id: string, position: string, number: number): Player {
@@ -93,6 +94,23 @@ describe('interactive match', () => {
     expect(state.home.formation).toBe('4-4-2')
     expect(state.away.tactic).toBe('defensive')
     expect(state.away.formation).toBe('4-3-3')
+  })
+
+
+  it('resolves a penalty with the selected kicker and records the goal event', () => {
+    const initial = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0)
+    const kicker = initial.home.lineup.find(item => ['ST', 'LW', 'RW', 'AM'].includes(item.role)) ?? initial.home.lineup[0]
+    const next = resolveInteractivePenalty(initial, 'home', kicker.player.id)
+    expect(next.homeScore).toBe(1)
+    expect(next.events.at(-1)?.type).toBe('goal')
+    expect(next.events.at(-1)?.playerId).toBe(kicker.player.id)
+  })
+
+  it('reassigns real lineup roles when the formation changes', () => {
+    const initial = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
+    const next = changeInteractiveTactics(initial, 'home', 'balanced', '4-4-2')
+    expect(next.home.lineup).toHaveLength(11)
+    expect(next.home.lineup.map(item => item.role)).toEqual(['GK','LB','CB','CB','RB','CM','CM','CM','ST','ST','ST'])
   })
 
   it('finishes at minute 90 instead of calculating the whole match upfront', () => {
