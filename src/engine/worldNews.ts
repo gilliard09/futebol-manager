@@ -128,8 +128,9 @@ export function buildWorldNews(
     })
   }
 
+  const pressDay = [5, 10, 15, 20, 25].includes(Number(result.date.slice(8, 10)))
   for (const [clubId, performance] of Object.entries(performanceByClub)) {
-    if (performance.played < 3) continue
+    if (!pressDay || performance.played < 3) continue
     const club = clubName(clubId)
     if (performance.position >= 13 && performance.recentPoints <= 4) {
       push({
