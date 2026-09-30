@@ -82,6 +82,21 @@ export function buildWorldNews(
     offersByPlayer.set(offer.playerId, current)
   }
 
+  for (const interest of result.marketInterest) {
+    const player = playerById.get(interest.playerId)
+    const interestedClubs = interest.clubIds.map(clubName)
+    const isUserPlayer = player?.clubId === userClubId
+    push({
+      date: result.date,
+      title: isUserPlayer ? 'Seu jogador entrou no radar de vários clubes' : 'Vários clubes monitoram o mesmo jogador',
+      message: `${playerName(interest.playerId)} está sendo acompanhado por ${interestedClubs.join(', ')}. A concorrência aumenta o valor e pode transformar o jogador em um dos alvos da próxima janela.`,
+      tone: 'neutral',
+      category: 'market',
+      priority: isUserPlayer ? 91 : 74,
+      id: `market-interest:${result.date}:${interest.playerId}:${interest.clubIds.join('-')}`,
+    })
+  }
+
   for (const [playerId, playerOffers] of offersByPlayer) {
     if (playerOffers.length < 2) continue
     const player = playerById.get(playerId)
