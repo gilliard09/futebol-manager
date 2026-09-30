@@ -11,6 +11,15 @@ describe('season history', () => {
     expect(getCompetitionTopScorer(matches, 'liga')).toMatchObject({ playerId: 'p2', goals: 3 })
   })
 
+  it('isola o artilheiro por temporada quando há múltiplas temporadas', () => {
+    const matches = [
+      { competition_id: 'liga', season_id: 's1', playerRatings: [{ playerId: 'p1', name: 'A', goals: 4, assists: 0, rating: 7, team: 'home' }] },
+      { competition_id: 'liga', season_id: 's2', playerRatings: [{ playerId: 'p2', name: 'B', goals: 6, assists: 0, rating: 7, team: 'home' }] },
+    ] as any
+    expect(getCompetitionTopScorer(matches, 'liga', 's1')).toMatchObject({ playerId: 'p1', goals: 4 })
+    expect(getCompetitionTopScorer(matches, 'liga', 's2')).toMatchObject({ playerId: 'p2', goals: 6 })
+  })
+
   it('só encerra mata-mata quando a final tem vencedor', () => {
     const fixtures = [
       { round: 7, status: 'completed', home_club_id: 'a', away_club_id: 'b', home_score: 1, away_score: 1, winner_club_id: 'b' },
