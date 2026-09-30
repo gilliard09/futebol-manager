@@ -61,7 +61,7 @@ function eventLabel(type: string) {
 
 function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixture: Fixture; homeScore: number; awayScore: number; minute: number; finished: boolean }) {
   return <div className="overflow-hidden rounded-3xl border border-white/8 bg-[#131b2a]">
-    <div className="bg-[linear-gradient(135deg,#7c3aed_0%,#2563eb_52%,#a3e635_100%)] px-5 py-4 text-center">
+    <div className="match-gradient px-5 py-4 text-center">
       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/75">{fixture.competition_name ?? 'Competição'} · Rodada {fixture.round}</p>
     </div>
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-7 text-center md:px-10">
@@ -125,6 +125,30 @@ function Pitch({ session, userTeam }: { session: InteractiveMatchState; userTeam
       <span className="absolute bottom-2 left-2 rounded bg-black/30 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-white/55">Casa</span>
     </div>
   </section>
+}
+
+function ProjectedPitch({ players, team }: { players: Player[]; team: InteractiveTeam }) {
+  const counts: Record<string, number> = {}
+  const starters = players.slice(0, 11)
+  return <div className="rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4">
+    <div className="mb-3 flex items-center justify-between"><div><p className="label-mono text-white/30">Prévia tática</p><p className="mt-1 text-xs text-white/35">Posições projetadas para o início da partida</p></div><span className="rounded-full border border-white/8 px-2.5 py-1 font-mono text-[9px] font-bold text-white/30">{starters.length}/11</span></div>
+    <div className="relative mx-auto aspect-[4/5] max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]">
+      <div className="absolute inset-3 rounded-xl border border-white/30" />
+      <div className="absolute left-1/2 top-1/2 h-px w-[calc(100%-24px)] -translate-x-1/2 bg-white/20" />
+      <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
+      <div className="absolute left-1/2 top-3 h-10 w-28 -translate-x-1/2 border border-t-0 border-white/20" />
+      <div className="absolute bottom-3 left-1/2 h-10 w-28 -translate-x-1/2 border border-b-0 border-white/20" />
+      {starters.map(player => {
+        const occurrence = counts[player.position] ?? 0
+        counts[player.position] = occurrence + 1
+        const pos = playerFieldPosition(player.position, team, occurrence)
+        return <div key={player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
+          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-500 text-[9px] font-black text-[#04110c] shadow-lg md:h-10 md:w-10">{player.first_name[0]}{player.last_name[0]}</div>
+          <span className="mt-1 block max-w-16 truncate rounded bg-black/55 px-1 text-[8px] font-bold text-white">{player.last_name}</span>
+        </div>
+      })}
+    </div>
+  </div>
 }
 
 function Bench({ session, userTeam, selectedOutgoing, onSelectIncoming }: { session: InteractiveMatchState; userTeam: InteractiveTeam; selectedOutgoing: string; onSelectIncoming: (id: string) => void }) {
@@ -257,9 +281,12 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Data</p><p className="mt-2 text-sm font-bold">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</p><p className="mt-1 text-xs text-white/30">{fixture.home_club?.stadium ?? 'Estádio não informado'}</p></div>
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Mando</p><p className="mt-2 text-sm font-bold">{userIsHome ? 'Você joga em casa' : 'Você joga fora'}</p><p className="mt-1 text-xs text-white/30">{userIsHome ? teamName(fixture,'home') : teamName(fixture,'away')}</p></div>
         </div>}
-        {pregameTab === 'lineup' && <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? homePlayers : awayPlayers).slice(0,11).map(player => <div key={player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(player)}</p><p className="mt-1 text-[9px] text-white/30">{player.position} · OVR {playerOverall(player)}</p></div>)}</div></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Adversário</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam === 'home' ? 'away' : 'home')}</p><p className="mt-1 text-xs text-white/30">Escalação controlada pela IA do clube.</p></div>
+        {pregameTab === 'lineup' && <div className="space-y-4">
+          <ProjectedPitch players={userIsHome ? homePlayers : awayPlayers} team={userTeam} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? homePlayers : awayPlayers).slice(0,11).map(player => <div key={player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(player)}</p><p className="mt-1 text-[9px] text-white/30">{player.position} · OVR {playerOverall(player)}</p></div>)}</div></div>
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Adversário</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam === 'home' ? 'away' : 'home')}</p><p className="mt-1 text-xs text-white/30">Escalação controlada pela IA do clube.</p></div>
+          </div>
         </div>}
         {pregameTab === 'confrontation' && <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Seu OVR</p><p className="mt-2 font-mono text-3xl font-bold">{Math.round((userIsHome ? homePlayers : awayPlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? homePlayers : awayPlayers).length))}</p></div>
