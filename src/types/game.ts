@@ -35,6 +35,10 @@ export type Player = {
   marketValue?: number
   contractUntil?: string | null
   squad_number: number
+  seasonAppearances?: number
+  seasonStarts?: number
+  seasonMinutes?: number
+  seasonAverageRating?: number
 }
 
 export type Fixture = {
