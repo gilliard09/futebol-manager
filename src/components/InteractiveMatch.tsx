@@ -183,6 +183,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const [pregameTab, setPregameTab] = useState<'preview' | 'lineup' | 'confrontation'>('preview')
   const [highlightEvent, setHighlightEvent] = useState<MatchEvent | null>(null)
   const [pendingIncident, setPendingIncident] = useState<'injury' | 'red_card' | null>(null)
+  const [penaltyResolution, setPenaltyResolution] = useState('')
 
 
   const savedLineup = useMemo(() => {
@@ -241,10 +242,11 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       setHighlightEvent(latest)
       if (latest.type === 'injury' || latest.type === 'red_card') {
         setPaused(true)
-        setPendingIncident(latest.type)
+        if (latest.team === userTeam) setPendingIncident(latest.type)
       }
       if (latest.type === 'penalty') {
         setPaused(true)
+        setPenaltyResolution('')
       }
     }
     if (session.minute === 45 && !paused) {
@@ -286,8 +288,10 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const resolvePenalty = (kickerId: string) => {
     if (!session) return
     const next = resolveInteractivePenalty(session, userTeam, kickerId)
+    const resolution = next.events[next.events.length - 1] ?? null
     setSession(next)
-    setHighlightEvent(next.events[next.events.length - 1] ?? null)
+    setHighlightEvent(resolution?.type === 'goal' ? resolution : session.events.find(event => event.type === 'penalty' && event.minute === session.minute) ?? null)
+    setPenaltyResolution(resolution?.text ?? '')
     setPaused(true)
   }
 
@@ -300,14 +304,17 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       .sort((a, b) => b.player.shooting - a.player.shooting)[0] ?? opponent.lineup[0]
     if (!kicker) return
     const next = resolveInteractivePenalty(session, opponentTeam, kicker.player.id)
+    const resolution = next.events[next.events.length - 1] ?? null
     setSession(next)
-    setHighlightEvent(next.events[next.events.length - 1] ?? null)
+    setHighlightEvent(resolution?.type === 'goal' ? resolution : session.events.find(event => event.type === 'penalty' && event.minute === session.minute) ?? null)
+    setPenaltyResolution(resolution?.text ?? '')
     setPaused(true)
   }
 
   const returnFromIncident = () => {
     setPendingIncident(null)
     setHighlightEvent(null)
+    setPenaltyResolution('')
     setPaused(false)
   }
 
@@ -422,8 +429,10 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         </div>
       </section>}
 
-      {phase === 'live' && highlightEvent && (highlightEvent.type === 'goal' || highlightEvent.type === 'penalty' || highlightEvent.type === 'injury' || highlightEvent.type === 'red_card') && <div className="fixed inset-x-4 top-20 z-50 mx-auto max-w-lg"><div className={highlightEvent.team === userTeam && highlightEvent.type === 'goal' ? 'rounded-2xl border border-emerald-400/40 bg-emerald-950/95 p-5 shadow-2xl' : 'rounded-2xl border border-red-400/40 bg-red-950/95 p-5 shadow-2xl'}><div className="flex items-center gap-3"><span className="font-display text-2xl font-black">{eventLabel(highlightEvent.type)}</span><span className="font-mono text-xs">{highlightEvent.minute}'</span></div><p className="mt-2 text-lg font-bold">{highlightEvent.player}</p><p className="mt-1 text-sm text-white/65">{highlightEvent.text}</p>{highlightEvent.type === 'penalty' && highlightEvent.team === userTeam && <div className="mt-4 space-y-2"><p className="text-[10px] font-bold uppercase tracking-wider text-white/35">Escolha o batedor</p>{user?.lineup.filter(item => ['ST', 'LW', 'RW', 'AM'].includes(item.role)).map(item => <button key={item.player.id} onClick={() => resolvePenalty(item.player.id)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left text-xs font-bold"><span>{playerName(item.player)}</span><span className="text-white/40">Bater</span></button>)}</div>}
-      {highlightEvent.type === 'penalty' && highlightEvent.team !== userTeam && <button onClick={resolveOpponentPenalty} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">Continuar cobrança</button>}{highlightEvent.type !== 'penalty' && <button onClick={() => { setHighlightEvent(null); if (highlightEvent.type === 'goal') setPaused(false) }} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">{highlightEvent.type === 'goal' ? 'Continuar jogo' : 'Abrir escalação'}</button>}</div></div>}
+      {phase === 'live' && highlightEvent && (highlightEvent.type === 'goal' || highlightEvent.type === 'penalty' || highlightEvent.type === 'injury' || highlightEvent.type === 'red_card') && <div className="fixed inset-x-4 top-20 z-50 mx-auto max-w-lg"><div className={highlightEvent.team === userTeam && highlightEvent.type === 'goal' ? 'rounded-2xl border border-emerald-400/40 bg-emerald-950/95 p-5 shadow-2xl' : 'rounded-2xl border border-red-400/40 bg-red-950/95 p-5 shadow-2xl'}><div className="flex items-center gap-3"><span className="font-display text-2xl font-black">{eventLabel(highlightEvent.type)}</span><span className="font-mono text-xs">{highlightEvent.minute}'</span></div><p className="mt-2 text-lg font-bold">{highlightEvent.player}</p><p className="mt-1 text-sm text-white/65">{highlightEvent.text}</p>{highlightEvent.type === 'penalty' && !penaltyResolution && highlightEvent.team === userTeam && <div className="mt-4 space-y-2"><p className="text-[10px] font-bold uppercase tracking-wider text-white/35">Escolha o batedor</p>{user?.lineup.filter(item => ['ST', 'LW', 'RW', 'AM'].includes(item.role)).map(item => <button key={item.player.id} onClick={() => resolvePenalty(item.player.id)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left text-xs font-bold"><span>{playerName(item.player)}</span><span className="text-white/40">Bater</span></button>)}</div>}
+      {highlightEvent.type === 'penalty' && !penaltyResolution && highlightEvent.team !== userTeam && <button onClick={resolveOpponentPenalty} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">Continuar cobrança</button>}
+      {highlightEvent.type === 'penalty' && penaltyResolution && <div className="mt-4"><p className="label-mono text-white/35">NARRAÇÃO DA COBRANÇA</p><p className="mt-2 rounded-xl bg-black/20 p-3 text-sm font-semibold leading-5">{penaltyResolution}</p><button onClick={() => { setHighlightEvent(null); setPenaltyResolution(''); setPaused(false) }} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 text-xs font-bold text-[#06100c]">Voltar ao jogo</button></div>}
+      {highlightEvent.type !== 'penalty' && <button onClick={() => { setHighlightEvent(null); setPaused(false); if (highlightEvent.type === 'injury' || highlightEvent.type === 'red_card') setPendingIncident(null) }} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">{highlightEvent.type === 'goal' ? 'Continuar jogo' : 'Continuar'}</button>}</div></div>}
       {phase === 'live' && session && pendingIncident && <div className="fixed inset-0 z-40 overflow-y-auto bg-[#0a0f1a]/98 px-4 py-6"><div className="mx-auto max-w-4xl"><div className="mb-4 flex items-center justify-between"><div><p className="label-mono text-red-300/70">{pendingIncident === 'injury' ? 'LESÃO' : 'EXPULSÃO'}</p><h2 className="mt-1 font-display text-2xl font-bold">Ajuste sua equipe</h2></div><span className="font-mono text-xs text-white/30">{session.minute}'</span></div><div className="grid gap-4 lg:grid-cols-[0.7fr_1.3fr]"><div className="space-y-3"><ProjectedPitch lineup={user?.lineup ?? []} team={userTeam} compact /><div className="rounded-2xl border border-white/6 bg-[#131b2a] p-3"><p className="label-mono text-white/30">Ajuste tático</p><div className="mt-2 grid grid-cols-3 gap-2">{(['defensive','balanced','offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => applyTactic(value)} className={user?.tactic === value ? 'rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2 py-2 text-[9px] font-bold text-emerald-300' : 'rounded-lg border border-white/6 px-2 py-2 text-[9px] font-bold text-white/35'}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}</div><div className="mt-2 grid grid-cols-4 gap-1.5">{(['4-3-3','4-4-2','4-2-3-1','3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => user && applyTactic(user.tactic, value)} className={user?.formation === value ? 'rounded-lg border border-white/20 bg-white/8 px-2 py-2 font-mono text-[8px] font-bold text-white' : 'rounded-lg border border-white/5 px-2 py-2 font-mono text-[8px] font-bold text-white/30'}>{value}</button>)}</div></div></div><Bench session={session} userTeam={userTeam} selectedOutgoing={selectedOutgoing} onSelectIncoming={(incomingId) => { if (selectedOutgoing) { applySubstitution(selectedOutgoing, incomingId); setSelectedOutgoing(''); setPendingIncident(null); setHighlightEvent(null); setPaused(false) } }} /></div><button onClick={returnFromIncident} className="mt-4 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao jogo <ArrowRight size={16} className="inline ml-1" /></button></div></div>}
       {phase === 'postgame' && session && result && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
