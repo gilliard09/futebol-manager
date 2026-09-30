@@ -15,7 +15,7 @@ import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
-import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
+import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner } from './engine/competitions'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -359,7 +359,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       for (const [fixtureId, match] of Object.entries(matchesToPersist)) {
         const { error: updateError } = await supabase
           .from('fixtures')
-          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore, winner_club_id: activeMatchFixture.competition_name === 'Copa Nacional do Brasil' && [2,4,6].includes(activeMatchFixture.round) && match.homeScore === match.awayScore ? choosePenaltyWinner(activeMatchFixture.home_club_id, activeMatchFixture.away_club_id, activeMatchFixture.id) : null })
+          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore, winner_club_id: null })
           .eq('id', fixtureId)
           .eq('status', 'scheduled')
 
@@ -376,6 +376,25 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
         const allFixtures = (competitionRows ?? []).map(normalizeFixture)
         const currentRound = activeMatchFixture.round
+        if (activeMatchFixture.competition_name === 'Copa Nacional do Brasil' && [2, 4, 6].includes(currentRound)) {
+          const firstRound = currentRound - 1
+          const ties = new Map<string, Fixture[]>()
+          for (const item of allFixtures.filter(f => f.round === firstRound || f.round === currentRound)) {
+            const key = [item.home_club_id, item.away_club_id].sort().join(':')
+            const tie = ties.get(key) ?? []
+            tie.push(item)
+            ties.set(key, tie)
+          }
+          for (const tie of ties.values()) {
+            const firstLeg = tie.find(f => f.round === firstRound)
+            const secondLeg = tie.find(f => f.round === currentRound)
+            if (!firstLeg || !secondLeg || secondLeg.status !== 'completed') continue
+            const winner = resolveTwoLegTie(firstLeg, secondLeg, secondLeg.winner_club_id ?? choosePenaltyWinner(secondLeg.home_club_id, secondLeg.away_club_id, secondLeg.id))
+            if (winner && secondLeg.winner_club_id !== winner) {
+              await supabase.from('fixtures').update({ winner_club_id: winner }).eq('id', secondLeg.id)
+            }
+          }
+        }
         const stage = getCompetitionStage(currentRound)
         if (stage.legs === 2 && currentRound % 2 === 0) {
           const generated = resolveCompletedKnockoutStage(allFixtures, currentRound)
