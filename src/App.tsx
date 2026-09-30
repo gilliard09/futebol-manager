@@ -1490,6 +1490,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           home_club_id: activeMatchFixture.home_club_id,
           away_club_id: activeMatchFixture.away_club_id,
           competition_id: activeMatchFixture.competition_id,
+          season_id: activeMatchFixture.season_id,
           round: activeMatchFixture.round,
         },
       }
@@ -1847,6 +1848,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           historyFixtures ?? [],
           historyMatches,
           competitionName === 'Liga Nacional do Brasil',
+          seasonId,
         )
         if (history) {
           const { error: historyError } = await supabase.from('competition_history').upsert({
