@@ -6,12 +6,14 @@ import {
   getAiCoachProfile,
   playerOverall,
   selectStartingLineup,
-  type MatchEvent,
-  type MatchResult,
-  type MatchStats,
-  type PlayerMatchRating,
-  type TeamMetrics,
-} from '../engine/match'
+} from './matchCore'
+import type {
+  MatchEvent,
+  MatchResult,
+  MatchStats,
+  PlayerMatchRating,
+  TeamMetrics,
+} from './match'
 
 export type InteractiveTeam = 'home' | 'away'
 export type InteractiveTactic = 'balanced' | 'offensive' | 'defensive'
