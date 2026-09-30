@@ -260,7 +260,9 @@ function simulateTeamMinute(
 
   if (teamName === 'home') state.homeScore += 1
   else state.awayScore += 1
-  pushEvent(state, { minute: state.minute, type: 'goal', team: teamName, player: playerName, text: 'Gol do ' + clubName + '!' })
+  const assister = own.lineup.find(item => item.player.id !== attacker?.player.id && ['CM','AM','LW','RW','DM'].includes(item.role))
+  const assistName = assister ? assister.player.first_name + ' ' + assister.player.last_name : undefined
+  pushEvent(state, { minute: state.minute, type: 'goal', team: teamName, player: playerName, playerId: attacker?.player.id, assistPlayer: assistName, text: 'Gol do ' + clubName + '!' + (assistName ? ' Assistência: ' + assistName + '.' : '') })
 }
 
 function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
@@ -499,6 +501,7 @@ function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
       const name = playerNameForRating(player)
       const playerEvents = state.events.filter(event => event.team === teamName && event.player === name)
       const goals = playerEvents.filter(event => event.type === 'goal').length
+      const assists = state.events.filter(event => event.type === 'goal' && event.assistPlayer === name).length
       const cards = playerEvents.filter(event => event.type === 'card' || event.type === 'red_card').length
       const wasRemoved = team.removed.has(player.id)
       const substitutionEvent = state.events.find(event => event.type === 'substitution' && event.playerId === player.id)
@@ -511,7 +514,7 @@ function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
         team: teamName,
         rating: Math.round(clamp(base + goals * 0.85 - cards * 0.4, 1, 10) * 10) / 10,
         goals,
-        assists: 0,
+        assists,
         fatigue: Math.round(clamp((player.fatigue ?? 0) + minutes * 0.45)),
         minutes,
         started: startingIds.has(player.id),
