@@ -17,6 +17,7 @@ const result = (): WorldSimulationResult => ({
   date: '2026-06-10',
   transfers: [],
   offers: [],
+  marketInterest: [],
   expiredContracts: [],
   renewals: [],
   retirements: [],
