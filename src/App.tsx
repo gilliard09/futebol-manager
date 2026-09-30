@@ -569,7 +569,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     async function loadDashboard() {
       setLoading(true)
       const [squadResult, fixtureResult, tableResult, clubsResult, salaryResult, seasonStatsResult] = await Promise.all([
-        supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').order('squad_number'),
+        supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').order('squad_number'),
         supabase.from('fixtures').select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('scheduled_at'),
         supabase.from('fixtures').select('id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('status','completed').eq('competitions.name','Liga Nacional do Brasil'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url').order('name'),
@@ -1577,6 +1577,54 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         setPlayers(current => current.map(player => {
           const values = playerStateUpdates.get(player.id)
           return values ? { ...player, ...values } : player
+        }))
+      }
+
+      // Consequências disciplinares e médicas passam a fazer parte do elenco real.
+      // O status é salvo no jogador, então a disponibilidade afeta as partidas seguintes.
+      const fixtureDates = new Map<string, string>([
+        [activeMatchFixture.id, toDateKey(activeMatchFixture.scheduled_at)],
+        ...remainingFixtures.map(item => [item.id, toDateKey(item.scheduled_at)] as [string, string]),
+      ])
+      const availabilityUpdates = new Map<string, { injuredUntil?: string | null; suspendedUntil?: string | null; yellowCards?: number; redCards?: number }>()
+      for (const [fixtureId, match] of Object.entries(matchesToPersist)) {
+        const matchDate = fixtureDates.get(fixtureId) ?? toDateKey(activeMatchFixture.scheduled_at)
+        for (const event of match.events ?? []) {
+          if (!event.playerId) continue
+          const current = matchPlayers.get(event.playerId)
+          if (!current) continue
+          const previous = availabilityUpdates.get(event.playerId) ?? {}
+          if (event.type === 'card') {
+            previous.yellowCards = Number(previous.yellowCards ?? current.yellowCards ?? 0) + 1
+          }
+          if (event.type === 'red_card') {
+            previous.redCards = Number(previous.redCards ?? current.redCards ?? 0) + 1
+            previous.suspendedUntil = addDays(matchDate, 7)
+          }
+          if (event.type === 'injury') {
+            previous.injuredUntil = addDays(matchDate, 14)
+          }
+          availabilityUpdates.set(event.playerId, previous)
+        }
+      }
+      if (availabilityUpdates.size) {
+        await Promise.all([...availabilityUpdates.entries()].map(([playerId, values]) =>
+          supabase.from('players').update({
+            injured_until: values.injuredUntil,
+            suspended_until: values.suspendedUntil,
+            yellow_cards: values.yellowCards,
+            red_cards: values.redCards,
+          }).eq('id', playerId)
+        ))
+        setPlayers(current => current.map(player => {
+          const values = availabilityUpdates.get(player.id)
+          return values ? {
+            ...player,
+            injuredUntil: values.injuredUntil ?? player.injuredUntil ?? null,
+            suspendedUntil: values.suspendedUntil ?? player.suspendedUntil ?? null,
+            yellowCards: values.yellowCards ?? player.yellowCards ?? 0,
+            redCards: values.redCards ?? player.redCards ?? 0,
+          } : player
         }))
       }
 
