@@ -1,4 +1,6 @@
 export type SponsorContract = {
+  status?: 'active' | 'fulfilled' | 'terminated'
+  completedSeasons?: number
   sponsorId: string
   name: string
   seasonId: string
@@ -29,8 +31,26 @@ export const SPONSORS = [
 ] as const
 
 export function chooseSponsor(reputation: number): SponsorContract {
-  const sponsor = [...SPONSORS].reverse().find(item => reputation >= item.reputationRequired) ?? SPONSORS[0]
-  return { sponsorId: sponsor.id, name: sponsor.name, seasonId: '', upfront: sponsor.upfront, monthly: sponsor.monthly, objective: sponsor.objective, objectiveTarget: sponsor.target, progress: 0, reputationRequired: sponsor.reputation }
+  const sponsor = [...SPONSORS].reverse().find(item => reputation >= item.reputation) ?? SPONSORS[0]
+  return { status: 'active', completedSeasons: 0, sponsorId: sponsor.id, name: sponsor.name, seasonId: '', upfront: sponsor.upfront, monthly: sponsor.monthly, objective: sponsor.objective, objectiveTarget: sponsor.target, progress: 0, reputationRequired: sponsor.reputation }
+}
+
+export function resolveSponsorAtSeasonEnd(contract: SponsorContract, progress: number, reputation: number) {
+  const fulfilled = progress >= contract.objectiveTarget
+  const nextReputation = Math.max(0, reputation + (fulfilled ? 2 : -2))
+  const nextSponsor = chooseSponsor(nextReputation)
+  return {
+    fulfilled,
+    reputation: nextReputation,
+    nextSponsor: {
+      ...nextSponsor,
+      completedSeasons: (contract.completedSeasons ?? 0) + 1,
+    },
+  }
+}
+
+export function carryStadiumToNextSeason(state: StadiumState, seasonId: string) {
+  return { ...state, seasonId }
 }
 
 export function createStadium(clubId: string, seasonId: string, stadiumName = 'Estádio Municipal'): StadiumState {
