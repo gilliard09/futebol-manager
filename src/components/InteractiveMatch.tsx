@@ -61,7 +61,7 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
     </div>
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-7 text-center md:px-10">
       <div>
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]"><Shield size={24} className="text-emerald-300/70" /></div>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]">{crestLabel(teamName(fixture, 'home'))}</div>
         <p className="mt-3 text-sm font-bold">{teamName(fixture, 'home')}</p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/25">CASA</p>
       </div>
@@ -70,7 +70,7 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
         <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold tabular-nums ${finished ? 'border-white/10 text-white/50' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'}`}>{finished ? 'FIM' : minute + "'"}</span>
       </div>
       <div>
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]"><Shield size={24} className="text-orange-300/70" /></div>
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]">{crestLabel(teamName(fixture, 'away'))}</div>
         <p className="mt-3 text-sm font-bold">{teamName(fixture, 'away')}</p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/25">FORA</p>
       </div>
@@ -198,7 +198,6 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
 
   const result = session?.finished ? interactiveMatchResult(session) : null
   const visibleEvents = session?.events ?? []
-  const liveStats = session ? { home: session.homeStats, away: session.awayStats } : null
   const user = session ? (userTeam === 'home' ? session.home : session.away) : null
 
   const applyTactic = (nextTactic: InteractiveTactic, nextFormation?: Formation) => {
