@@ -601,6 +601,29 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       }
     }
 
+    const finalBoard = resolveContractAtSeasonEnd(boardState)
+    saveManagement(finalBoard, fanState)
+    if (finalBoard.managerStatus === 'renewed') {
+      appendWorldNews([{
+        id: 'board-renewal:' + seasonId,
+        date: toDateKey(new Date().toISOString()),
+        title: 'A diretoria quer manter o treinador',
+        message: 'A temporada terminou e a diretoria decidiu renovar seu vínculo para a próxima temporada.',
+        tone: 'positive',
+        category: 'career',
+        priority: 82,
+      }])
+    } else if (finalBoard.managerStatus === 'contract_ended') {
+      appendWorldNews([{
+        id: 'board-contract-ended:' + seasonId,
+        date: toDateKey(new Date().toISOString()),
+        title: 'Seu contrato chegou ao fim',
+        message: 'A diretoria encerrou o vínculo ao final da temporada. A continuidade da carreira depende de uma nova oportunidade.',
+        tone: 'warning',
+        category: 'career',
+        priority: 82,
+      }])
+    }
     setSeasonClosed(true)
     setSeasonCompletion(completion)
   }
