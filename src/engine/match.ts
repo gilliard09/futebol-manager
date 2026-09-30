@@ -329,6 +329,7 @@ export function simulateMatch(
   const homeActive = [...home]
   const awayActive = [...away]
   const minutesById = new Map<string, number>()
+  const enteredAtById = new Map<string, number>()
   const startedIds = new Set([...home, ...away].map(item => item.player.id))
   const substitutions = new Set<string>()
   const modifiers = coachModifiers(coachStyle, coachPersonality)
@@ -348,13 +349,21 @@ export function simulateMatch(
   let homeScore = 0
   let awayScore = 0
 
-  for (const item of [...home, ...away]) minutesById.set(item.player.id, 90)
+  for (const item of [...home, ...away]) {
+    minutesById.set(item.player.id, 90)
+    enteredAtById.set(item.player.id, 1)
+  }
 
   const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away') => {
     if (![60, 72].includes(minute)) return
+    const tiredness = (item: LineupPlayer) =>
+      (item.player.fatigue ?? 0)
+      + minute * 0.9
+      + Math.max(0, 70 - item.player.physical) * 0.3
+
     const tired = active
-      .filter(item => (item.player.fatigue ?? 0) + minute * 0.45 >= 68)
-      .sort((a, b) => ((b.player.fatigue ?? 0) + minute * 0.45) - ((a.player.fatigue ?? 0) + minute * 0.45))
+      .filter(item => tiredness(item) >= 60)
+      .sort((a, b) => tiredness(b) - tiredness(a))
       .slice(0, 2)
     for (const outgoing of tired) {
       const replacement = [...bench]
@@ -363,8 +372,10 @@ export function simulateMatch(
       if (!replacement) continue
       const index = active.findIndex(item => item.player.id === outgoing.player.id)
       if (index < 0) continue
-      minutesById.set(outgoing.player.id, minute - 1)
-      minutesById.set(replacement.id, 90 - minute + 1)
+      const enteredAt = enteredAtById.get(outgoing.player.id) ?? 1
+      minutesById.set(outgoing.player.id, Math.max(0, minute - enteredAt))
+      minutesById.set(replacement.id, Math.max(0, 91 - minute))
+      enteredAtById.set(replacement.id, minute)
       substitutions.add(replacement.id)
       active[index] = { player: replacement, role: outgoing.role, slot: outgoing.slot }
       events.push({
