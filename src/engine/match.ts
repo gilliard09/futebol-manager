@@ -381,11 +381,11 @@ export function simulateMatch(
     makeSubstitutions(minute, homeActive, homeBench, 'home')
     makeSubstitutions(minute, awayActive, awayBench, 'away')
     const homeBefore = events.length
-    simulateSide(minute, 'home', home, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName, modifiers)
+    simulateSide(minute, 'home', homeActive, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName, modifiers)
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
 
     const awayBefore = events.length
-    simulateSide(minute, 'away', away, awayMetrics, homeMetrics, 'balanced', awayStats, events, random, awayName)
+    simulateSide(minute, 'away', awayActive, awayMetrics, homeMetrics, 'balanced', awayStats, events, random, awayName)
     if (events.slice(awayBefore).some(event => event.type === 'goal')) awayScore++
 
     const tackleProbability = clamp(0.16 + ((100 - ((homeMetrics.midfield + awayMetrics.midfield) / 2)) / 400), 0.08, 0.2)
@@ -402,7 +402,7 @@ export function simulateMatch(
     if (random() < 0.035) {
       const team = random() < 0.5 ? 'home' : 'away'
       const stats = team === 'home' ? homeStats : awayStats
-      const side = team === 'home' ? home : away
+      const side = team === 'home' ? homeActive : awayActive
       const player = chooseWeighted(side, ['CB', 'LB', 'RB', 'DM', 'CM'], random)
       const name = player ? player.player.first_name + ' ' + player.player.last_name : 'Jogador'
       stats.fouls++
