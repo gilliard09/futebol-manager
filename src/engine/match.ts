@@ -407,11 +407,6 @@ export function simulateMatch(
     enteredAtById.set(item.player.id, 1)
   }
 
-  const matchImportance = (() => {
-    const competition = (fixture.competition_name ?? '').toLowerCase()
-    if (competition.includes('copa')) return fixture.round >= 5 ? 1.2 : 1.08
-    return fixture.round >= 25 ? 1.12 : 1
-  })()
   const rotationIntensity = coachStyle === 'high_press' || coachStyle === 'gegenpressing'
     ? 1.12
     : coachStyle === 'defensive_block' || coachStyle === 'possession'
