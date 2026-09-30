@@ -45,6 +45,30 @@ describe('world simulation', () => {
     expect(player.morale).toBeLessThan(before)
   })
 
+  it('gives playing time an effect on development probability', () => {
+    const clubs = [club('user', 1000000), club('ai', 5000000)]
+    const highUsage = Array.from({ length: 24 }, (_, i) => {
+      const player = basePlayer('high-' + i, 'user')
+      player.seasonMinutes = 1800
+      player.seasonAppearances = 20
+      return player
+    })
+    const lowUsage = Array.from({ length: 24 }, (_, i) => {
+      const player = basePlayer('low-' + i, 'user')
+      player.seasonMinutes = 0
+      player.seasonAppearances = 0
+      return player
+    })
+    const beforeHigh = highUsage.map(player => player.shooting)
+    const beforeLow = lowUsage.map(player => player.shooting)
+
+    simulateWorldDay('2026-01-01', 'season', clubs, [...highUsage, ...lowUsage], 'user')
+
+    const evolvedHigh = highUsage.filter((player, index) => player.shooting > beforeHigh[index]).length
+    const evolvedLow = lowUsage.filter((player, index) => player.shooting > beforeLow[index]).length
+    expect(evolvedHigh).toBeGreaterThanOrEqual(evolvedLow)
+  })
+
   it('can evolve young players on development days', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
     const players = Array.from({ length: 6 }, (_, i) => basePlayer('p' + i, 'ai', i === 0 ? 'GK' : 'ST'))
