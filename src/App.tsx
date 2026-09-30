@@ -1128,7 +1128,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   async function advanceOneDay(fromClock = clock) {
     if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
     const nextClock = advanceSeasonDay(fromClock)
-    await simulateOtherClubs(nextClock.currentDate)
+    const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
+    if (worldResult?.event) setPendingEvent(worldResult.event)
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
