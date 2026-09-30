@@ -35,6 +35,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [statsMetric, setStatsMetric] = useState<'goals' | 'assists' | 'averageRating' | 'appearances'>('goals')
   const [statsScope, setStatsScope] = useState<'all' | 'club'>('all')
   const [seasonStatus, setSeasonStatus] = useState<'upcoming' | 'active' | 'completed' | null>(null)
+  const [seasonId, setSeasonId] = useState<string | null>(null)
   const [officialHistory, setOfficialHistory] = useState<any>(null)
   const [seasonHistory, setSeasonHistory] = useState<Array<{ season: string; year: number; leagueChampion: string; cupChampion: string; status: string }>>([])
 
@@ -66,6 +67,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         setSeasonHistory((allSeasons ?? []).map(item => ({ season: item.name, year: Number(item.year), status: item.status, ...(historyBySeason.get(item.id) ?? { leagueChampion: '—', cupChampion: '—' }) })))
       }
       if (season) {
+        setSeasonId(season.id)
         const { data: historyRows } = await supabase.from('competition_history').select('competition_id,champion_club_id,runner_up_club_id,top_scorer_player_id,top_scorer_goals').eq('season_id', season.id)
         if (active) { setSeasonStatus(season.status); setOfficialHistory(historyRows ?? []) }
       }
@@ -94,7 +96,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const position = table.findIndex(item => item.id === currentClubId) + 1
   const rules = competition === 'Liga Nacional do Brasil' ? BRAZIL_LEAGUE_RULES : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
-  const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, season?.id), [playedMatches, competitionId, season?.id])
+  const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId), [playedMatches, competitionId, seasonId])
   const filteredStats = useMemo(() => {
     const scoped = statsScope === 'club' ? stats.filter(player => player.clubId === currentClubId) : stats
     return [...scoped].sort((a, b) => {
