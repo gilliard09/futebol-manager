@@ -651,7 +651,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         }
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
-          const { data: opponentSquad } = await supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)').order('squad_number')
+          const { data: opponentSquad } = await supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').order('squad_number')
           const effectiveOpponent = (opponentSquad ?? []).filter((row: any) => (getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === opponentId))
           if (active) setOpponentPlayers(effectiveOpponent.map(normalizePlayer))
         } else {
@@ -707,7 +707,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
     const [{ data: clubRows }, { data: playerRows }, { data: seasonStatRows }] = await Promise.all([
       supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name'),
-      supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)'),
+      supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)'),
       supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,goals,assists,avg_rating').eq('season_id', season.id),
     ])
 
@@ -1499,7 +1499,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       if (clubIds.length) {
         const { data: squadRows } = await supabase
           .from('club_players')
-          .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)')
+          .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)')
           .in('club_id', clubIds)
 
         const squadPlayerIds = (squadRows ?? []).map((row: any) => {
