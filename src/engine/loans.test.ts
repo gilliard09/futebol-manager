@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Club, Player } from '../types/game'
 import { applyLoan, calculateLoanEndDate, calculateLoanFee, calculateLoanSalaryCost, createLoanRecord, evaluateLoanTarget, getActiveLoan, getCurrentClubId, isLoanActive, normalizeSalaryShare, shouldOfferLoan, type LoanState } from './loans'
 
-const player: Player = { id: 'p1', first_name: 'Joao', last_name: 'Silva', age: 20, nationality: 'Brasil', position: 'ST', pace: 80, shooting: 78, passing: 60, dribbling: 75, defending: 30, physical: 70, goalkeeping: 10, mental: 65, potential: 85, form: 60, morale: 70, squad_number: 9 }
+const player: Player = { id: 'p1', marketValue: 1000000, first_name: 'Joao', last_name: 'Silva', age: 20, nationality: 'Brasil', position: 'ST', pace: 80, shooting: 78, passing: 60, dribbling: 75, defending: 30, physical: 70, goalkeeping: 10, mental: 65, potential: 85, form: 60, morale: 70, squad_number: 9 }
 const club: Club = { id: 'c1', name: 'Clube', short_name: 'CLU', city: 'Cidade', country: 'Brasil', stadium: 'Estádio', division: 1, budget: 1000000, reputation: 50 }
 
 describe('loans', () => {
