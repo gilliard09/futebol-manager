@@ -9,6 +9,8 @@ export type CompetitionHistory = {
   relegatedClubIds: string[]
 }
 
+export type DivisionMovement = { relegatedClubIds: string[]; promotedClubIds: string[]; activated: boolean }
+
 export function getRelegatedTeams(standings: StandingRow[], slots = 4) {
   if (standings.length < slots) return []
   return standings.slice(-slots).map(team => team.id)
@@ -92,5 +94,18 @@ export function buildCompetitionHistoryResult(
     runnerUpClubId,
     topScorerPlayerId: scorer?.playerId ?? null,
     topScorerGoals: scorer?.goals ?? 0,
+  }
+}
+
+
+export function resolveDivisionMovement(standings: StandingRow[], options: { relegationSlots?: number; promotionSlots?: number; divisionsActive?: boolean } = {}): DivisionMovement {
+  const relegationSlots = options.relegationSlots ?? 4
+  const promotionSlots = options.promotionSlots ?? 0
+  const activated = options.divisionsActive ?? false
+  if (!activated) return { relegatedClubIds: [], promotedClubIds: [], activated: false }
+  return {
+    relegatedClubIds: getRelegatedTeams(standings, relegationSlots),
+    promotedClubIds: standings.slice(0, promotionSlots).map(team => team.id),
+    activated: true,
   }
 }
