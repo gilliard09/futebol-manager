@@ -70,6 +70,29 @@ describe('world simulation', () => {
     expect(evolvedHigh).toBeGreaterThan(evolvedLow)
   })
 
+  it('rewards established roles and strong recent ratings in development', () => {
+    const clubs = [club('user', 1000000), club('ai', 5000000)]
+    const starter = basePlayer('starter-growth', 'ST')
+    starter.seasonAppearances = 12
+    starter.seasonStarts = 10
+    starter.seasonMinutes = 1000
+    starter.seasonAverageRating = 7.5
+    const backup = basePlayer('backup-growth', 'ST')
+    backup.seasonAppearances = 1
+    backup.seasonStarts = 0
+    backup.seasonMinutes = 45
+    backup.seasonAverageRating = 5.8
+    const score = (p: Player) => p.shooting + p.pace + p.mental + p.dribbling + p.passing + p.physical + p.defending
+    const beforeStarter = score(starter)
+    const beforeBackup = score(backup)
+    for (let i = 0; i < 30; i++) {
+      simulateWorldDay('2026-01-01', 'season-' + i, clubs, [starter], 'user')
+      simulateWorldDay('2026-01-01', 'season-' + i, clubs, [backup], 'user')
+    }
+    expect(score(starter)).toBeGreaterThanOrEqual(beforeStarter)
+    expect(score(starter) - beforeStarter).toBeGreaterThanOrEqual(score(backup) - beforeBackup)
+  })
+
   it('can evolve young players on development days', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
     const players = Array.from({ length: 6 }, (_, i) => basePlayer('p' + i, 'ai', i === 0 ? 'GK' : 'ST'))
