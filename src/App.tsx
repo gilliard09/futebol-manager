@@ -290,6 +290,16 @@ function GameApp() {
           stadium: createStadium(career?.club.id ?? '', nextSeasonName, career?.club.stadium ?? 'Estádio Municipal'),
         }
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify(nextCommercial))
+    if (nextCommercial.sponsor.upfront > 0) {
+      addFinanceTransaction(createTransaction(
+        `${nextYear}-01-10`,
+        'sponsorship',
+        `Assinatura de patrocínio · ${nextCommercial.sponsor.name}`,
+        nextCommercial.sponsor.upfront,
+        undefined,
+        `sponsor:upfront:${nextSeasonName}`,
+      ))
+    }
 
     // A virada da temporada também é uma janela de planejamento para a IA.
     // Usamos o desempenho encerrado no ano anterior para que cada clube entre
@@ -685,11 +695,6 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         ? commercial.sponsor.objectiveTarget
         : 0
     const sponsorResolution = resolveSponsorAtSeasonEnd(commercial.sponsor, sponsorProgress, Number(career.club.reputation ?? 50))
-    const closedSponsor = {
-      ...commercial.sponsor,
-      status: sponsorResolution.fulfilled ? 'fulfilled' as const : 'terminated' as const,
-      progress: sponsorProgress,
-    }
     const nextCommercial = {
       sponsor: {
         ...sponsorResolution.nextSponsor,
