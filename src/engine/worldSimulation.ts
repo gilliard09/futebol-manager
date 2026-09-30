@@ -304,6 +304,37 @@ export function simulateWorldDay(
     }
   }
 
+  // Carreira: o contexto do jogador também pesa no ambiente do elenco.
+  // Contrato perto do fim, salário muito abaixo do padrão e desempenho coletivo ruim
+  // podem reduzir o ânimo. Um bom momento esportivo e uma posição importante no elenco
+  // ajudam a manter a motivação. Isso afeta também o clube do treinador.
+  for (const club of clubs) {
+    const squad = byClub.get(club.id) ?? []
+    if (!squad.length) continue
+    const performance = performanceByClub[club.id]
+    const averageOverall = squad.reduce((sum, player) => sum + playerOverall(player), 0) / squad.length
+    const averageSalary = squad.reduce((sum, player) => sum + Math.max(0, player.salary), 0) / squad.length
+    const ordered = [...squad].sort((a, b) => playerOverall(b) - playerOverall(a))
+
+    for (const player of squad) {
+      if (!player.contractUntil) continue
+      const overall = playerOverall(player)
+      const monthsToEnd = Math.round((new Date(player.contractUntil).getTime() - new Date(date).getTime()) / (30 * 86400000))
+      let moraleDelta = 0
+
+      if (monthsToEnd >= 0 && monthsToEnd <= 6) moraleDelta -= 2
+      if (averageSalary > 0 && player.salary < averageSalary * 0.7 && overall >= averageOverall + 3) moraleDelta -= 1
+      if (performance && performance.position >= 13 && performance.recentPoints <= 4 && overall >= averageOverall + 3) moraleDelta -= 1
+      if (performance && performance.position <= 4 && performance.recentPoints >= 8 && ordered.indexOf(player) < 6) moraleDelta += 1
+      if (player.age <= 23 && player.potential >= overall + 10 && ordered.indexOf(player) >= 10) moraleDelta -= 1
+
+      if (moraleDelta !== 0) {
+        player.morale = clamp(player.morale + moraleDelta, 25, 100)
+        evolvedPlayerIds.add(player.id)
+      }
+    }
+  }
+
   // Renovações: clubes protegem titulares e jovens de alto potencial antes do fim do contrato.
   for (const club of aiClubs) {
     const squad = byClub.get(club.id) ?? []
