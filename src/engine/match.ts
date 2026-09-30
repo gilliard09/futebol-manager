@@ -211,7 +211,7 @@ export function selectStartingLineup(
     const workloadPenalty = recentMinutes >= 900 ? (matchImportance >= 1.1 ? 2 : 7) : recentMinutes >= 600 ? (matchImportance >= 1.1 ? 1 : 3) : 0
     const recentRatingBonus = recentRating > 0 ? (recentRating - 6.5) * 2.2 : 0
     const appearanceBonus = Math.min(1.5, recentAppearances * 0.08)
-    const hierarchyBonus = Math.min(4.5, startRate * 4.5)
+    const hierarchyBonus = Math.min(8, startRate * 8)
     const rotationBonus = coachStyle === 'youth_focus' && player.age <= 23 ? 5 : 0
     const developmentBonus = player.age <= 23 && player.potential >= overall + 8 ? 2 : 0
     const veteranPenalty = player.age >= 31 && recentMinutes >= 900 && matchImportance < 1.1 ? 2 : 0
