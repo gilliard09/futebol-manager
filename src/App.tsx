@@ -270,8 +270,7 @@ function GameApp() {
     await supabase.from('competition_history').delete().eq('season_id', season.id)
     await supabase.from('world_transfers').delete().eq('season_id', season.id)
     await supabase.from('player_season_stats').delete().eq('season_id', season.id)
-    await supabase.rpc('reset_world_state')
-    await supabase.from('season_club_movements').delete().eq('season_id', season.id)
+    // O estado global do mundo não é mais resetado pelo navegador.\n    // Cada carreira possui seu próprio estado de gestão/comercial.\n    await supabase.from('season_club_movements').delete().eq('season_id', season.id)
     await supabase.from('seasons').update({ status: 'active', end_date: null, start_date: SEASON_START }).eq('id', season.id).eq('status', 'completed')
   }
 
@@ -544,7 +543,7 @@ function GameApp() {
       fan_recent_results: nextFans.recentResults,
       fan_streak: nextFans.streak,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'season_id,club_id' })
+    }, { onConflict: 'season_id,club_id,owner_id' })
     if (error) console.error('Não foi possível persistir a gestão/torcida', error)
   }
 
@@ -571,7 +570,7 @@ function GameApp() {
       stadium_attendance_rate: value.stadium.attendanceRate,
       stadium_upgrades: value.stadium.upgrades,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'season_id,club_id' })
+    }, { onConflict: 'season_id,club_id,owner_id' })
     if (error) console.error('Não foi possível persistir patrocínio/estádio', error)
   }
 
@@ -1149,7 +1148,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       fan_recent_results: nextFans.recentResults,
       fan_streak: nextFans.streak,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'season_id,club_id' })
+    }, { onConflict: 'season_id,club_id,owner_id' })
     if (error) console.error('Não foi possível persistir a gestão/torcida', error)
   }
 
@@ -1183,7 +1182,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       stadium_attendance_rate: value.stadium.attendanceRate,
       stadium_upgrades: value.stadium.upgrades,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'season_id,club_id' })
+    }, { onConflict: 'season_id,club_id,owner_id' })
     if (error) console.error('Não foi possível persistir patrocínio/estádio', error)
   }
 
