@@ -661,7 +661,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         club: {
           ...career.club,
           budget: nextBudget,
-          reputation: Math.max(35, Math.min(95, sponsorResolution.reputation, Number(career.club.reputation ?? 50) + userEffect.reputationBonus)),
+          reputation: Math.max(35, Math.min(95, sponsorResolution.reputation + userEffect.reputationBonus)),
           strength: Math.max(35, Math.min(95, Number(career.club.strength ?? 50) + userEffect.strengthBonus)),
         },
       }
