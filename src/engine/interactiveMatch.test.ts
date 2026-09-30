@@ -6,6 +6,7 @@ import {
   createInteractiveMatch,
   makeInteractiveSubstitution,
   resolveInteractivePenalty,
+  interactiveMatchResult,
 } from './interactiveMatch'
 
 function player(id: string, position: string, number: number): Player {
@@ -56,15 +57,6 @@ const config = {
   formation: '4-3-3' as const,
   coachStyle: 'balanced',
   coachPersonality: 'motivator',
-}
-
-function requireResult(state: ReturnType<typeof createInteractiveMatch>) {
-  const { interactiveMatchResult } = require('./interactiveMatch')
-  return interactiveMatchResult(state)
-}
-
-function initialBenchIds(state: ReturnType<typeof createInteractiveMatch>) {
-  return state.home.bench.map(player => player.id)
 }
 
 describe('interactive match', () => {
@@ -132,7 +124,7 @@ describe('interactive match', () => {
   it('does not create ratings or appearances for unused bench players', () => {
     let state = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
     for (let index = 0; index < 90; index += 1) state = advanceInteractiveMinute(state, 'home')
-    const result = requireResult(state)
+    const result = interactiveMatchResult(state)
     const homeBenchIds = new Set(initialBenchIds(state))
     expect(result.playerRatings.some(player => homeBenchIds.has(player.playerId))).toBe(false)
     expect(result.playerRatings.filter(player => player.team === 'home')).toHaveLength(11)
