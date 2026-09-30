@@ -1,5 +1,6 @@
 import type { Club, Player } from '../types/game'
 import { getSquadRole, playerOverall } from './match'
+import { calculateTargetPriority, decideTransferNegotiation } from './marketNegotiation'
 
 export type WorldClub = Club & { strength: number }
 
@@ -39,6 +40,16 @@ export type WorldSimulationResult = {
   date: string
   transfers: Array<{ playerId: string; fromClubId: string | null; toClubId: string; fee: number }>
   offers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  negotiationEvents: Array<{
+    playerId: string
+    buyerId: string
+    sellerId: string
+    action: 'accepted' | 'countered' | 'rejected' | 'withdrawn'
+    round: number
+    offer: number
+    counterOffer?: number
+    reason: string
+  }>
   marketInterest: MarketInterest[]
   expiredContracts: Array<{ playerId: string; clubId: string }>
   renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
@@ -195,6 +206,7 @@ export function simulateWorldDay(
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
+  const negotiationEvents: WorldSimulationResult['negotiationEvents'] = []
   const marketInterest: WorldSimulationResult['marketInterest'] = []
   const expiredContracts: WorldSimulationResult['expiredContracts'] = []
   const renewals: WorldSimulationResult['renewals'] = []
@@ -470,40 +482,123 @@ export function simulateWorldDay(
         .filter(player => player.position === weakestPosition.position)
         .filter(player => player.age <= 31)
         .filter(player => playerOverall(player) >= Math.max(58, buyer.strength - (urgentMarket ? 8 : ambitiousMarket ? 3 : 5)))
-        .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))
+        .sort((a, b) => {
+          const needA = transferNeed(a, buyer, squad.length, performance)
+          const needB = transferNeed(b, buyer, squad.length, performance)
+          const priorityA = calculateTargetPriority(a, buyer, weakestPosition.average < buyer.strength - 5 ? 10 : 5, 1.1)
+          const priorityB = calculateTargetPriority(b, buyer, weakestPosition.average < buyer.strength - 5 ? 10 : 5, 1.1)
+          return (needB + priorityB) - (needA + priorityA)
+        })
 
-      const target = candidates.find(player => {
-        const seller = clubs.find(club => club.id === player.clubId)
-        if (!seller || seller.id === buyer.id || seller.id === userClubId) return false
+      // O clube trabalha com uma lista de alvos. Se a primeira negociação falhar,
+      // ele não fica parado: parte para a próxima alternativa da mesma posição.
+      const targets = candidates
+        .filter(player => {
+          const seller = clubs.find(club => club.id === player.clubId)
+          if (!seller || seller.id === buyer.id || seller.id === userClubId) return false
+          const sellerSquad = byClub.get(seller.id) ?? []
+          if (sellerSquad.length <= 16) return false
+          const interest = marketInterest.find(item => item.playerId === player.id)
+          if (interest && (interest.stage !== 'proposal_ready' || !interest.clubIds.includes(buyer.id))) return false
+          const performanceFactor = playerMarketPerformanceFactor(player)
+          const competitionFactor = interest ? playerMarketCompetitionFactor(interest.clubIds.length) : 1
+          const price = Math.max(
+            150000,
+            Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) * performanceFactor * competitionFactor / 50000) * 50000,
+          )
+          return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7) &&
+            (player.contractUntil === null || player.contractUntil >= date)
+        })
+        .slice(0, 5)
+
+      let completedPurchase = false
+      for (const target of targets) {
+        if (completedPurchase) break
+        const seller = clubs.find(club => club.id === target.clubId)
+        if (!seller) continue
+
         const sellerSquad = byClub.get(seller.id) ?? []
-        if (sellerSquad.length <= 16) return false
-        const interest = marketInterest.find(item => item.playerId === player.id)
-        const competitionFactor = interest ? playerMarketCompetitionFactor(interest.clubIds.length) : 1
-        if (interest && (interest.stage !== 'proposal_ready' || !interest.clubIds.includes(buyer.id))) return false
-        const performanceFactor = playerMarketPerformanceFactor(player)
-        const price = Math.max(
+        const sellerAverage = sellerSquad.length
+          ? sellerSquad.reduce((sum, player) => sum + playerOverall(player), 0) / sellerSquad.length
+          : seller.strength
+        const playerImportance = Math.max(0, Math.min(1,
+          (playerOverall(target) - sellerAverage + 12) / 24 +
+          (getSquadRole(target) === 'starter' ? 0.35 : getSquadRole(target) === 'rotation' ? 0.12 : 0),
+        ))
+        const sellerPressure = seller.budget < 750000 ? 0.9 : seller.budget < 1500000 ? 0.55 : 0.15
+        const askingPrice = Math.max(
           150000,
-          Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) * performanceFactor * competitionFactor / 50000) * 50000,
+          Math.round(
+            target.marketValue *
+            (target.age <= 23 ? 1.08 : 1) *
+            playerMarketPerformanceFactor(target) *
+            playerMarketCompetitionFactor(marketInterest.find(item => item.playerId === target.id)?.clubIds.length ?? 1) /
+            50000,
+          ) * 50000,
         )
-        return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7) && (player.contractUntil === null || player.contractUntil >= date)
-      })
+        let currentOffer = Math.max(
+          150000,
+          Math.round(
+            Math.min(
+              askingPrice * (urgentMarket || ambitiousMarket ? 0.84 : 0.76),
+              buyer.budget * (urgentMarket || ambitiousMarket ? 0.78 : 0.68),
+            ) / 50000,
+          ) * 50000,
+        )
 
-      if (!target) continue
-      const seller = clubs.find(club => club.id === target.clubId)
-      if (!seller) continue
-      const fee = Math.max(150000, Math.round(target.marketValue * (target.age <= 23 ? 1.08 : 1) / 50000) * 50000)
-      if (fee > buyer.budget) continue
+        let agreedFee: number | null = null
+        for (let round = 0; round < 3; round++) {
+          const decision = decideTransferNegotiation({
+            askingPrice,
+            offer: currentOffer,
+            round,
+            maxRounds: 2,
+            sellerBehavior: clubBehavior(seller),
+            sellerBudgetPressure: sellerPressure,
+            playerImportance,
+            competitionCount: marketInterest.find(item => item.playerId === target.id)?.clubIds.length ?? 1,
+            playerAge: target.age,
+            buyerReputation: buyer.reputation,
+            roll: hash(`${date}:negotiation:${buyer.id}:${seller.id}:${target.id}:${round}`) % 100,
+          })
 
-      target.clubId = buyer.id
-      buyer.budget -= fee
-      seller.budget += fee
-      changedClubs.add(buyer.id)
-      changedClubs.add(seller.id)
-      transfers.push({ playerId: target.id, fromClubId: seller.id, toClubId: buyer.id, fee })
-      byClub.set(seller.id, (byClub.get(seller.id) ?? []).filter(player => player.id !== target.id))
-      byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), target])
-    }
-  }
+          negotiationEvents.push({
+            playerId: target.id,
+            buyerId: buyer.id,
+            sellerId: seller.id,
+            action: decision.action === 'accept' ? 'accepted' : decision.action === 'counter' ? 'countered' : decision.action,
+            round,
+            offer: currentOffer,
+            ...(decision.action === 'counter' ? { counterOffer: decision.counterOffer } : {}),
+            reason: decision.reason,
+          })
+
+          if (decision.action === 'accept') {
+            agreedFee = decision.offer
+            break
+          }
+          if (decision.action === 'reject' || decision.action === 'withdraw') break
+
+          // O comprador decide se acompanha a contraproposta. Clubes com orçamento
+          // apertado são mais propensos a desistir e procurar a próxima alternativa.
+          const counter = Math.min(decision.counterOffer, buyer.budget)
+          const buyerAcceptance = hash(`${date}:buyer-response:${buyer.id}:${seller.id}:${target.id}:${round}`) % 100
+          if (counter > buyer.budget || (counter > askingPrice * 1.04 && buyerAcceptance < 55)) break
+          currentOffer = Math.max(currentOffer, Math.round(counter / 50000) * 50000)
+        }
+
+        if (agreedFee === null || agreedFee > buyer.budget) continue
+
+        target.clubId = buyer.id
+        buyer.budget -= agreedFee
+        seller.budget += agreedFee
+        changedClubs.add(buyer.id)
+        changedClubs.add(seller.id)
+        transfers.push({ playerId: target.id, fromClubId: seller.id, toClubId: buyer.id, fee: agreedFee })
+        byClub.set(seller.id, (byClub.get(seller.id) ?? []).filter(player => player.id !== target.id))
+        byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), target])
+        completedPurchase = true
+      }
 
   for (const playerId of [...new Set(pendingUserOffers.map(offer => offer.playerId))]) {
     const playerOffers = pendingUserOffers.filter(offer => offer.playerId === playerId)
@@ -739,5 +834,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, offers, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
+  return { date, transfers, offers, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
 }
