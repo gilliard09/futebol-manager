@@ -2869,7 +2869,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
             </div>
             <div className="min-w-0"><p className="truncate text-xs font-bold">{career.club.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">{career.name}</p></div>
           </div>
-          <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/25">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">{money(career.club.budget * 0.01)}</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
+          <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/25">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">—</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
         </div>
         <button onClick={() => onNavigate('settings')} className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold text-white/35 hover:bg-white/[0.035] hover:text-white/75"><Settings size={16} /><span>Configurações</span></button>
       </div>
