@@ -300,6 +300,41 @@ export function simulateWorldDay(
     }
   }
 
+  // O momento esportivo também altera o valor econômico do elenco.
+  // O ajuste é mensal e combina desempenho coletivo, forma, potencial e idade.
+  if (day === 1) {
+    for (const club of aiClubs) {
+      const performance = performanceByClub[club.id]
+      const squad = byClub.get(club.id) ?? []
+      if (!performance || performance.played < 1) continue
+
+      const positionFactor = performance.position <= 4 ? 1.06 : performance.position >= 13 ? 0.94 : 1
+      const recentFactor = performance.recentPoints >= 10 ? 1.04 : performance.recentPoints <= 4 ? 0.95 : 1
+
+      for (const player of squad) {
+        const overall = playerOverall(player)
+        const ageFactor = player.age <= 23 ? 1.04 : player.age >= 32 ? 0.93 : 1
+        const formFactor = player.form >= 80 ? 1.025 : player.form <= 45 ? 0.96 : 1
+        const potentialFactor = player.potential >= overall + 10 ? 1.025 : 1
+        const multiplier = positionFactor * recentFactor * ageFactor * formFactor * potentialFactor
+        player.marketValue = Math.max(100000, Math.round((player.marketValue * multiplier) / 50000) * 50000)
+        evolvedPlayerIds.add(player.id)
+      }
+
+      // A reputação acompanha lentamente o desempenho; não é suficiente para
+      // transformar uma temporada ruim em um clube de elite de um dia para o outro.
+      const reputationDelta = performance.position <= 4
+        ? 1
+        : performance.position >= 13
+          ? -1
+          : 0
+      if (reputationDelta !== 0) {
+        club.reputation = clamp(Number(club.reputation ?? 50) + reputationDelta, 35, 95)
+        changedClubs.add(club.id)
+      }
+    }
+  }
+
   // Pequena inflação/pressão financeira mantém o mercado ligado à economia do clube.
   if (day === 1) {
     for (const club of aiClubs) {
@@ -345,7 +380,15 @@ export function simulateWorldDay(
     const squad = byClub.get(club.id) ?? []
     const average = squad.length ? squad.reduce((sum, player) => sum + playerOverall(player), 0) / squad.length : club.strength
     const depthPenalty = squad.length < 16 ? (16 - squad.length) * 2 : 0
-    const nextStrength = clamp(average + Math.min(4, Math.max(0, club.reputation - 50) / 25) - depthPenalty, 35, 95)
+    const performance = performanceByClub[club.id]
+    const sportingModifier = performance
+      ? performance.position <= 4
+        ? 1.5
+        : performance.position >= 13
+          ? -1.5
+          : 0
+      : 0
+    const nextStrength = clamp(average + Math.min(4, Math.max(0, club.reputation - 50) / 25) + sportingModifier - depthPenalty, 35, 95)
     if (nextStrength !== club.strength) {
       club.strength = nextStrength
       changedClubs.add(club.id)
