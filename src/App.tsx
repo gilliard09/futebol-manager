@@ -1416,7 +1416,6 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
   const recentUserResults = Object.values(playedMatches)
     .filter(match => match.home_club_id === career.club.id || match.away_club_id === career.club.id)
-    .sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')))
     .slice(0, 5)
     .map(match => {
       const userHome = match.home_club_id === career.club.id
@@ -1424,7 +1423,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const opponentScore = userHome ? match.awayScore : match.homeScore
       return {
         id: match.id,
-        competition: 'Liga Nacional do Brasil',
+        competition: match.competition_name ?? 'Liga Nacional do Brasil',
         opponent: userHome ? (clubs.find(club => club.id === match.away_club_id)?.short_name ?? 'Adversário') : (clubs.find(club => club.id === match.home_club_id)?.short_name ?? 'Adversário'),
         score: `${userScore}–${opponentScore}`,
         result: userScore > opponentScore ? 'W' : userScore < opponentScore ? 'L' : 'D',
