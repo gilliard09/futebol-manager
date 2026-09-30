@@ -205,6 +205,7 @@ export function calculatePlayerMarketValue(player: WorldPlayer, competitionCount
 
 export function buildScoutingReport(player: Player | WorldPlayer, scoutingLevel: 'basic' | 'detailed' | 'elite' = 'basic') {
   const overall = playerOverall(player)
+  const marketValue = 'marketValue' in player ? Number(player.marketValue ?? 0) : 0
   const reliability = scoutingLevel === 'elite' ? 0.96 : scoutingLevel === 'detailed' ? 0.86 : 0.68
   const reveal = (value: number) => Math.round(value * reliability + (100 - reliability * 100) * 0.5)
   const risk = player.age <= 21 && player.potential - overall >= 12 ? 'alto potencial' : player.age >= 30 ? 'risco de declínio' : player.morale < 45 ? 'risco de adaptação' : 'risco moderado'
@@ -218,7 +219,7 @@ export function buildScoutingReport(player: Player | WorldPlayer, scoutingLevel:
       ['mental', player.mental],
     ].sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3),
     risk,
-    costRisk: player.marketValue > 0 ? Math.round(Math.min(100, (player.marketValue / 5_000_000) * 30 + (100 - player.morale) * 0.2)) : 0,
+    costRisk: marketValue > 0 ? Math.round(Math.min(100, (marketValue / 5_000_000) * 30 + (100 - player.morale) * 0.2)) : 0,
   }
 }
 
