@@ -138,7 +138,7 @@ export function buildWorldNews(
         title: 'Crise de resultados',
         message: `${club} vive uma sequência preocupante: posição ${performance.position} e apenas ${performance.recentPoints} ponto(s) nos últimos cinco jogos.`,
         tone: 'warning',
-        category: 'club',
+        category: 'match',
         priority: 92,
         id: `form-warning:${result.date}:${clubId}`,
       })
@@ -148,7 +148,7 @@ export function buildWorldNews(
         title: 'Clube em grande fase',
         message: `${club} está entre os quatro primeiros e somou ${performance.recentPoints} pontos nos últimos cinco jogos.`,
         tone: 'positive',
-        category: 'club',
+        category: 'match',
         priority: 68,
         id: `form-positive:${result.date}:${clubId}`,
       })
