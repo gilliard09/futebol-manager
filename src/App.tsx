@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
-import { lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
+import { getAiCoachProfile, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
@@ -1246,7 +1246,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const { simulateMatch } = await import('./engine/match')
       const { data: roundFixtures } = await supabase
         .from('fixtures')
-        .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url)')
+        .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,competitions!fixtures_competition_id_fkey(name),home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url)')
         .eq('competition_id', activeMatchFixture.competition_id)
         .eq('round', activeMatchFixture.round)
         .eq('status', 'scheduled')
@@ -1280,7 +1280,22 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           const awayPlayers = squads.get(fixture.away_club_id) ?? []
           if (!homePlayers.length || !awayPlayers.length) continue
 
-          const simulated = simulateMatch(fixture, homePlayers, awayPlayers, 'balanced', '4-3-3')
+          const homeCoach = getAiCoachProfile(fixture.home_club_id)
+          const awayCoach = getAiCoachProfile(fixture.away_club_id)
+          const simulated = simulateMatch(
+            fixture,
+            homePlayers,
+            awayPlayers,
+            homeCoach.tactic,
+            homeCoach.formation,
+            undefined,
+            undefined,
+            Math.random,
+            homeCoach.style,
+            homeCoach.personality,
+          )
+          // O motor usa o perfil do mandante para os modificadores principais.
+          // A escalação do visitante continua sendo dinâmica pelo contexto do adversário.
           nextMatches[fixture.id] = {
             ...simulated,
             home_club_id: fixture.home_club_id,
