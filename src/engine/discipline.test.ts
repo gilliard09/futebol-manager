@@ -26,6 +26,7 @@ describe('discipline rules', () => {
     expect(calculateSuspensionReturnDate('2026-04-01', dates, 1)).toBe('2026-04-09')
     expect(calculateSuspensionReturnDate('2026-04-01', dates, 2)).toBe('2026-04-16')
     expect(calculateSuspensionReturnDate('2026-04-01', [], 1)).toBe('2026-04-08')
+    expect(calculateSuspensionReturnDate('2026-04-01', [], 2)).toBe('2026-04-15')
   })
 
   it('distinguishes second-yellow and direct-red suspensions', () => {
