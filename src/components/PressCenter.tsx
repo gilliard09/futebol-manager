@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ArrowLeft, Newspaper } from 'lucide-react'
 import type { Club } from '../types/game'
 import type { WorldNews } from '../engine/worldNews'
@@ -18,7 +19,7 @@ const categoryLabel: Record<WorldNews['category'], string> = {
 }
 
 export default function PressCenter({ club, news, back }: PressCenterProps) {
-  const [filter, setFilter] = React.useState<'all' | 'career' | WorldNews['category']>('all')
+  const [filter, setFilter] = useState<'all' | 'career' | WorldNews['category']>('all')
 
   const scored = news.map(item => {
     const careerRelevant = item.message.includes(club.name) || item.message.includes(club.short_name) || item.title.startsWith('Seu clube')
