@@ -386,7 +386,7 @@ export function simulateWorldDay(
         player.morale = clamp(player.morale + 1, 25, 100)
         evolvedPlayerIds.add(player.id)
       }
-      if ((role === 'backup' || role === 'prospect') && appearances <= 2 && player.morale <= 55) {
+      if ((role === 'backup' || role === 'rotation' || role === 'prospect') && appearances <= 2 && player.morale <= 55) {
         player.morale = clamp(player.morale - 1, 25, 100)
         evolvedPlayerIds.add(player.id)
       }
