@@ -25,6 +25,8 @@ const result = (): WorldSimulationResult => ({
   evolvedPlayers: 0,
   evolvedPlayerIds: [],
   changedClubs: [],
+  loans: [],
+  negotiationEvents: [],
 })
 
 describe('world news', () => {
