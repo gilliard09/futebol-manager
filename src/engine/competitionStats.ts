@@ -2,8 +2,8 @@ import type { PlayedMatch } from '../types/game'
 
 export type PlayerCompetitionStat = { playerId: string; name: string; clubId: string; goals: number; assists: number; appearances: number; averageRating: number }
 
-export function buildPlayerCompetitionStats(matches: PlayedMatch[], competitionId?: string): PlayerCompetitionStat[] {
-  const source = competitionId ? matches.filter(match => match.competition_id === competitionId) : matches
+export function buildPlayerCompetitionStats(matches: PlayedMatch[], competitionId?: string, seasonId?: string): PlayerCompetitionStat[] {
+  const source = matches.filter(match => (!competitionId || match.competition_id === competitionId) && (!seasonId || match.season_id === seasonId))
   const stats = new Map<string, PlayerCompetitionStat>()
   for (const match of source) for (const rating of match.playerRatings) {
     const clubId = rating.team === 'home' ? match.home_club_id : match.away_club_id
