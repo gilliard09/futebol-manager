@@ -319,7 +319,7 @@ export function simulateWorldDay(
             ) * 50000,
           )
           const strengthGap = playerOverall(player) - club.strength
-          return need >= 62 && price <= club.budget * 0.82 && (strengthGap <= 8 || clubBehavior(club) === 'ambitious')
+          return need >= 48 && price <= club.budget * 0.9 && (strengthGap <= 15 || clubBehavior(club) === 'ambitious')
         })
         .sort((a, b) => {
           const score = (club: WorldClub) => {
