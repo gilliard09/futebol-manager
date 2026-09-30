@@ -531,7 +531,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <Match key={activeMatchFixture.id} formation={formation} coachStyle={career.style} coachPersonality={career.personality} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
+    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={finishMatch} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
@@ -788,7 +788,7 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
     setPhase('live')
     const { simulateMatch } = await import('./engine/match')
     await new Promise(resolve => setTimeout(resolve, 300))
-    const match = simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation as Formation, undefined, undefined, Math.random, career.style, career.personality)
+    const match = simulateMatch(fixture, homePlayers, awayPlayers, tactic, formation as Formation, undefined, undefined, Math.random, coachStyle, coachPersonality)
     setResult(match)
     for (let minute = 1; minute <= 90; minute++) {
       await new Promise(resolve => setTimeout(resolve, 55))
