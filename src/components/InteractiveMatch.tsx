@@ -175,7 +175,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const [postgameTab, setPostgameTab] = useState<'events' | 'stats'>('events')
   const [lastEventCount, setLastEventCount] = useState(0)
   const [selectedOutgoing, setSelectedOutgoing] = useState('')
-  const [eventFilter, setEventFilter] = useState<'all' | 'goal' | 'discipline' | 'injury' | 'substitution' | 'chance'>('all')
+  const [eventFilter, setEventFilter] = useState<'all' | 'goal' | 'discipline' | 'injury' | 'substitution' | 'chance' | 'corner' | 'save'>('all')
   const [pregameTab, setPregameTab] = useState<'preview' | 'lineup' | 'confrontation'>('preview')
 
   const savedLineup = useMemo(() => {
@@ -320,9 +320,9 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
             </section>
             <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
               <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Lance a lance</p><p className="mt-1 text-xs text-white/25">Eventos em tempo real</p></div><span className="font-mono text-[9px] text-white/20">{visibleEvents.length}</span></div>
-              <div className="mt-3 flex flex-wrap gap-1.5">{([['all','Tudo'],['goal','Gols'],['discipline','Cartões'],['injury','Lesões'],['substitution','Substituições'],['chance','Chances']] as const).map(([id,label]) => <button key={id} onClick={() => setEventFilter(id)} className={eventFilter === id ? 'rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[8px] font-bold uppercase tracking-wider text-white' : 'rounded-lg border border-white/5 px-2 py-1.5 text-[8px] font-bold uppercase tracking-wider text-white/25'}>{label}</button>)}</div>
+              <div className="mt-3 flex flex-wrap gap-1.5">{([['all','Tudo'],['goal','Gols'],['discipline','Cartões'],['injury','Lesões'],['substitution','Substituições'],['corner','Escanteios'],['save','Defesas'],['chance','Chances']] as const).map(([id,label]) => <button key={id} onClick={() => setEventFilter(id)} className={eventFilter === id ? 'rounded-lg border border-white/15 bg-white/8 px-2 py-1.5 text-[8px] font-bold uppercase tracking-wider text-white' : 'rounded-lg border border-white/5 px-2 py-1.5 text-[8px] font-bold uppercase tracking-wider text-white/25'}>{label}</button>)}</div>
               <div className="mt-3 max-h-[560px] space-y-2 overflow-y-auto pr-1">
-                {visibleEvents.slice().reverse().filter(event => eventFilter === 'all' || (eventFilter === 'goal' ? event.type === 'goal' : eventFilter === 'discipline' ? ['card','red_card'].includes(event.type) : eventFilter === 'injury' ? event.type === 'injury' : eventFilter === 'substitution' ? event.type === 'substitution' : event.type === 'chance')).map((event, index) => {
+                {visibleEvents.slice().reverse().filter(event => eventFilter === 'all' || (eventFilter === 'goal' ? event.type === 'goal' : eventFilter === 'discipline' ? ['card','red_card'].includes(event.type) : eventFilter === 'injury' ? event.type === 'injury' : eventFilter === 'substitution' ? event.type === 'substitution' : eventFilter === 'corner' ? event.type === 'corner' : eventFilter === 'save' ? event.type === 'save' : ['chance','shot'].includes(event.type))).map((event, index) => {
                   const goal = event.type === 'goal'
                   const danger = event.type === 'red_card' || event.type === 'injury'
                   const icon = goal ? <Goal size={14} /> : event.type === 'injury' ? <HeartPulse size={14} /> : event.type === 'red_card' || event.type === 'card' ? <CreditCard size={14} /> : event.type === 'substitution' ? <Users size={14} /> : <Zap size={14} />
