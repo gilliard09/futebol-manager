@@ -787,6 +787,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const initialView = pathView && dashboardViews.includes(pathView) ? pathView : 'overview'
   const [view, setView] = useState<DashboardView>(initialView)
   function goToView(nextView: DashboardView) {
+    if (nextView !== 'squad') setViewOpponent(false)
     setView(nextView)
     navigate(nextView === 'overview' ? '/dashboard' : '/dashboard/' + nextView)
   }
@@ -797,6 +798,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const [transferState, setTransferState] = useState<TransferState>(() => { try { return JSON.parse(localStorage.getItem(TRANSFERS_KEY) ?? '{"playerClubOverrides":{},"records":[]}') } catch { return { playerClubOverrides: {}, records: [] } } })
   const [loanState, setLoanState] = useState<LoanState>(() => { try { return JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}') } catch { return { records: [] } } })
   const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
+  const [viewOpponent, setViewOpponent] = useState(false)
   const [tactic, setTactic] = useState('balanced')
   const [formation, setFormation] = useState('4-3-3')
   const [activeMatchFixture, setActiveMatchFixture] = useState<Fixture | null>(null)
@@ -2226,7 +2228,9 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'loans') return <LoanMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} transferOverrides={transferState.playerClubOverrides} state={loanState} currentSquadSize={players.length} onLoan={(record, nextState) => { const transaction = createTransaction(record.date, record.loanClubId === career.club.id ? 'transfer_out' : 'transfer_in', `${record.loanClubId === career.club.id ? 'Empréstimo recebido' : 'Empréstimo cedido'} · ${record.playerName}`, record.loanClubId === career.club.id ? -record.fee : record.fee, undefined, `loan:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setLoanState(nextState); localStorage.setItem(LOANS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); goToView('overview') }} back={() => goToView('overview')} />
   if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} state={transferState} loanState={loanState} currentSquadSize={players.length} personality={career.personality} onTransfer={(record, nextState, nextBalance) => { const transaction = createTransaction(record.date, record.kind === 'purchase' ? 'transfer_out' : 'transfer_in', `${record.kind === 'purchase' ? 'Compra' : 'Venda'} · ${record.playerName}`, record.kind === 'purchase' ? -record.fee : record.fee, undefined, `transfer:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setTransferState(nextState); localStorage.setItem(TRANSFERS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); goToView('overview') }} back={() => goToView('overview')} />
-  if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
+  if (view === 'squad') return viewOpponent
+    ? <OpponentSquad players={opponentPlayers} club={opponent ?? null} today={clock?.currentDate ?? SEASON_START} back={() => { setViewOpponent(false); goToView('overview') }} />
+    : <Squad players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
   if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => goToView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? SEASON_START, 'training', 'Treinamento do elenco', -cost, undefined, `training:${nextFixture?.id ?? (clock?.currentDate ?? 'unknown')}`); const nextBalance = addFinanceTransaction(transaction) ?? financeBalance; const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); goToView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} back={() => goToView('overview')} />
   if (view === 'match' && activeMatchFixture) {
@@ -2657,8 +2661,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     career={career}
     activeView={view}
     onNavigate={goToView}
-    onAdvanceDay={restOneDay}
-    canAdvance={!advancingDays && Boolean(clock) && Boolean(clock && canAdvanceDay(clock, nextMatchDate))}
+    onAdvanceDay={matchReady ? restOneDay : advanceToNextMatch}
+    canAdvance={!advancingDays && Boolean(clock) && Boolean(nextMatchDate) && (matchReady || clock.currentDate < nextMatchDate)}
   >
     <main className="min-h-screen">
       <section className="px-4 py-5 sm:px-6 lg:px-8">
@@ -2739,11 +2743,11 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 bg-[#101827] px-5 py-4 sm:px-7">
-                <div><p className="label-mono text-white/35">Dificuldade</p><p className="mt-1 text-sm font-bold">{opponent ? (Math.abs(opponentStrength - avg) < 5 ? 'Equilibrado' : opponentStrength > avg ? 'Difícil' : 'Favorável') : '—'}</p></div>
+                <div><p className="label-mono text-white/35">Data da partida</p><p className="mt-1 text-sm font-bold tabular-nums">{nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'}</p></div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
-                  <button onClick={() => opponent && goToView('squad')} className="game-button game-button-secondary">Ver adversário</button>
+                  <button onClick={() => { if (opponent) { setViewOpponent(true); goToView('squad') } }} className="game-button game-button-secondary">Ver adversário</button>
                   <button disabled={!matchReady || boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended'} onClick={() => { if (nextFixture && matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } }} className="game-button game-button-primary">{matchReady ? 'Jogar partida' : 'Aguardar dia de jogo'}</button>
                 </div>
               </div>
@@ -2951,6 +2955,23 @@ function StadiumScreen({ club, commercial, balance, fanSatisfaction, reputation,
   </main>
 }
 
+function OpponentSquad({ players, club, today, back }: { players: Player[]; club: Club | null; today: string; back: () => void }) {
+  const coach = club ? getAiCoachProfile(club.id) : null
+  const lineup = club && players.length && coach ? selectStartingLineup(players, coach.formation, coach.style, coach.personality, [], {}, 1) : []
+  return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
+    <button onClick={back} className="mb-6 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
+    <div className="mb-6 flex items-center gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white p-2">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <Shield size={24} className="text-slate-500" />}</div><div><p className="label-mono text-white/30">Próximo adversário</p><h1 className="mt-1 font-display text-3xl font-bold">{club?.name ?? 'Adversário'}</h1><p className="mt-1 text-sm text-white/35">{club?.city ?? '—'} · {club?.stadium ?? 'Estádio não informado'} · {formatSeasonDate(today)}</p></div></div>
+    <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]"><section className="game-panel"><p className="label-mono text-white/30">Escalação provável</p><h2 className="mt-1 font-display text-xl font-bold">{coach?.formation ?? '—'} · {coach?.tactic === 'offensive' ? 'Ofensivo' : coach?.tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</h2><div className="mt-4 space-y-2">{lineup.map(item => <div key={item.player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-2.5"><div><p className="text-xs font-bold">{item.player.first_name} {item.player.last_name}</p><p className="mt-0.5 text-[9px] uppercase tracking-wider text-white/25">{item.role} · OVR {playerOverall(item.player)}</p></div><span className="font-mono text-[9px] text-white/25">#{item.player.id.slice(0,4)}</span></div>)}</div></section><section className="game-panel"><div className="relative mx-auto aspect-[4/5] max-w-[430px] overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]"><div className="absolute inset-3 rounded-xl border border-white/30" />{lineup.map((item,index) => <div key={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{left: playerFieldPositionForRole(item.role,index) + '%', top: playerFieldY(item.role,index) + '%'}}><span className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-[9px] font-black text-[#1a0b00]">{item.player.first_name[0]}{item.player.last_name[0]}</span><span className="mt-1 block max-w-16 truncate bg-black/50 px-1 text-[8px] font-bold">{item.player.last_name}</span></div>)}</div></section></div>
+  </main>
+}
+function playerFieldPositionForRole(role: string, index: number) {
+  const x: Record<string, number> = { GK:50, CB:index%2?65:35, LB:14, RB:86, DM:index%2?38:50, CM:index%2?66:34, AM:50, LW:18, RW:82, ST:50 }
+  return x[role] ?? 50
+}
+function playerFieldY(role: string, index: number) {
+  const y: Record<string, number> = { GK:94, CB:78, LB:80, RB:80, DM:66, CM:58, AM:46, LW:43, RW:43, ST:30 }
+  return y[role] ?? (30 + (index % 5) * 12)
+}
 function GameSection({ title, eyebrow, icon, description, back }: { title: string; eyebrow: string; icon: ReactNode; description: string; back: () => void }) {
   return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
     <button onClick={back} className="mb-8 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
