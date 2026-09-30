@@ -1266,12 +1266,33 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)')
           .in('club_id', clubIds)
 
+        const squadPlayerIds = (squadRows ?? []).map((row: any) => {
+          const source = Array.isArray(row.players) ? row.players[0] : row.players
+          return source?.id
+        }).filter(Boolean)
+        const { data: roundSeasonStats } = activeMatchFixture.season_id && squadPlayerIds.length
+          ? await supabase
+            .from('player_season_stats')
+            .select('player_id,appearances,starts,minutes,avg_rating')
+            .eq('season_id', activeMatchFixture.season_id)
+            .in('player_id', squadPlayerIds)
+          : { data: [] }
+        const roundStats = new Map((roundSeasonStats ?? []).map((row: any) => [row.player_id, row]))
+
         const squads = new Map<string, Player[]>()
         for (const row of squadRows ?? []) {
           const player = normalizePlayer(row)
-          matchPlayers.set(player.id, player)
+          const stats = roundStats.get(player.id)
+          const enrichedPlayer = {
+            ...player,
+            seasonAppearances: Number(stats?.appearances ?? 0),
+            seasonStarts: Number(stats?.starts ?? 0),
+            seasonMinutes: Number(stats?.minutes ?? 0),
+            seasonAverageRating: Number(stats?.avg_rating ?? 0),
+          }
+          matchPlayers.set(player.id, enrichedPlayer)
           const squad = squads.get(row.club_id) ?? []
-          squad.push(player)
+          squad.push(enrichedPlayer)
           squads.set(row.club_id, squad)
         }
 
