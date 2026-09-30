@@ -1,16 +1,16 @@
 # Futebol Manager
 
-Football manager web/PWA inspirado na nostalgia dos clássicos managers de futebol, reconstruído com uma arquitetura moderna e orientada a dados.
+Football manager web inspirado na nostalgia dos clássicos managers de futebol, reconstruído com uma arquitetura moderna e orientada a dados.
 
 ## Stack
 
-React + TypeScript + Vite, Tailwind CSS, Supabase, PWA, GitHub, Vitest e Playwright.
+React + TypeScript + Vite, Tailwind CSS, Supabase, GitHub e Vitest.
 
 ## Primeira experiência
 
 Início → Treinador → Clube → Dashboard.
 
-A carreira é persistida localmente neste estágio. Autenticação e salvamento em conta serão adicionados depois.
+A carreira ainda usa localStorage durante a fase de desenvolvimento. Autenticação, saves por usuário e sincronização em nuvem estão em implementação.
 
 ## Desenvolvimento
 
@@ -20,4 +20,4 @@ npm run dev
 
 Preencha VITE_SUPABASE_PUBLISHABLE_KEY em .env.local.
 
-O GitHub é a fonte do código. O Supabase é a fonte dos dados do universo do jogo. O motor de simulação ficará separado da interface.
+O GitHub é a fonte do código. O Supabase fornece os dados persistentes do jogo. O motor de simulação fica separado da interface. Testes de interface e CI serão adicionados antes da publicação.
