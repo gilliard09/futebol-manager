@@ -3,6 +3,15 @@ import { playerOverall } from './match'
 
 export type WorldClub = Club & { strength: number }
 
+export type WorldClubPerformance = {
+  position: number
+  points: number
+  goalDifference: number
+  played: number
+  recentPoints: number
+  recentResults: Array<'W' | 'D' | 'L'>
+}
+
 export type WorldPlayer = Player & {
   clubId: string
   marketValue: number
@@ -81,10 +90,11 @@ function ageFactor(player: Player) {
   return -0.4
 }
 
-function transferNeed(player: Player, club: WorldClub, squadSize: number) {
+function transferNeed(player: Player, club: WorldClub, squadSize: number, performance?: WorldClubPerformance) {
   const overall = playerOverall(player)
   const budgetPressure = club.budget > 5000000 ? 1 : club.budget > 3000000 ? 0.5 : 0
-  return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0)
+  const sportingUrgency = performance && (performance.position >= 13 || performance.recentPoints <= 4) ? 6 : 0
+  return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0) + sportingUrgency
 }
 
 const firstNames = ['Lucas', 'Gabriel', 'Pedro', 'Matheus', 'João', 'Rafael', 'Gustavo', 'Arthur', 'Miguel', 'Enzo', 'Caio', 'Felipe']
@@ -129,6 +139,7 @@ export function simulateWorldDay(
   clubs: WorldClub[],
   players: WorldPlayer[],
   userClubId: string,
+  performanceByClub: Record<string, WorldClubPerformance> = {},
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
@@ -181,6 +192,9 @@ export function simulateWorldDay(
   if ([10, 20].includes(day)) {
     for (const buyer of aiClubs) {
       const squad = byClub.get(buyer.id) ?? []
+      const performance = performanceByClub[buyer.id]
+      const urgentMarket = Boolean(performance && (performance.position >= 13 || performance.recentPoints <= 4))
+      const ambitiousMarket = Boolean(performance && performance.position <= 4 && performance.recentPoints >= 8)
       if (squad.length >= 22 && random01(date + buyer.id) < 0.65) continue
       if (buyer.budget < 750000) continue
 
@@ -195,12 +209,12 @@ export function simulateWorldDay(
       const userCandidates = players
         .filter(player => player.clubId === userClubId)
         .filter(player => player.age <= 31)
-        .filter(player => playerOverall(player) >= Math.max(62, buyer.strength - 3))
-        .sort((a, b) => transferNeed(b, buyer, squad.length) - transferNeed(a, buyer, squad.length))
+        .filter(player => playerOverall(player) >= Math.max(62, buyer.strength - (urgentMarket ? 7 : 3)))
+        .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))
 
       const userTarget = userCandidates.find(player => {
         const price = Math.max(250000, Math.round(player.marketValue * (player.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
-        return price <= buyer.budget * 0.7
+        return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7)
       })
 
       if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < 0.18) {
@@ -213,8 +227,8 @@ export function simulateWorldDay(
         .filter(player => player.clubId !== buyer.id && player.clubId !== userClubId)
         .filter(player => player.position === weakestPosition.position)
         .filter(player => player.age <= 31)
-        .filter(player => playerOverall(player) >= Math.max(58, buyer.strength - 5))
-        .sort((a, b) => transferNeed(b, buyer, squad.length) - transferNeed(a, buyer, squad.length))
+        .filter(player => playerOverall(player) >= Math.max(58, buyer.strength - (urgentMarket ? 8 : ambitiousMarket ? 3 : 5)))
+        .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))
 
       const target = candidates.find(player => {
         const seller = clubs.find(club => club.id === player.clubId)
@@ -222,7 +236,7 @@ export function simulateWorldDay(
         const sellerSquad = byClub.get(seller.id) ?? []
         if (sellerSquad.length <= 16) return false
         const price = Math.max(150000, Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) / 50000) * 50000)
-        return price <= buyer.budget * 0.7 && (player.contractUntil === null || player.contractUntil >= date)
+        return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7) && (player.contractUntil === null || player.contractUntil >= date)
       })
 
       if (!target) continue
@@ -250,7 +264,9 @@ export function simulateWorldDay(
       const monthsToEnd = Math.round((new Date(player.contractUntil).getTime() - new Date(date).getTime()) / (30 * 86400000))
       if (monthsToEnd > 6 || monthsToEnd < 0) continue
       const overall = playerOverall(player)
-      const important = overall >= club.strength - 2 || player.potential >= 84
+      const performance = performanceByClub[club.id]
+      const underPressure = Boolean(performance && (performance.position >= 13 || performance.recentPoints <= 4))
+      const important = underPressure ? overall >= club.strength || player.potential >= 86 : overall >= club.strength - 2 || player.potential >= 84
       if (!important || club.budget < 250000) continue
       if (random01(`${date}:renew:${player.id}`) > 0.7) continue
       const salary = Math.round(Math.max(player.salary * 1.08, overall * 1200) / 500) * 500
