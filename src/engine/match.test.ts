@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTeamMetrics, simulateMatch } from './match'
+import { calculateTeamMetrics, selectStartingLineup, simulateMatch } from './match'
 import type { Fixture, LineupPlayer, Player } from '../types/game'
 
 function player(id: string, position: Player['position'], base = 70): Player {
@@ -48,6 +48,19 @@ describe('match engine', () => {
     expect(result.playerRatings.every(p => p.rating >= 1 && p.rating <= 10)).toBe(true)
     expect(result.analysis.standout.rating).toBeGreaterThanOrEqual(1)
     expect(result.analysis.standout.rating).toBeLessThanOrEqual(10)
+  })
+
+  it('chooses the starting eleven using fatigue, form and recent workload', () => {
+    const starters = lineup(72).map(item => item.player)
+    const tiredStarter = { ...starters[9], fatigue: 90, seasonMinutes: 950, seasonAppearances: 14, form: 48 }
+    const freshStriker = { ...player('fresh-striker', 'ST', 70), fatigue: 5, seasonMinutes: 180, seasonAppearances: 4, form: 88, morale: 90 }
+    const squad = starters.map(item => item.id === tiredStarter.id ? tiredStarter : item).concat(freshStriker)
+    const selected = selectStartingLineup(squad, '4-3-3', 'balanced', 'psychologist', [], {}, 1)
+    const striker = selected.find(item => item.role === 'ST')
+
+    expect(striker?.player.id).toBe(freshStriker.id)
+    expect(selected).toHaveLength(11)
+    expect(new Set(selected.map(item => item.player.id)).size).toBe(11)
   })
 
   it('rotates players during the match and records real minutes', () => {
