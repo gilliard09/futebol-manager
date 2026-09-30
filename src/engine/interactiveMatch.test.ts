@@ -58,6 +58,15 @@ const config = {
   coachPersonality: 'motivator',
 }
 
+function requireResult(state: ReturnType<typeof createInteractiveMatch>) {
+  const { interactiveMatchResult } = require('./interactiveMatch')
+  return interactiveMatchResult(state)
+}
+
+function initialBenchIds(state: ReturnType<typeof createInteractiveMatch>) {
+  return state.home.bench.map(player => player.id)
+}
+
 describe('interactive match', () => {
   it('advances one minute and keeps the simulation state incremental', () => {
     const initial = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
@@ -120,4 +129,14 @@ describe('interactive match', () => {
     expect(state.finished).toBe(true)
     expect(state.timeline).toHaveLength(90)
   })
+  it('does not create ratings or appearances for unused bench players', () => {
+    let state = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
+    for (let index = 0; index < 90; index += 1) state = advanceInteractiveMinute(state, 'home')
+    const result = requireResult(state)
+    const homeBenchIds = new Set(initialBenchIds(state))
+    expect(result.playerRatings.some(player => homeBenchIds.has(player.playerId))).toBe(false)
+    expect(result.playerRatings.filter(player => player.team === 'home')).toHaveLength(11)
+    expect(result.playerRatings.every(player => player.minutes > 0 && player.minutes <= 90)).toBe(true)
+  })
+
 })
