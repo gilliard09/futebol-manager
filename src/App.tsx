@@ -2184,6 +2184,30 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">{career.season} concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={clubs.find(club => club.id === seasonCompletion.league.championClubId)?.short_name ?? seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={clubs.find(club => club.id === seasonCompletion.cup.championClubId)?.short_name ?? seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={clubs.find(club => club.id === seasonCompletion.league.runnerUpClubId)?.short_name ?? seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={clubs.find(club => club.id === seasonCompletion.cup.runnerUpClubId)?.short_name ?? seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada atual não pode mais ser considerada em andamento.</p><button onClick={onNextSeason} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Começar a próxima temporada</button></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
+      <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Patrocínio</p>
+          <div className="mt-3 flex items-end justify-between"><div><p className="text-2xl font-bold">{commercial.sponsor.name}</p><p className="mt-1 text-xs text-white/30">+{money(commercial.sponsor.monthly)} / mês</p></div><span className="text-xs font-bold text-emerald-300">Meta {commercial.sponsor.objective}</span></div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Info label="Bônus inicial" value={money(commercial.sponsor.upfront)} /><Info label="Reputação exigida" value={String(commercial.sponsor.reputationRequired)} /></div>
+          <p className="mt-3 text-xs text-white/30">Progresso do contrato: {commercial.sponsor.progress}/{commercial.sponsor.objectiveTarget}</p>
+        </div>
+        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estádio</p><p className="mt-2 text-2xl font-bold">{commercial.stadium.name}</p></div><span className="text-xs font-bold text-white/40">Nível {commercial.stadium.level}/6</span></div>
+          <div className="mt-4 grid grid-cols-3 gap-2 text-xs"><Info label="Capacidade" value={commercial.stadium.capacity.toLocaleString('pt-BR')} /><Info label="Ingresso" value={money(commercial.stadium.baseTicketPrice)} /><Info label="Manutenção" value={money(commercial.stadium.maintenance) + '/mês'} /></div>
+          <p className="mt-3 text-xs text-white/30">Público estimado atual: {estimateStadiumAttendance(commercial.stadium, fanState.satisfaction, career.club.reputation).toLocaleString('pt-BR')}</p>
+          <button disabled={!canUpgradeStadium(commercial.stadium, financeBalance)} onClick={() => {
+            const cost = stadiumUpgradeCost(commercial.stadium.level + 1)
+            if (!canUpgradeStadium(commercial.stadium, financeBalance)) return
+            const nextStadium = upgradeStadium(commercial.stadium)
+            const nextBalance = addFinanceTransaction(createTransaction(toDateKey(new Date().toISOString()), 'other', 'Melhoria do estádio', -cost, undefined, 'stadium:' + career.season + ':' + nextStadium.level)) ?? financeBalance
+            const next = { ...commercial, stadium: nextStadium }
+            setCommercial(next)
+            localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(next))
+            onCareerUpdate({ ...career, club: { ...career.club, budget: nextBalance } })
+          }} className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-xs font-bold text-white/60 disabled:cursor-not-allowed disabled:opacity-30">{commercial.stadium.level >= 6 ? 'Estádio no nível máximo' : 'Melhorar estádio · ' + money(stadiumUpgradeCost(commercial.stadium.level + 1))}</button>
+        </div>
+      </section>
+
       <section className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Diretoria</p>
