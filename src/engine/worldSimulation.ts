@@ -14,6 +14,7 @@ export type WorldPlayer = Player & {
 export type WorldSimulationResult = {
   date: string
   transfers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  offers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
   renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
   retirements: Array<{ playerId: string; clubId: string }>
   youth: Array<{
@@ -131,6 +132,7 @@ export function simulateWorldDay(
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
+  const offers: WorldSimulationResult['offers'] = []
   const renewals: WorldSimulationResult['renewals'] = []
   const retirements: WorldSimulationResult['retirements'] = []
   const youth: WorldSimulationResult['youth'] = []
@@ -189,6 +191,23 @@ export function simulateWorldDay(
           return { position, average, count: group.length }
         })
         .sort((a, b) => a.average - b.average || a.count - b.count)[0]
+
+      const userCandidates = players
+        .filter(player => player.clubId === userClubId)
+        .filter(player => player.age <= 31)
+        .filter(player => playerOverall(player) >= Math.max(62, buyer.strength - 3))
+        .sort((a, b) => transferNeed(b, buyer, squad.length) - transferNeed(a, buyer, squad.length))
+
+      const userTarget = userCandidates.find(player => {
+        const price = Math.max(250000, Math.round(player.marketValue * (player.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
+        return price <= buyer.budget * 0.7
+      })
+
+      if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < 0.18) {
+        const fee = Math.max(250000, Math.round(userTarget.marketValue * (userTarget.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
+        offers.push({ playerId: userTarget.id, fromClubId: userClubId, toClubId: buyer.id, fee })
+        continue
+      }
 
       const candidates = players
         .filter(player => player.clubId !== buyer.id && player.clubId !== userClubId)
@@ -317,5 +336,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
+  return { date, transfers, offers, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
 }
