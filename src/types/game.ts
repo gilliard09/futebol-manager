@@ -31,6 +31,9 @@ export type Player = {
   form: number
   morale: number
   fatigue?: number
+  salary?: number
+  marketValue?: number
+  contractUntil?: string | null
   squad_number: number
 }
 
