@@ -143,12 +143,14 @@ export function simulateWorldDay(
     byClub.set(player.clubId, squad)
   }
 
+  type DevelopmentAttribute = 'pace' | 'shooting' | 'passing' | 'dribbling' | 'defending' | 'physical' | 'goalkeeping' | 'mental'
   const updatePlayer = (player: WorldPlayer, delta: number) => {
-    const attributes: Array<keyof Player> = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'goalkeeping', 'mental']
+    const attributes: DevelopmentAttribute[] = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'goalkeeping', 'mental']
     const key = attributes[hash(player.id + date) % attributes.length]
-    const next = clamp(Number(player[key]) + delta, 1, 99)
-    if (next === Number(player[key])) return
-    player[key] = next
+    const current = Number(player[key])
+    const next = clamp(current + delta, 1, 99)
+    if (next === current) return
+    ;(player as unknown as Record<DevelopmentAttribute, number>)[key] = next
     player.form = clamp(player.form + (delta > 0 ? 1 : 0), 1, 100)
     player.morale = clamp(player.morale + (delta > 0 ? 1 : -1), 1, 100)
     evolvedPlayers++
