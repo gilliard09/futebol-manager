@@ -407,6 +407,28 @@ export function makeInteractiveSubstitution(
   return next
 }
 
+export function resolveInteractivePenalty(state: InteractiveMatchState, teamName: InteractiveTeam, kickerId: string) {
+  const next = cloneState(state)
+  const team = teamName === 'home' ? next.home : next.away
+  const kicker = team.lineup.find(item => item.player.id === kickerId)
+  if (!kicker) return state
+  const scored = next.rng() < clamp(0.68 + (kicker.player.shooting - 60) / 220, 0.45, 0.92)
+  const name = kicker.player.first_name + ' ' + kicker.player.last_name
+  const clubName = teamName === 'home' ? (next.fixture.home_club?.short_name ?? 'Casa') : (next.fixture.away_club?.short_name ?? 'Fora')
+  if (scored) {
+    if (teamName === 'home') next.homeScore += 1
+    else next.awayScore += 1
+    const stats = teamName === 'home' ? next.homeStats : next.awayStats
+    stats.shots += 1
+    stats.shotsOnTarget += 1
+    stats.xg += 0.76
+    next.events.push({ minute: next.minute, type: 'goal', team: teamName, player: name, playerId: kicker.player.id, text: name + ' converte o pênalti! Gol do ' + clubName + '.' })
+  } else {
+    next.events.push({ minute: next.minute, type: 'shot', team: teamName, player: name, playerId: kicker.player.id, text: name + ' cobra o pênalti, mas a bola não entra.' })
+  }
+  return next
+}
+
 export function changeInteractiveTactics(
   state: InteractiveMatchState,
   teamName: InteractiveTeam,
