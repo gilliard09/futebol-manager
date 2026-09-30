@@ -75,6 +75,30 @@ export function buildWorldNews(
     })
   }
 
+  const offersByPlayer = new Map<string, typeof result.offers>()
+  for (const offer of result.offers) {
+    const current = offersByPlayer.get(offer.playerId) ?? []
+    current.push(offer)
+    offersByPlayer.set(offer.playerId, current)
+  }
+
+  for (const [playerId, playerOffers] of offersByPlayer) {
+    if (playerOffers.length < 2) continue
+    const player = playerById.get(playerId)
+    const isUserDeal = playerOffers.some(offer => offer.fromClubId === userClubId)
+    const buyers = playerOffers.map(offer => clubName(offer.toClubId))
+    const highestOffer = Math.max(...playerOffers.map(offer => offer.fee))
+    push({
+      date: result.date,
+      title: isUserDeal ? 'Disputa pelo seu jogador esquenta' : 'Disputa pelo jogador esquenta',
+      message: `${playerName(playerId)} recebeu interesse de ${buyers.join(', ')}. A maior proposta chegou a R$ ${highestOffer.toLocaleString('pt-BR')}.`,
+      tone: 'neutral',
+      category: 'market',
+      priority: isUserDeal ? 99 : 82,
+      id: `market-race:${result.date}:${playerId}:${playerOffers.length}`,
+    })
+  }
+
   for (const renewal of result.renewals) {
     const player = playerById.get(renewal.playerId)
     const important = Boolean(player && (getSquadRole(player) === 'starter' || player.potential >= 86))
