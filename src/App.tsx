@@ -15,7 +15,7 @@ import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
-import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner } from './engine/competitions'
+import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -359,7 +359,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       for (const [fixtureId, match] of Object.entries(matchesToPersist)) {
         const { error: updateError } = await supabase
           .from('fixtures')
-          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore, winner_club_id: null })
+          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore, winner_club_id: activeMatchFixture.competition_name === 'Copa Nacional do Brasil' && activeMatchFixture.round === 7 ? resolveSingleMatch(match.homeScore, match.awayScore, activeMatchFixture.home_club_id, activeMatchFixture.away_club_id, match.homeScore === match.awayScore ? choosePenaltyWinner(activeMatchFixture.home_club_id, activeMatchFixture.away_club_id, activeMatchFixture.id) : null) : null })
           .eq('id', fixtureId)
           .eq('status', 'scheduled')
 
@@ -369,7 +369,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       if (activeMatchFixture.competition_id && activeMatchFixture.round > 0) {
         const { data: competitionRows } = await supabase
           .from('fixtures')
-          .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score')
+          .select('id,season_id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,winner_club_id')
           .eq('competition_id', activeMatchFixture.competition_id)
           .order('round')
           .order('scheduled_at')
@@ -401,6 +401,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           if (generated?.length) {
             const existingNext = new Set(allFixtures.map(fixture => `${fixture.round}:${fixture.home_club_id}:${fixture.away_club_id}`))
             const rows = generated.filter(fixture => !existingNext.has(`${fixture.round}:${fixture.homeClubId}:${fixture.awayClubId}`)).map(fixture => ({
+              season_id: allFixtures.find(item => item.id === activeMatchFixture.id)?.season_id,
               competition_id: activeMatchFixture.competition_id,
               round: fixture.round,
               scheduled_at: fixture.scheduledAt,
