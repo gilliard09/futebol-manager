@@ -1,4 +1,4 @@
-import { getSquadRole, playerOverall } from './match'
+import { getSquadRole, playerOverall } from './matchCore'
 import type { WorldClub, WorldClubPerformance, WorldPlayer, WorldSimulationResult } from './worldSimulation'
 
 export type WorldNewsTone = 'positive' | 'neutral' | 'warning'
