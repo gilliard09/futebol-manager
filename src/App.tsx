@@ -321,12 +321,11 @@ function GameApp() {
     }
 
     if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
-    localStorage.removeItem(WORLD_NEWS_KEY)
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(TRAINING_KEY)
     localStorage.removeItem(COMMERCIAL_KEY + ':' + career.season)
-    Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':')).forEach(key => localStorage.removeItem(key))
+    Object.keys(localStorage).filter(key => (key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':')) && key !== marketInterestStorageKey(nextSeasonName) && key !== marketNegotiationStorageKey(nextSeasonName)).forEach(key => localStorage.removeItem(key))
     window.location.reload()
   }
   async function newCareer() {
