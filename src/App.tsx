@@ -16,6 +16,7 @@ import { applyTransfer, type TransferRecord, type TransferState } from './engine
 import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
+import { buildCompetitionHistoryResult } from './engine/seasonHistory'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -417,6 +418,34 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
               if (insertError) console.error('Não foi possível criar a próxima fase da Copa', insertError)
             }
           }
+        }
+      }
+
+      const seasonId = allFixtures.find(item => item.id === activeMatchFixture.id)?.season_id
+      if (seasonId && activeMatchFixture.competition_id) {
+        const { data: historyFixtures } = await supabase
+          .from('fixtures')
+          .select('round,status,home_club_id,away_club_id,home_score,away_score,winner_club_id')
+          .eq('season_id', seasonId)
+          .eq('competition_id', activeMatchFixture.competition_id)
+        const historyMatches = Object.values(nextMatches)
+        const competitionName = activeMatchFixture.competition_name
+        const history = buildCompetitionHistoryResult(
+          activeMatchFixture.competition_id,
+          historyFixtures ?? [],
+          historyMatches,
+          competitionName === 'Liga Nacional do Brasil',
+        )
+        if (history) {
+          const { error: historyError } = await supabase.from('competition_history').upsert({
+            season_id: seasonId,
+            competition_id: activeMatchFixture.competition_id,
+            champion_club_id: history.championClubId,
+            runner_up_club_id: history.runnerUpClubId,
+            top_scorer_player_id: history.topScorerPlayerId,
+            top_scorer_goals: history.topScorerGoals,
+          }, { onConflict: 'season_id,competition_id' })
+          if (historyError) console.error('Não foi possível salvar o histórico da competição', historyError)
         }
       }
 
