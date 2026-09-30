@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Club, Player } from '../types/game'
-import { applyLoan, calculateLoanEndDate, calculateLoanFee, calculateLoanSalaryCost, createLoanRecord, getActiveLoan, getCurrentClubId, isLoanActive, normalizeSalaryShare, type LoanState } from './loans'
+import { applyLoan, calculateLoanEndDate, calculateLoanFee, calculateLoanSalaryCost, createLoanRecord, evaluateLoanTarget, getActiveLoan, getCurrentClubId, isLoanActive, normalizeSalaryShare, shouldOfferLoan, type LoanState } from './loans'
 
 const player: Player = { id: 'p1', first_name: 'Joao', last_name: 'Silva', age: 20, nationality: 'Brasil', position: 'ST', pace: 80, shooting: 78, passing: 60, dribbling: 75, defending: 30, physical: 70, goalkeeping: 10, mental: 65, potential: 85, form: 60, morale: 70, squad_number: 9 }
 const club: Club = { id: 'c1', name: 'Clube', short_name: 'CLU', city: 'Cidade', country: 'Brasil', stadium: 'Estádio', division: 1, budget: 1000000, reputation: 50 }
@@ -31,5 +31,21 @@ describe('loans', () => {
     const state = applyLoan(applyLoan({ records: [] }, first), second)
     expect(state.records).toHaveLength(2)
     expect(state.records[1].loanClubId).toBe('c3')
+  })
+  it('avalia um destino com espaço como boa oportunidade para um jovem', () => {
+    const evaluation = evaluateLoanTarget(
+      player,
+      player.marketValue,
+      { id: 'c1', budget: 8000000, strength: 72, behavior: 'youth' },
+      { id: 'c2', budget: 5000000, strength: 68, behavior: 'balanced' },
+      19,
+      0,
+    )
+    expect(evaluation.score).toBeGreaterThanOrEqual(20)
+    expect(evaluation.salaryShare).toBeGreaterThan(0)
+  })
+  it('recusa uma operação de empréstimo que excede o limite financeiro', () => {
+    const evaluation = { score: 60, fee: 2000000, salaryShare: 70, months: 6, reason: 'teste' }
+    expect(shouldOfferLoan(evaluation, { id: 'poor', budget: 500000, strength: 60 })).toBe(false)
   })
 })
