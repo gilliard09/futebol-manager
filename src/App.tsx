@@ -8,6 +8,7 @@ import PlayerProfile from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
 import LoanMarket from './components/LoanMarket'
 import CompetitionCenter from './components/CompetitionCenter'
+import PressCenter from './components/PressCenter'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, createTransaction, estimateAttendance, type FinanceTransaction } from './engine/finance'
@@ -257,7 +258,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
     try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
   })
-  const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match' | 'training' | 'market' | 'loans' | 'competitions'>('overview')
+  const [view, setView] = useState<'overview' | 'squad' | 'tactics' | 'match' | 'training' | 'market' | 'loans' | 'competitions' | 'press'>('overview')
   const [transferState, setTransferState] = useState<TransferState>(() => { try { return JSON.parse(localStorage.getItem(TRANSFERS_KEY) ?? '{"playerClubOverrides":{},"records":[]}') } catch { return { playerClubOverrides: {}, records: [] } } })
   const [loanState, setLoanState] = useState<LoanState>(() => { try { return JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}') } catch { return { records: [] } } })
   const [selectedStarters, setSelectedStarters] = useState<Player[]>([])
@@ -1260,6 +1261,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     setPendingEvent(null)
   }
 
+  if (view === 'press') return <PressCenter club={career.club} news={worldNews} back={() => setView('overview')} />
   if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} back={() => setView('overview')} />
   if (view === 'loans') return <LoanMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} transferOverrides={transferState.playerClubOverrides} state={loanState} currentSquadSize={players.length} onLoan={(record, nextState) => { const transaction = createTransaction(record.date, record.loanClubId === career.club.id ? 'transfer_out' : 'transfer_in', `${record.loanClubId === career.club.id ? 'Empréstimo recebido' : 'Empréstimo cedido'} · ${record.playerName}`, record.loanClubId === career.club.id ? -record.fee : record.fee, undefined, `loan:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setLoanState(nextState); localStorage.setItem(LOANS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); setView('overview') }} back={() => setView('overview')} />
   if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} state={transferState} loanState={loanState} currentSquadSize={players.length} personality={career.personality} onTransfer={(record, nextState, nextBalance) => { const transaction = createTransaction(record.date, record.kind === 'purchase' ? 'transfer_out' : 'transfer_in', `${record.kind === 'purchase' ? 'Compra' : 'Venda'} · ${record.playerName}`, record.kind === 'purchase' ? -record.fee : record.fee, undefined, `transfer:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setTransferState(nextState); localStorage.setItem(TRANSFERS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); setView('overview') }} back={() => setView('overview')} />
@@ -1669,16 +1671,18 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       return null
     })()}
     {worldNews.length > 0 && <section className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Imprensa do futebol</p>
           <h2 className="mt-2 text-2xl font-bold">O mundo continua jogando</h2>
-          <p className="mt-2 text-sm text-white/35">Mercado, resultados, jovens e decisões importantes ganham espaço conforme acontecem.</p>
+          <p className="mt-2 text-sm text-white/35">As principais histórias da temporada, com mais destaque para o que envolve o seu clube.</p>
         </div>
-        <Newspaper size={22} className="text-white/25" />
+        <button onClick={() => setView('press')} className="flex shrink-0 items-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-emerald-300 hover:border-emerald-300/20 hover:text-emerald-200">
+          Abrir central <ArrowRight size={16} />
+        </button>
       </div>
       <div className="mt-5 space-y-2">
-        {worldNews.slice(0, 6).map(item => {
+        {worldNews.slice(0, 3).map(item => {
           const toneClass = item.tone === 'positive'
             ? 'border-emerald-400/10 bg-emerald-400/[0.025]'
             : item.tone === 'warning'
@@ -1688,7 +1692,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold">{item.title}</p>
-                <div className="mt-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-wider text-white/20">{item.category === 'market' ? 'Mercado' : item.category === 'academy' ? 'Base' : item.category === 'career' ? 'Carreira' : item.category === 'club' ? 'Clube' : 'Elenco'}</span><p className="text-xs leading-5 text-white/40">{item.message}</p></div>
+                <div className="mt-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-wider text-white/20">{item.category === 'market' ? 'Mercado' : item.category === 'academy' ? 'Base' : item.category === 'career' ? 'Carreira' : item.category === 'club' ? 'Clube' : item.category === 'match' ? 'Resultados' : 'Elenco'}</span><p className="text-xs leading-5 text-white/40">{item.message}</p></div>
               </div>
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-white/20">{formatSeasonDate(item.date)}</span>
             </div>
