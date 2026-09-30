@@ -3,7 +3,7 @@ import { FORMATIONS } from '../types/game'
 
 export type MatchEvent = {
   minute: number
-  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'corner' | 'foul' | 'tackle'
+  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'corner' | 'foul' | 'tackle' | 'substitution'
   team: 'home' | 'away'
   player: string
   text: string
@@ -54,6 +54,8 @@ export type PlayerMatchRating = {
   goals: number
   assists: number
   fatigue: number
+  minutes: number
+  started: boolean
 }
 
 export type MatchAnalysis = {
@@ -199,6 +201,8 @@ function buildPlayerRatings(
   team: 'home' | 'away',
   events: MatchEvent[],
   tactic: string,
+  minutesById: Map<string, number>,
+  startedIds: Set<string>,
 ): PlayerMatchRating[] {
   return lineup.map(item => {
     const name = item.player.first_name + ' ' + item.player.last_name
@@ -220,6 +224,8 @@ function buildPlayerRatings(
       goals,
       assists,
       fatigue: Math.round(fatigue),
+      minutes: minutesById.get(item.player.id) ?? 0,
+      started: startedIds.has(item.player.id),
     }
   })
 }
@@ -318,6 +324,13 @@ export function simulateMatch(
 ): MatchResult {
   const home = normalizeLineup(homePlayers, formation, homeLineup)
   const away = normalizeLineup(awayPlayers, '4-3-3', awayLineup)
+  const homeBench = homePlayers.filter(player => !home.some(item => item.player.id === player.id))
+  const awayBench = awayPlayers.filter(player => !away.some(item => item.player.id === player.id))
+  const homeActive = [...home]
+  const awayActive = [...away]
+  const minutesById = new Map<string, number>()
+  const startedIds = new Set([...home, ...away].map(item => item.player.id))
+  const substitutions = new Set<string>()
   const modifiers = coachModifiers(coachStyle, coachPersonality)
   const homeMetrics = calculateTeamMetrics(home, tactic, formation)
   homeMetrics.attack = clamp(homeMetrics.attack + modifiers.attack)
@@ -335,7 +348,38 @@ export function simulateMatch(
   let homeScore = 0
   let awayScore = 0
 
+  for (const item of [...home, ...away]) minutesById.set(item.player.id, 90)
+
+  const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away') => {
+    if (![60, 72].includes(minute)) return
+    const tired = active
+      .filter(item => (item.player.fatigue ?? 0) + minute * 0.45 >= 68)
+      .sort((a, b) => ((b.player.fatigue ?? 0) + minute * 0.45) - ((a.player.fatigue ?? 0) + minute * 0.45))
+      .slice(0, 2)
+    for (const outgoing of tired) {
+      const replacement = [...bench]
+        .filter(player => !substitutions.has(player.id))
+        .sort((a, b) => selectionScore(b, outgoing.role) - selectionScore(a, outgoing.role))[0]
+      if (!replacement) continue
+      const index = active.findIndex(item => item.player.id === outgoing.player.id)
+      if (index < 0) continue
+      minutesById.set(outgoing.player.id, minute - 1)
+      minutesById.set(replacement.id, 90 - minute + 1)
+      substitutions.add(replacement.id)
+      active[index] = { player: replacement, role: outgoing.role, slot: outgoing.slot }
+      events.push({
+        minute,
+        type: 'substitution',
+        team,
+        player: replacement.first_name + ' ' + replacement.last_name,
+        text: replacement.first_name + ' ' + replacement.last_name + ' entra no lugar de ' + outgoing.player.first_name + ' ' + outgoing.player.last_name + '.',
+      })
+    }
+  }
+
   for (let minute = 1; minute <= 90; minute++) {
+    makeSubstitutions(minute, homeActive, homeBench, 'home')
+    makeSubstitutions(minute, awayActive, awayBench, 'away')
     const homeBefore = events.length
     simulateSide(minute, 'home', home, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName, modifiers)
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
@@ -348,7 +392,7 @@ export function simulateMatch(
     if (random() < tackleProbability) {
       const team = random() < 0.5 ? 'home' : 'away'
       const stats = team === 'home' ? homeStats : awayStats
-      const side = team === 'home' ? home : away
+      const side = team === 'home' ? homeActive : awayActive
       const player = chooseWeighted(side, ['CB', 'LB', 'RB', 'DM', 'CM'], random)
       const name = player ? player.player.first_name + ' ' + player.player.last_name : 'Jogador'
       stats.tackles++
@@ -393,8 +437,8 @@ export function simulateMatch(
     snapshot.away.possession = 100 - snapshot.home.possession
   })
 
-  const homeRatings = buildPlayerRatings(home, 'home', events, tactic)
-  const awayRatings = buildPlayerRatings(away, 'away', events, 'balanced')
+  const homeRatings = buildPlayerRatings([...home, ...homeBench.map(player => ({ player, role: player.position, slot: -1 }))], 'home', events, tactic, minutesById, startedIds).filter(player => player.minutes > 0)
+  const awayRatings = buildPlayerRatings([...away, ...awayBench.map(player => ({ player, role: player.position, slot: -1 }))], 'away', events, 'balanced', minutesById, startedIds).filter(player => player.minutes > 0)
   const playerRatings = [...homeRatings, ...awayRatings]
   const analysis = buildAnalysis(homeRatings, awayRatings, homeStats, awayStats)
 
