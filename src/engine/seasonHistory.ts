@@ -32,6 +32,7 @@ export function createSeasonHistory(
 
 
 import type { PlayedMatch } from '../types/game'
+import { buildStandings } from './competitions'
 
 export type CompetitionHistoryResult = {
   championClubId: string | null
