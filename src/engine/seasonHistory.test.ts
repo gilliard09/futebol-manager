@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getCompetitionTopScorer, buildCompetitionHistoryResult } from './seasonHistory'
+import { getCompetitionTopScorer, buildCompetitionHistoryResult, buildSeasonCompletion } from './seasonHistory'
 
 describe('season history', () => {
   it('calcula o artilheiro apenas dentro da competição', () => {
