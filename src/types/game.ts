@@ -73,9 +73,15 @@ export type PlayedMatch = import('../engine/match').MatchResult & {
   competition_name?: string
 }
 
+export type CoachStyle = 'high_press' | 'possession' | 'counter_attack' | 'direct' | 'tiki_taka' | 'defensive_block' | 'gegenpressing' | 'set_pieces' | 'youth_focus'
+export type CoachPersonality = 'motivator' | 'disciplinarian' | 'psychologist' | 'visionary' | 'negotiator' | 'winning_mentality'
+
 export type ManagerProfile = {
   name: string
   nationality: string
+  birthDate: string
+  style: CoachStyle
+  personality: CoachPersonality
   club: Club
   season: string
 }
