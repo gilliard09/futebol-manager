@@ -536,7 +536,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     await Promise.all(aiClubs.map(club =>
       supabase.from('clubs').update({
         budget: club.budget,
-        ...(changedClubs.has(club.id) ? { strength: club.strength } : {}),
+        ...(changedClubs.has(club.id) ? { strength: club.strength, reputation: club.reputation } : {}),
       }).eq('id', club.id)
     ))
   }
