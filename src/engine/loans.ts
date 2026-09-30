@@ -1,5 +1,21 @@
 import type { Club, Player } from '../types/game'
 
+export type LoanClubProfile = {
+  id: string
+  budget: number
+  strength: number
+  reputation?: number
+  behavior?: 'ambitious' | 'youth' | 'conservative' | 'seller' | 'balanced'
+}
+
+export type LoanEvaluation = {
+  score: number
+  fee: number
+  salaryShare: number
+  months: number
+  reason: string
+}
+
 export type LoanRecord = {
   id: string
   date: string
