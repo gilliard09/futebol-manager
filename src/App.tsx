@@ -99,6 +99,62 @@ function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
 }
 
+function normalizeManagementRow(row: any): { board: BoardState; fans: FanState } {
+  return {
+    board: {
+      seasonId: String(row.season_id),
+      objective: row.objective as BoardState['objective'],
+      objectiveLabel: row.objective_label,
+      expectation: Number(row.expectation ?? 0),
+      confidence: Number(row.confidence ?? 0),
+      lastEvaluation: row.last_evaluation ?? 'Avaliação inicial',
+      evaluations: Number(row.evaluations ?? 0),
+      consecutivePoorResults: Number(row.consecutive_poor_results ?? 0),
+      managerStatus: row.manager_status as BoardState['managerStatus'],
+      contractEndSeason: row.contract_end_season,
+      renewalOffered: Boolean(row.renewal_offered),
+    },
+    fans: {
+      seasonId: String(row.season_id),
+      satisfaction: Number(row.satisfaction ?? 0),
+      expectation: Number(row.fan_expectation ?? 0),
+      attendanceFactor: Number(row.fan_attendance_factor ?? 1),
+      pressure: Number(row.fan_pressure ?? 0),
+      recentResults: Array.isArray(row.fan_recent_results) ? row.fan_recent_results.filter((item: unknown): item is 'W' | 'D' | 'L' => item === 'W' || item === 'D' || item === 'L') : [],
+      streak: Number(row.fan_streak ?? 0),
+    },
+  }
+}
+
+function normalizeCommercialRow(row: any): { sponsor: SponsorContract; stadium: StadiumState } {
+  return {
+    sponsor: {
+      status: row.sponsor_status ?? 'active',
+      completedSeasons: Number(row.sponsor_completed_seasons ?? 0),
+      sponsorId: row.sponsor_id,
+      name: row.sponsor_name,
+      seasonId: String(row.season_id),
+      upfront: Number(row.sponsor_upfront ?? 0),
+      monthly: Number(row.sponsor_monthly ?? 0),
+      objective: row.sponsor_objective,
+      objectiveTarget: Number(row.sponsor_target ?? 0),
+      progress: Number(row.sponsor_progress ?? 0),
+      reputationRequired: Number(row.sponsor_reputation_required ?? 0),
+    },
+    stadium: {
+      clubId: row.club_id,
+      seasonId: String(row.season_id),
+      name: row.stadium_name,
+      capacity: Number(row.stadium_capacity ?? 12000),
+      level: Number(row.stadium_level ?? 1),
+      baseTicketPrice: Number(row.stadium_ticket_price ?? 35),
+      attendanceRate: Number(row.stadium_attendance_rate ?? 0.72),
+      maintenance: Number(row.stadium_maintenance ?? 15000),
+      upgrades: Array.isArray(row.stadium_upgrades) ? row.stadium_upgrades : [],
+    },
+  }
+}
+
 function normalizeFixture(row: any): Fixture {
   return {
     id: row.id,
@@ -214,6 +270,8 @@ function GameApp() {
     await supabase.from('competition_history').delete().eq('season_id', season.id)
     await supabase.from('world_transfers').delete().eq('season_id', season.id)
     await supabase.from('player_season_stats').delete().eq('season_id', season.id)
+    await supabase.from('club_management_seasons').delete().eq('season_id', season.id)
+    await supabase.from('club_commercial_seasons').delete().eq('season_id', season.id)
     await supabase.rpc('reset_world_state')
     await supabase.from('season_club_movements').delete().eq('season_id', season.id)
     await supabase.from('seasons').update({ status: 'active', end_date: null, start_date: SEASON_START }).eq('id', season.id).eq('status', 'completed')
@@ -468,19 +526,24 @@ function GameApp() {
   async function startNextSeason() {
     if (!career) return
     const currentYear = Number(career?.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
-    const previousCommercial = (() => {
-      try {
-        const raw = localStorage.getItem(COMMERCIAL_KEY + ':' + career?.season)
-        return raw ? JSON.parse(raw) as { sponsor: SponsorContract; stadium: StadiumState } : null
-      } catch {
-        return null
-      }
-    })()
+    let previousCommercial: { sponsor: SponsorContract; stadium: StadiumState } | null = null
+    try {
+      const raw = localStorage.getItem(COMMERCIAL_KEY + ':' + career?.season)
+      previousCommercial = raw ? JSON.parse(raw) as { sponsor: SponsorContract; stadium: StadiumState } : null
+    } catch {}
     const nextYear = currentYear + 1
     const nextSeasonName = seasonName(nextYear)
 
     const { data: currentSeason } = await supabase.from('seasons').select('id,status').eq('name', career?.season ?? SEASON_NAME).maybeSingle()
     if (!currentSeason?.id || currentSeason.status !== 'completed') return
+
+    const { data: persistedCommercialRow } = await supabase
+      .from('club_commercial_seasons')
+      .select('*')
+      .eq('season_id', currentSeason.id)
+      .eq('club_id', career.club.id)
+      .maybeSingle()
+    if (persistedCommercialRow) previousCommercial = normalizeCommercialRow(persistedCommercialRow)
     const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
     const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
     const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
@@ -536,7 +599,21 @@ function GameApp() {
           sponsor: { ...chooseSponsor(career?.club.reputation ?? 50), seasonId: nextSeasonName },
           stadium: createStadium(career?.club.id ?? '', nextSeasonName, career?.club.stadium ?? 'Estádio Municipal', career?.club.stadium_capacity ?? 12000),
         }
+    await persistCommercialToSupabase(newSeason.id, nextCommercial)
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify(nextCommercial))
+
+    const nextBoard = createBoardState(
+      nextSeasonName,
+      nextSeasonName,
+      career.club.reputation ?? 50,
+      career.club.budget ?? 0,
+      career.club.strength ?? career.club.reputation ?? 50,
+    )
+    const nextFans = createFanState(nextSeasonName, career.club.reputation ?? 50, nextBoard.expectation)
+    await persistManagementToSupabase(newSeason.id, nextBoard, nextFans)
+    localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(nextBoard))
+    localStorage.setItem(FANS_KEY + ':' + nextSeasonName, JSON.stringify(nextFans))
+
     if (nextCommercial.sponsor.upfront > 0) {
       addFinanceTransaction(createTransaction(
         `${nextYear}-01-10`,
@@ -667,6 +744,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const [formation, setFormation] = useState('4-3-3')
   const [activeMatchFixture, setActiveMatchFixture] = useState<Fixture | null>(null)
   const [loading, setLoading] = useState(true)
+  const [databaseSeasonId, setDatabaseSeasonId] = useState<string | null>(null)
   const [salaryTotal, setSalaryTotal] = useState(0)
   const [financeBalance, setFinanceBalance] = useState(() => career?.club.budget ?? 0)
   const [financeTransactions, setFinanceTransactions] = useState<FinanceTransaction[]>(() => { try { return JSON.parse(localStorage.getItem(FINANCE_KEY) ?? '[]') } catch { return [] } })
@@ -711,7 +789,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         setCommercial(JSON.parse(saved))
       } else {
         const sponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
-        const next = { sponsor, stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal') }
+        const next = { sponsor, stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal', career.club.stadium_capacity ?? 12000) }
         setCommercial(next)
         localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(next))
       }
@@ -949,8 +1027,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       },
       stadium: commercial.stadium,
     }
-    setCommercial(nextCommercial)
-    localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(nextCommercial))
+    await saveCommercial(nextCommercial)
     const finalBoard = resolveContractAtSeasonEnd(boardState)
     saveManagement(finalBoard, fanState)
     if (finalBoard.managerStatus === 'renewed') {
@@ -992,11 +1069,69 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     return nextBalance
   }
 
-  function saveManagement(nextBoard: BoardState, nextFans: FanState) {
+  async function persistManagementToSupabase(seasonId: string, nextBoard: BoardState, nextFans: FanState) {
+    const { error } = await supabase.from('club_management_seasons').upsert({
+      season_id: seasonId,
+      club_id: career.club.id,
+      manager_status: nextBoard.managerStatus,
+      objective: nextBoard.objective,
+      objective_label: nextBoard.objectiveLabel,
+      expectation: nextBoard.expectation,
+      confidence: nextBoard.confidence,
+      satisfaction: nextFans.satisfaction,
+      fan_expectation: nextFans.expectation,
+      fan_pressure: nextFans.pressure,
+      contract_end_season: nextBoard.contractEndSeason,
+      renewal_offered: nextBoard.renewalOffered,
+      last_evaluation: nextBoard.lastEvaluation,
+      evaluations: nextBoard.evaluations,
+      consecutive_poor_results: nextBoard.consecutivePoorResults,
+      fan_attendance_factor: nextFans.attendanceFactor,
+      fan_recent_results: nextFans.recentResults,
+      fan_streak: nextFans.streak,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'season_id,club_id' })
+    if (error) console.error('Não foi possível persistir a gestão/torcida', error)
+  }
+
+  async function saveManagement(nextBoard: BoardState, nextFans: FanState) {
     setBoardState(nextBoard)
     setFanState(nextFans)
     localStorage.setItem(BOARD_KEY + ':' + career.season, JSON.stringify(nextBoard))
     localStorage.setItem(FANS_KEY + ':' + career.season, JSON.stringify(nextFans))
+    if (databaseSeasonId) await persistManagementToSupabase(databaseSeasonId, nextBoard, nextFans)
+  }
+
+  async function persistCommercialToSupabase(seasonId: string, value: { sponsor: SponsorContract; stadium: StadiumState }) {
+    const { error } = await supabase.from('club_commercial_seasons').upsert({
+      season_id: seasonId,
+      club_id: value.stadium.clubId || career.club.id,
+      sponsor_id: value.sponsor.sponsorId,
+      sponsor_name: value.sponsor.name,
+      sponsor_upfront: value.sponsor.upfront,
+      sponsor_monthly: value.sponsor.monthly,
+      sponsor_objective: value.sponsor.objective,
+      sponsor_target: value.sponsor.objectiveTarget,
+      sponsor_progress: value.sponsor.progress,
+      sponsor_status: value.sponsor.status ?? 'active',
+      sponsor_completed_seasons: value.sponsor.completedSeasons ?? 0,
+      sponsor_reputation_required: value.sponsor.reputationRequired,
+      stadium_name: value.stadium.name,
+      stadium_capacity: value.stadium.capacity,
+      stadium_level: value.stadium.level,
+      stadium_ticket_price: value.stadium.baseTicketPrice,
+      stadium_maintenance: value.stadium.maintenance,
+      stadium_attendance_rate: value.stadium.attendanceRate,
+      stadium_upgrades: value.stadium.upgrades,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'season_id,club_id' })
+    if (error) console.error('Não foi possível persistir patrocínio/estádio', error)
+  }
+
+  async function saveCommercial(next: { sponsor: SponsorContract; stadium: StadiumState }) {
+    setCommercial(next)
+    localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(next))
+    if (databaseSeasonId) await persistCommercialToSupabase(databaseSeasonId, next)
   }
 
   function applyMatchManagement(result: MatchResult, fixture: Fixture) {
@@ -1038,6 +1173,40 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       setLoading(true)
       const { data: currentSeasonRow } = await supabase.from('seasons').select('id,status').eq('name', career.season).maybeSingle()
       const currentSeasonId = currentSeasonRow?.id ?? null
+      if (currentSeasonId) {
+        setDatabaseSeasonId(currentSeasonId)
+        const [{ data: managementRow }, { data: commercialRow }] = await Promise.all([
+          supabase.from('club_management_seasons').select('*').eq('season_id', currentSeasonId).eq('club_id', career.club.id).maybeSingle(),
+          supabase.from('club_commercial_seasons').select('*').eq('season_id', currentSeasonId).eq('club_id', career.club.id).maybeSingle(),
+        ])
+
+        if (managementRow) {
+          const persisted = normalizeManagementRow(managementRow)
+          setBoardState(persisted.board)
+          setFanState(persisted.fans)
+          localStorage.setItem(BOARD_KEY + ':' + career.season, JSON.stringify(persisted.board))
+          localStorage.setItem(FANS_KEY + ':' + career.season, JSON.stringify(persisted.fans))
+        } else {
+          const initialBoard = createBoardState(career.season, career.season, career.club.reputation ?? 50, financeBalance, career.club.strength ?? career.club.reputation ?? 50)
+          const initialFans = createFanState(career.season, career.club.reputation ?? 50, initialBoard.expectation)
+          await persistManagementToSupabase(currentSeasonId, initialBoard, initialFans)
+        }
+
+        if (commercialRow) {
+          const persistedCommercial = normalizeCommercialRow(commercialRow)
+          setCommercial(persistedCommercial)
+          localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(persistedCommercial))
+        } else {
+          const initialSponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
+          const initialCommercial = {
+            sponsor: initialSponsor,
+            stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal', career.club.stadium_capacity ?? 12000),
+          }
+          await persistCommercialToSupabase(currentSeasonId, initialCommercial)
+          setCommercial(initialCommercial)
+          localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(initialCommercial))
+        }
+      }
       if (currentSeasonId && currentSeasonRow?.status === 'completed') {
         const { data: completedHistory } = await supabase
           .from('competition_history')
@@ -2539,8 +2708,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
             const nextStadium = upgradeStadium(commercial.stadium)
             const nextBalance = addFinanceTransaction(createTransaction(toDateKey(new Date().toISOString()), 'other', 'Melhoria do estádio', -cost, undefined, 'stadium:' + career.season + ':' + nextStadium.level)) ?? financeBalance
             const next = { ...commercial, stadium: nextStadium }
-            setCommercial(next)
-            localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(next))
+            await saveCommercial(next)
             onCareerUpdate({ ...career, club: { ...career.club, budget: nextBalance } })
           }} className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-xs font-bold text-white/60 disabled:cursor-not-allowed disabled:opacity-30">{commercial.stadium.level >= 6 ? 'Estádio no nível máximo' : 'Melhorar estádio · ' + money(stadiumUpgradeCost(commercial.stadium.level + 1))}</button>
         </div>
