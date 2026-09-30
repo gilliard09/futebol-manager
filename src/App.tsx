@@ -594,6 +594,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     let active = true
     async function loadDashboard() {
       setLoading(true)
+      const { data: currentSeasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+      const currentSeasonId = currentSeasonRow?.id ?? null
       const [squadResult, fixtureResult, tableResult, clubsResult, salaryResult, seasonStatsResult] = await Promise.all([
         supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').order('squad_number'),
         supabase.from('fixtures').select('id,season_id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('scheduled_at'),
@@ -659,7 +661,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         setContractAlerts(alerts)
       }
       if (!fixtureResult.error) {
-        const scheduled = (fixtureResult.data ?? []).map(normalizeFixture).filter(item => !playedMatches[item.id])
+        const scheduled = (fixtureResult.data ?? []).map(normalizeFixture).filter(item => item.season_id === currentSeasonId && !playedMatches[item.id])
         const fixture = scheduled[0] ?? null
         setUpcomingFixtures(scheduled)
         setNextFixture(fixture)
@@ -1504,6 +1506,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         .from('fixtures')
         .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,competitions!inner(name),home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url)')
         .eq('competition_id', activeMatchFixture.competition_id)
+        .eq('season_id', activeMatchFixture.season_id ?? '')
         .eq('round', activeMatchFixture.round)
         .eq('status', 'scheduled')
         .order('scheduled_at')
@@ -1578,6 +1581,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
             home_club_id: fixture.home_club_id,
             away_club_id: fixture.away_club_id,
             competition_id: fixture.competition_id,
+            season_id: fixture.season_id,
             round: fixture.round,
           }
           matchesToPersist[fixture.id] = nextMatches[fixture.id]
@@ -1875,6 +1879,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         .from('fixtures')
         .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)')
         .or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`)
+        .eq('season_id', activeMatchFixture.season_id ?? '')
         .eq('status', 'scheduled')
         .order('scheduled_at')
 
