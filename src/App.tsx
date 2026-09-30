@@ -523,6 +523,7 @@ function GameApp() {
 
 
   async function persistManagementForSeason(seasonId: string, nextBoard: BoardState, nextFans: FanState) {
+    if (!career) return
     const { error } = await supabase.from('club_management_seasons').upsert({
       season_id: seasonId,
       club_id: career.club.id,
@@ -548,6 +549,7 @@ function GameApp() {
   }
 
   async function persistCommercialForSeason(seasonId: string, value: { sponsor: SponsorContract; stadium: StadiumState }) {
+    if (!career) return
     const { error } = await supabase.from('club_commercial_seasons').upsert({
       season_id: seasonId,
       club_id: value.stadium.clubId || career.club.id,
