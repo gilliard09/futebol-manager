@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw, Square, Goal, HeartPulse, CreditCard, Users, Zap, SlidersHorizontal } from 'lucide-react'
-import type { Fixture, Formation, ManagerProfile, Player } from '../types/game'
+import type { Fixture, Formation, LineupPlayer, ManagerProfile, Player } from '../types/game'
 import {
   advanceInteractiveMinute,
   changeInteractiveTactics,
   createInteractiveMatch,
   interactiveMatchResult,
   makeInteractiveSubstitution,
+  resolveInteractivePenalty,
   type InteractiveMatchState,
   type InteractiveTactic,
   type InteractiveTeam,
 } from '../engine/interactiveMatch'
-import { getAiCoachProfile, playerOverall } from '../engine/match'
+import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/match'
 import type { MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
 
@@ -56,6 +57,7 @@ function eventLabel(type: string) {
   if (type === 'offside') return 'IMPEDIMENTO'
   if (type === 'corner') return 'ESCANTEIO'
   if (type === 'save') return 'DEFESA'
+  if (type === 'penalty') return 'PÊNALTI'
   return 'LANCE'
 }
 
@@ -127,12 +129,12 @@ function Pitch({ session, userTeam }: { session: InteractiveMatchState; userTeam
   </section>
 }
 
-function ProjectedPitch({ players, team }: { players: Player[]; team: InteractiveTeam }) {
+function ProjectedPitch({ lineup, team, compact = false }: { lineup: LineupPlayer[]; team: InteractiveTeam; compact?: boolean }) {
   const counts: Record<string, number> = {}
-  const starters = players.slice(0, 11)
-  return <div className="rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4">
-    <div className="mb-3 flex items-center justify-between"><div><p className="label-mono text-white/30">Prévia tática</p><p className="mt-1 text-xs text-white/35">Posições projetadas para o início da partida</p></div><span className="rounded-full border border-white/8 px-2.5 py-1 font-mono text-[9px] font-bold text-white/30">{starters.length}/11</span></div>
-    <div className="relative mx-auto aspect-[4/5] max-w-[420px] overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]">
+  const starters = lineup
+  return <div className={compact ? 'rounded-2xl border border-white/8 bg-[#131b2a] p-2' : 'rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4'}>
+    <div className="mb-2 flex items-center justify-between"><div><p className="label-mono text-white/30">Formação em campo</p><p className="mt-1 text-xs text-white/35">{compact ? 'Escalação atual' : 'Posições projetadas para o início da partida'}</p></div><span className="rounded-full border border-white/8 px-2.5 py-1 font-mono text-[9px] font-bold text-white/30">{starters.length}/11</span></div>
+    <div className={compact ? 'relative mx-auto aspect-[5/4] max-w-[320px]' : 'relative mx-auto aspect-[4/5] max-w-[420px]' overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]">
       <div className="absolute inset-3 rounded-xl border border-white/30" />
       <div className="absolute left-1/2 top-1/2 h-px w-[calc(100%-24px)] -translate-x-1/2 bg-white/20" />
       <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
@@ -169,7 +171,7 @@ function Bench({ session, userTeam, selectedOutgoing, onSelectIncoming }: { sess
 export default function InteractiveMatch({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back, cancel }: Props) {
   const userIsHome = fixture.home_club_id === userClubId
   const userTeam: InteractiveTeam = userIsHome ? 'home' : 'away'
-  const [phase, setPhase] = useState<'pregame' | 'live' | 'postgame'>('pregame')
+  const [phase, setPhase] = useState<'pregame' | 'live' | 'halftime' | 'postgame'>('pregame')
   const [paused, setPaused] = useState(false)
   const [session, setSession] = useState<InteractiveMatchState | null>(null)
   const [postgameTab, setPostgameTab] = useState<'events' | 'stats'>('events')
@@ -177,6 +179,9 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const [selectedOutgoing, setSelectedOutgoing] = useState('')
   const [eventFilter, setEventFilter] = useState<'all' | 'goal' | 'discipline' | 'injury' | 'substitution' | 'chance' | 'corner' | 'save'>('all')
   const [pregameTab, setPregameTab] = useState<'preview' | 'lineup' | 'confrontation'>('preview')
+  const [highlightEvent, setHighlightEvent] = useState<MatchEvent | null>(null)
+  const [pendingIncident, setPendingIncident] = useState<'injury' | 'red_card' | null>(null)
+  const [pendingPenalty, setPendingPenalty] = useState(false)
 
   const savedLineup = useMemo(() => {
     try {
@@ -226,8 +231,36 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     }
   }, [session, phase, lastEventCount])
 
+  useEffect(() => {
+    if (!session || phase !== 'live') return
+    const latest = session.events[session.events.length - 1]
+    if (latest && (!highlightEvent || latest.minute !== highlightEvent.minute || latest.type !== highlightEvent.type || latest.player !== highlightEvent.player) && ['goal','injury','red_card','penalty'].includes(latest.type)) {
+      setHighlightEvent(latest)
+      if (latest.type === 'injury' || latest.type === 'red_card') {
+        setPaused(true)
+        setPendingIncident(latest.type)
+      }
+      if (latest.type === 'penalty') {
+        setPaused(true)
+        setPendingPenalty(true)
+      }
+    }
+    if (session.minute === 45 && !paused) {
+      setPaused(true)
+      setPhase('halftime')
+    }
+  }, [session, phase, paused, highlightEvent])
+
   const result = session?.finished ? interactiveMatchResult(session) : null
   const visibleEvents = session?.events ?? []
+  const previewHomeLineup = useMemo(() => {
+    const coach = getAiCoachProfile(fixture.home_club_id)
+    return selectStartingLineup(homePlayers, userIsHome ? formation : coach.formation, userIsHome ? coachStyle : coach.style, userIsHome ? coachPersonality : coach.personality, awayPlayers, userIsHome ? savedLineup : {}, 1)
+  }, [homePlayers, awayPlayers, formation, userIsHome, savedLineup, coachStyle, coachPersonality, fixture.home_club_id])
+  const previewAwayLineup = useMemo(() => {
+    const coach = getAiCoachProfile(fixture.away_club_id)
+    return selectStartingLineup(awayPlayers, userIsHome ? coach.formation : formation, userIsHome ? coach.style : coachStyle, userIsHome ? coach.personality : coachPersonality, homePlayers, userIsHome ? {} : savedLineup, 1)
+  }, [homePlayers, awayPlayers, formation, userIsHome, savedLineup, coachStyle, coachPersonality, fixture.away_club_id])
   const user = session ? (userTeam === 'home' ? session.home : session.away) : null
 
   const applyTactic = (nextTactic: InteractiveTactic, nextFormation?: Formation) => {
@@ -238,6 +271,20 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const applySubstitution = (outgoingId: string, incomingId: string) => {
     if (!session) return
     setSession(current => current ? makeInteractiveSubstitution(current, userTeam, outgoingId, incomingId) : current)
+  }
+
+  const resolvePenalty = (kickerId: string) => {
+    if (!session) return
+    setSession(current => current ? resolveInteractivePenalty(current, userTeam, kickerId) : current)
+    setPendingPenalty(false)
+    setHighlightEvent(null)
+    setPaused(false)
+  }
+
+  const returnFromIncident = () => {
+    setPendingIncident(null)
+    setHighlightEvent(null)
+    setPaused(false)
   }
 
   const skipToEnd = () => {
@@ -265,7 +312,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           if (phase === 'live') { setPaused(true); return }
           if (result) back(result)
         }} className="flex items-center gap-2 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={16} /> {phase === 'pregame' ? 'Voltar' : 'Sair'}</button>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">PARTIDA INTERATIVA</p>
+        <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-red-400"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" /> AO VIVO</p>
         <span className="font-mono text-xs font-bold tabular-nums text-white/50">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</span>
       </div>
     </header>
@@ -281,10 +328,13 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Data</p><p className="mt-2 text-sm font-bold">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</p><p className="mt-1 text-xs text-white/30">{fixture.home_club?.stadium ?? 'Estádio não informado'}</p></div>
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Mando</p><p className="mt-2 text-sm font-bold">{userIsHome ? 'Você joga em casa' : 'Você joga fora'}</p><p className="mt-1 text-xs text-white/30">{userIsHome ? teamName(fixture,'home') : teamName(fixture,'away')}</p></div>
         </div>}
-        {pregameTab === 'lineup' && <div className="space-y-4">
-          <ProjectedPitch players={userIsHome ? homePlayers : awayPlayers} team={userTeam} />
+        {pregameTab === 'lineup' && <div className="space-y-3">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <ProjectedPitch lineup={userIsHome ? previewHomeLineup : previewAwayLineup} team={userTeam} compact />
+            <ProjectedPitch lineup={userIsHome ? previewAwayLineup : previewHomeLineup} team={userTeam === 'home' ? 'away' : 'home'} compact />
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? homePlayers : awayPlayers).slice(0,11).map(player => <div key={player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(player)}</p><p className="mt-1 text-[9px] text-white/30">{player.position} · OVR {playerOverall(player)}</p></div>)}</div></div>
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? previewHomeLineup : previewAwayLineup).map(item => <div key={item.player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(item.player)}</p><p className="mt-1 text-[9px] text-white/30">{item.role} · OVR {playerOverall(item.player)}</p></div>)}</div></div>
             <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Adversário</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam === 'home' ? 'away' : 'home')}</p><p className="mt-1 text-xs text-white/30">Escalação controlada pela IA do clube.</p></div>
           </div>
         </div>}
@@ -296,6 +346,15 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Começar partida <Play size={17} /></button>
       </section>}
 
+
+      {phase === 'halftime' && session && <section className="space-y-4">
+        <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={45} finished={false} />
+        <div className="game-panel"><div className="flex items-center justify-between"><div><p className="label-mono text-amber-200/60">INTERVALO</p><h2 className="mt-1 font-display text-2xl font-bold">45 minutos concluídos</h2><p className="mt-1 text-sm text-white/40">Confira a energia do elenco antes de voltar para o segundo tempo.</p></div><span className="font-display text-4xl font-bold">45'</span></div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-2"><ProjectedPitch lineup={session.home.lineup} team="home" compact /><ProjectedPitch lineup={session.away.lineup} team="away" compact /></div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">{user?.lineup.map(item => { const energy = Math.max(0, Math.min(100, Math.round(100 - ((item.player.fatigue ?? 0) + 45 * 0.8)))); const tone = energy <= 30 ? 'text-red-300 border-red-400/20 bg-red-400/5' : energy <= 65 ? 'text-amber-200 border-amber-400/20 bg-amber-400/5' : 'text-emerald-300 border-emerald-400/20 bg-emerald-400/5'; return <div key={item.player.id} className={'flex items-center justify-between rounded-xl border px-3 py-2.5 ' + tone}><span className="text-xs font-bold">{playerName(item.player)}</span><span className="font-mono text-xs font-bold">{energy}%</span></div>})}</div>
+          <button onClick={() => { setPhase('live'); setPaused(false) }} className="mt-5 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao segundo tempo <ArrowRight size={16} className="inline ml-1" /></button>
+        </div>
+      </section>}
 
       {phase === 'live' && session && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
@@ -339,6 +398,8 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         </div>
       </section>}
 
+      {phase === 'live' && highlightEvent && (highlightEvent.type === 'goal' || highlightEvent.type === 'penalty' || highlightEvent.type === 'injury' || highlightEvent.type === 'red_card') && <div className="fixed inset-x-4 top-20 z-50 mx-auto max-w-lg"><div className={highlightEvent.team === userTeam && highlightEvent.type === 'goal' ? 'rounded-2xl border border-emerald-400/40 bg-emerald-950/95 p-5 shadow-2xl' : 'rounded-2xl border border-red-400/40 bg-red-950/95 p-5 shadow-2xl'}><div className="flex items-center gap-3"><span className="font-display text-2xl font-black">{eventLabel(highlightEvent.type)}</span><span className="font-mono text-xs">{highlightEvent.minute}'</span></div><p className="mt-2 text-lg font-bold">{highlightEvent.player}</p><p className="mt-1 text-sm text-white/65">{highlightEvent.text}</p>{highlightEvent.type === 'penalty' && <div className="mt-4 space-y-2">{user?.lineup.filter(item => ['ST','LW','RW','AM'].includes(item.role)).map(item => <button key={item.player.id} onClick={() => resolvePenalty(item.player.id)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-left text-xs font-bold"><span>{playerName(item.player)}</span><span className="text-white/40">Escolher batedor</span></button>)}</div>}{highlightEvent.type !== 'penalty' && <button onClick={() => { setHighlightEvent(null); if (highlightEvent.type === 'goal') setPaused(false) }} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">{highlightEvent.type === 'goal' ? 'Continuar jogo' : 'Abrir escalação'}</button>}</div></div>}
+      {phase === 'live' && session && pendingIncident && <div className="fixed inset-0 z-40 overflow-y-auto bg-[#0a0f1a]/98 px-4 py-6"><div className="mx-auto max-w-4xl"><div className="mb-4 flex items-center justify-between"><div><p className="label-mono text-red-300/70">{pendingIncident === 'injury' ? 'LESÃO' : 'EXPULSÃO'}</p><h2 className="mt-1 font-display text-2xl font-bold">Ajuste sua equipe</h2></div><span className="font-mono text-xs text-white/30">{session.minute}'</span></div><div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]"><ProjectedPitch lineup={user?.lineup ?? []} team={userTeam} compact /><Bench session={session} userTeam={userTeam} selectedOutgoing={selectedOutgoing} onSelectIncoming={(incomingId) => { if (selectedOutgoing) { applySubstitution(selectedOutgoing, incomingId); setSelectedOutgoing(''); setPendingIncident(null); setHighlightEvent(null); setPaused(false) } }} /></div><button onClick={returnFromIncident} className="mt-4 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao jogo <ArrowRight size={16} className="inline ml-1" /></button></div></div>}
       {phase === 'postgame' && session && result && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
         <div className="flex rounded-xl border border-white/6 bg-[#131b2a] p-1">
