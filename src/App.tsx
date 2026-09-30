@@ -521,6 +521,58 @@ function GameApp() {
     localStorage.setItem(FINANCE_KEY, JSON.stringify([...current, transaction]))
   }
 
+
+  async function persistManagementForSeason(seasonId: string, nextBoard: BoardState, nextFans: FanState) {
+    const { error } = await supabase.from('club_management_seasons').upsert({
+      season_id: seasonId,
+      club_id: career.club.id,
+      manager_status: nextBoard.managerStatus,
+      objective: nextBoard.objective,
+      objective_label: nextBoard.objectiveLabel,
+      expectation: nextBoard.expectation,
+      confidence: nextBoard.confidence,
+      satisfaction: nextFans.satisfaction,
+      fan_expectation: nextFans.expectation,
+      fan_pressure: nextFans.pressure,
+      contract_end_season: nextBoard.contractEndSeason,
+      renewal_offered: nextBoard.renewalOffered,
+      last_evaluation: nextBoard.lastEvaluation,
+      evaluations: nextBoard.evaluations,
+      consecutive_poor_results: nextBoard.consecutivePoorResults,
+      fan_attendance_factor: nextFans.attendanceFactor,
+      fan_recent_results: nextFans.recentResults,
+      fan_streak: nextFans.streak,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'season_id,club_id' })
+    if (error) console.error('Não foi possível persistir a gestão/torcida', error)
+  }
+
+  async function persistCommercialForSeason(seasonId: string, value: { sponsor: SponsorContract; stadium: StadiumState }) {
+    const { error } = await supabase.from('club_commercial_seasons').upsert({
+      season_id: seasonId,
+      club_id: value.stadium.clubId || career.club.id,
+      sponsor_id: value.sponsor.sponsorId,
+      sponsor_name: value.sponsor.name,
+      sponsor_upfront: value.sponsor.upfront,
+      sponsor_monthly: value.sponsor.monthly,
+      sponsor_objective: value.sponsor.objective,
+      sponsor_target: value.sponsor.objectiveTarget,
+      sponsor_progress: value.sponsor.progress,
+      sponsor_status: value.sponsor.status ?? 'active',
+      sponsor_completed_seasons: value.sponsor.completedSeasons ?? 0,
+      sponsor_reputation_required: value.sponsor.reputationRequired,
+      stadium_name: value.stadium.name,
+      stadium_capacity: value.stadium.capacity,
+      stadium_level: value.stadium.level,
+      stadium_ticket_price: value.stadium.baseTicketPrice,
+      stadium_maintenance: value.stadium.maintenance,
+      stadium_attendance_rate: value.stadium.attendanceRate,
+      stadium_upgrades: value.stadium.upgrades,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'season_id,club_id' })
+    if (error) console.error('Não foi possível persistir patrocínio/estádio', error)
+  }
+
   async function startNextSeason() {
     if (!career) return
     const currentYear = Number(career?.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
@@ -597,7 +649,7 @@ function GameApp() {
           sponsor: { ...chooseSponsor(career?.club.reputation ?? 50), seasonId: nextSeasonName },
           stadium: createStadium(career?.club.id ?? '', nextSeasonName, career?.club.stadium ?? 'Estádio Municipal', career?.club.stadium_capacity ?? 12000),
         }
-    await persistCommercialToSupabase(newSeason.id, nextCommercial)
+    await persistCommercialForSeason(newSeason.id, nextCommercial)
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify(nextCommercial))
 
     const nextBoard = createBoardState(
@@ -608,7 +660,7 @@ function GameApp() {
       career.club.strength ?? career.club.reputation ?? 50,
     )
     const nextFans = createFanState(nextSeasonName, career.club.reputation ?? 50, nextBoard.expectation)
-    await persistManagementToSupabase(newSeason.id, nextBoard, nextFans)
+    await persistManagementForSeason(newSeason.id, nextBoard, nextFans)
     localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(nextBoard))
     localStorage.setItem(FANS_KEY + ':' + nextSeasonName, JSON.stringify(nextFans))
 
@@ -2704,7 +2756,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estádio</p><p className="mt-2 text-2xl font-bold">{commercial.stadium.name}</p></div><span className="text-xs font-bold text-white/40">Nível {commercial.stadium.level}/6</span></div>
           <div className="mt-4 grid grid-cols-3 gap-2 text-xs"><Info label="Capacidade" value={commercial.stadium.capacity.toLocaleString('pt-BR')} /><Info label="Ingresso" value={money(commercial.stadium.baseTicketPrice)} /><Info label="Manutenção" value={money(commercial.stadium.maintenance) + '/mês'} /></div>
           <p className="mt-3 text-xs text-white/30">Público estimado atual: {estimateStadiumAttendance(commercial.stadium, fanState.satisfaction, career.club.reputation).toLocaleString('pt-BR')}</p>
-          <button disabled={!canUpgradeStadium(commercial.stadium, financeBalance)} onClick={() => {
+          <button disabled={!canUpgradeStadium(commercial.stadium, financeBalance)} onClick={async () => {
             const cost = stadiumUpgradeCost(commercial.stadium.level + 1)
             if (!canUpgradeStadium(commercial.stadium, financeBalance)) return
             const nextStadium = upgradeStadium(commercial.stadium)
