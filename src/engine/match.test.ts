@@ -50,6 +50,15 @@ describe('match engine', () => {
     expect(result.analysis.standout.rating).toBeLessThanOrEqual(10)
   })
 
+  it('rotates players during the match and records real minutes', () => {
+    const players = lineup(55).map(item => item.player)
+    const result = simulateMatch(fixture, players, players.map((item, index) => ({ ...item, id: 'away-' + index })), 'balanced', '4-3-3', lineup(55), lineup(55).map((item, index) => ({ ...item, player: { ...item.player, id: 'away-' + index } })), () => 0.5)
+    expect(result.events.some(event => event.type === 'substitution')).toBe(true)
+    expect(result.playerRatings.some(player => player.started && player.minutes < 90)).toBe(true)
+    expect(result.playerRatings.some(player => !player.started && player.minutes > 0)).toBe(true)
+    expect(result.playerRatings.every(player => player.minutes > 0 && player.minutes <= 90)).toBe(true)
+  })
+
   it('produces deterministic output when a random source is injected', () => {
     const random = () => 0.5
     const a = simulateMatch(fixture, lineup().map(x => x.player), lineup().map(x => x.player), 'balanced', '4-3-3', lineup(), lineup(), random)
