@@ -620,7 +620,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const player = Array.isArray(row.players) ? row.players[0] : row.players
       return {
         ...player,
-        clubId: row.club_id,
+        clubId: row.club_id ?? '',
         marketValue: Number(row.market_value ?? 0),
         salary: Number(row.salary ?? 0),
         contractUntil: row.contract_until ?? null,
