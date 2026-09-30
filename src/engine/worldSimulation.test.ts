@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { playerMarketPerformanceFactor, simulateWorldDay } from './worldSimulation'
+import { playerMarketCompetitionFactor, playerMarketPerformanceFactor, simulateWorldDay } from './worldSimulation'
 import type { Club, Player } from '../types/game'
 
 const basePlayer = (id: string, clubId: string, position = 'ST'): Player & { clubId: string; marketValue: number; salary: number; contractUntil: string | null; clubPlayerId: string; seasonMinutes?: number; seasonAppearances?: number; seasonGoals?: number; seasonAssists?: number } => ({
@@ -144,6 +144,39 @@ describe('world simulation', () => {
 
     expect(starter.marketValue).toBeGreaterThan(before)
     expect(backup.marketValue).toBeLessThanOrEqual(beforeBackup)
+  })
+
+  it('creates competing offers for a standout user player and raises the fee', () => {
+    const clubs = [
+      club('user', 1000000, 70),
+      club('ai-c', 7000000, 70),
+      club('ai-d', 7000000, 70),
+      club('ai-e', 7000000, 70),
+      club('ai-g', 7000000, 70),
+      club('ai-h', 7000000, 70),
+    ]
+    const player = basePlayer('star', 'user', 'ST')
+    player.pace = 85
+    player.shooting = 88
+    player.passing = 78
+    player.dribbling = 86
+    player.physical = 78
+    player.mental = 82
+    player.potential = 94
+    player.seasonAppearances = 12
+    player.seasonStarts = 11
+    player.seasonMinutes = 1050
+    player.seasonGoals = 10
+    player.seasonAssists = 5
+    player.seasonAverageRating = 7.7
+
+    const result = simulateWorldDay('2026-06-10', 'market-race-test', clubs, [player], 'user')
+    const playerOffers = result.offers.filter(offer => offer.playerId === player.id)
+
+    expect(playerOffers.length).toBeGreaterThanOrEqual(2)
+    expect(new Set(playerOffers.map(offer => offer.toClubId)).size).toBe(playerOffers.length)
+    expect(playerOffers.every(offer => offer.fee > 1180000)).toBe(true)
+    expect(playerMarketCompetitionFactor(playerOffers.length)).toBeGreaterThan(1)
   })
 
   it('can evolve young players on development days', () => {
