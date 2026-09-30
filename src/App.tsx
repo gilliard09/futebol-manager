@@ -2014,7 +2014,12 @@ function Squad({ players, club, today, onContractChange, back }: { players: Play
         </div>
         {filtered.map(player => <button key={player.id} onClick={() => setSelectedPlayer(player)} className="grid w-full grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)]">
           <span className="text-xs text-white/25">#{player.squad_number}</span>
-          <div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.nationality}</p></div>
+          <div>
+            <p className="text-sm font-semibold">{player.first_name} {player.last_name}</p>
+            <p className="text-xs text-white/30">{player.nationality}</p>
+            {(player.injuredUntil && player.injuredUntil > today) && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-red-300">Lesionado até {player.injuredUntil}</p>}
+            {(!player.injuredUntil || player.injuredUntil <= today) && player.suspendedUntil && player.suspendedUntil > today && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Suspenso até {player.suspendedUntil}</p>}
+          </div>
           <span className="text-xs font-bold text-emerald-300">{player.position}</span>
           <span className="hidden text-sm text-white/50 md:block">{player.age}</span>
           <span className="hidden text-sm font-bold md:block">{playerOverall(player)}</span>
