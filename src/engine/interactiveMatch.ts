@@ -134,7 +134,7 @@ export function createInteractiveMatch(
   const availableHomePlayers = homePlayers.filter(available)
   const availableAwayPlayers = awayPlayers.filter(available)
   const homeLineup = selectStartingLineup(availableHomePlayers, homeConfig.formation, homeConfig.coachStyle, homeConfig.coachPersonality, availableAwayPlayers, homePreferred, importance)
-  const awayLineup = selectStartingLineup(availableAwayPlayers, effectiveAway.formation, effectiveAway.style, effectiveAway.personality, availableHomePlayers, awayPreferred, importance)
+  const awayLineup = selectStartingLineup(availableAwayPlayers, effectiveAway.formation, effectiveAway.coachStyle, effectiveAway.coachPersonality, availableHomePlayers, awayPreferred, importance)
   const home: InteractiveTeamState = {
     lineup: homeLineup,
     bench: availableHomePlayers.filter(player => !homeLineup.some(item => item.player.id === player.id)),
@@ -152,8 +152,8 @@ export function createInteractiveMatch(
     bench: availableAwayPlayers.filter(player => !awayLineup.some(item => item.player.id === player.id)),
     tactic: effectiveAway.tactic,
     formation: effectiveAway.formation,
-    coachStyle: effectiveAway.style,
-    coachPersonality: effectiveAway.personality,
+    coachStyle: effectiveAway.coachStyle,
+    coachPersonality: effectiveAway.coachPersonality,
     metrics: calculateTeamMetrics(awayLineup, effectiveAway.tactic, effectiveAway.formation),
     substitutions: 0,
     yellowCards: new Map(),
