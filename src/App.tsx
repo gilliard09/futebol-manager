@@ -722,7 +722,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     }
     loadDashboard()
     return () => { active = false }
-  }, [career.club.id, clubs, playedMatches, clock?.currentDate, transferState.playerClubOverrides, loanState.records])
+  }, [career.club.id, career.season, clubs, playedMatches, clock?.currentDate, transferState.playerClubOverrides, loanState.records])
 
   useEffect(() => {
     try {
