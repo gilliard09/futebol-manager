@@ -139,8 +139,10 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     const homeCoach = getAiCoachProfile(fixture.home_club_id)
     const awayCoach = getAiCoachProfile(fixture.away_club_id)
     const userConfig = { tactic, formation, coachStyle, coachPersonality }
-    const homeConfig = userIsHome ? userConfig : homeCoach
-    const awayConfig = userIsHome ? awayCoach : userConfig
+    const homeAiConfig = { tactic: homeCoach.tactic, formation: homeCoach.formation, coachStyle: homeCoach.style, coachPersonality: homeCoach.personality }
+    const awayAiConfig = { tactic: awayCoach.tactic, formation: awayCoach.formation, coachStyle: awayCoach.style, coachPersonality: awayCoach.personality }
+    const homeConfig = userIsHome ? userConfig : homeAiConfig
+    const awayConfig = userIsHome ? awayAiConfig : userConfig
     const next = createInteractiveMatch(
       fixture,
       homePlayers,
