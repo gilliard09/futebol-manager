@@ -35,7 +35,7 @@ describe('loans', () => {
   it('avalia um destino com espaço como boa oportunidade para um jovem', () => {
     const evaluation = evaluateLoanTarget(
       player,
-      player.marketValue,
+      player.marketValue ?? 0,
       { id: 'c1', budget: 8000000, strength: 72, behavior: 'youth' },
       { id: 'c2', budget: 5000000, strength: 68, behavior: 'balanced' },
       19,
