@@ -59,6 +59,10 @@ const config = {
   coachPersonality: 'motivator',
 }
 
+function initialBenchIds(state: ReturnType<typeof createInteractiveMatch>) {
+  return state.home.bench.map(player => player.id)
+}
+
 describe('interactive match', () => {
   it('advances one minute and keeps the simulation state incremental', () => {
     const initial = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
