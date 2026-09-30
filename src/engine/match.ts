@@ -3,7 +3,7 @@ import { FORMATIONS } from '../types/game'
 
 export type MatchEvent = {
   minute: number
-  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'red_card' | 'corner' | 'foul' | 'tackle' | 'substitution' | 'injury' | 'offside'
+  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'red_card' | 'corner' | 'foul' | 'tackle' | 'substitution' | 'tactical_change' | 'injury' | 'offside'
   team: 'home' | 'away'
   player: string
   text: string
