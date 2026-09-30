@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { simulateWorldDay } from './worldSimulation'
 import type { Club, Player } from '../types/game'
 
-const basePlayer = (id: string, clubId: string, position = 'ST'): Player & { clubId: string; marketValue: number; salary: number; contractUntil: string | null } => ({
+const basePlayer = (id: string, clubId: string, position = 'ST'): Player & { clubId: string; marketValue: number; salary: number; contractUntil: string | null; clubPlayerId: string } => ({
   id, clubId, first_name: id, last_name: 'Player', age: 21, nationality: 'Brasil', position,
   pace: 70, shooting: 70, passing: 65, dribbling: 68, defending: 40, physical: 65, goalkeeping: 30, mental: 70,
-  potential: 88, form: 70, morale: 70, squad_number: 9, marketValue: 1000000, salary: 30000, contractUntil: '2027-12-31',
+  potential: 88, form: 70, morale: 70, squad_number: 9, marketValue: 1000000, salary: 30000, contractUntil: '2027-12-31', clubPlayerId: 'cp-' + id,
 })
 
 const club = (id: string, budget: number, strength = 70): Club & { strength: number } => ({
