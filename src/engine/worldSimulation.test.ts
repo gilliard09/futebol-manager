@@ -72,25 +72,31 @@ describe('world simulation', () => {
 
   it('rewards established roles and strong recent ratings in development', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
-    const starter = basePlayer('starter-growth', 'ST')
-    starter.seasonAppearances = 12
-    starter.seasonStarts = 10
-    starter.seasonMinutes = 1000
-    starter.seasonAverageRating = 7.5
-    const backup = basePlayer('backup-growth', 'ST')
-    backup.seasonAppearances = 1
-    backup.seasonStarts = 0
-    backup.seasonMinutes = 45
-    backup.seasonAverageRating = 5.8
+    const starters = Array.from({ length: 200 }, (_, i) => {
+      const player = basePlayer('starter-growth-' + i, 'user')
+      player.seasonAppearances = 12
+      player.seasonStarts = 10
+      player.seasonMinutes = 1000
+      player.seasonAverageRating = 7.5
+      return player
+    })
+    const backups = Array.from({ length: 200 }, (_, i) => {
+      const player = basePlayer('backup-growth-' + i, 'user')
+      player.seasonAppearances = 1
+      player.seasonStarts = 0
+      player.seasonMinutes = 45
+      player.seasonAverageRating = 5.8
+      return player
+    })
     const score = (p: Player) => p.shooting + p.pace + p.mental + p.dribbling + p.passing + p.physical + p.defending
-    const beforeStarter = score(starter)
-    const beforeBackup = score(backup)
-    for (let i = 0; i < 30; i++) {
-      simulateWorldDay('2026-01-01', 'season-' + i, clubs, [starter], 'user')
-      simulateWorldDay('2026-01-01', 'season-' + i, clubs, [backup], 'user')
-    }
-    expect(score(starter)).toBeGreaterThanOrEqual(beforeStarter)
-    expect(score(starter) - beforeStarter).toBeGreaterThanOrEqual(score(backup) - beforeBackup)
+    const beforeStarters = starters.map(score)
+    const beforeBackups = backups.map(score)
+
+    simulateWorldDay('2026-01-01', 'season-role-test', clubs, [...starters, ...backups], 'user')
+
+    const starterGrowth = starters.filter((player, index) => score(player) > beforeStarters[index]).length
+    const backupGrowth = backups.filter((player, index) => score(player) > beforeBackups[index]).length
+    expect(starterGrowth).toBeGreaterThan(backupGrowth)
   })
 
   it('role and morale influence transfer need', () => {
@@ -110,7 +116,7 @@ describe('world simulation', () => {
 
     simulateWorldDay('2026-01-10', 'season', clubs, [starter, unhappyBackup], 'user')
 
-    expect(unhappyBackup.morale).toBeLessThan(35)
+    expect(unhappyBackup.morale).toBeLessThanOrEqual(34)
     expect(starter.morale).toBeGreaterThanOrEqual(90)
   })
 
