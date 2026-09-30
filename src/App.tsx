@@ -2248,6 +2248,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         },
       }
 
+      // Retorna imediatamente ao clube; a atualização detalhada do mundo continua em segundo plano.
+      setActiveMatchFixture(null)
+      goToView('overview')
+
       const { simulateMatch } = await import('./engine/match')
       const { data: roundFixtures } = await supabase
         .from('fixtures')
@@ -2651,8 +2655,6 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         setClock(matchClock)
         localStorage.setItem(CLOCK_KEY, JSON.stringify(matchClock))
       }
-      setActiveMatchFixture(null)
-      goToView('overview')
     }
     return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} cancel={() => { setActiveMatchFixture(null); goToView('overview') }} />
   }
@@ -2748,7 +2750,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
                   <button onClick={() => { if (opponent) { setViewOpponent(true); goToView('squad') } }} className="game-button game-button-secondary">Ver adversário</button>
-                  <button disabled={!matchReady || boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended'} onClick={() => { if (nextFixture && matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } }} className="game-button game-button-primary">{matchReady ? 'Jogar partida' : 'Aguardar dia de jogo'}</button>
+                  <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
                 </div>
               </div>
             </section>
