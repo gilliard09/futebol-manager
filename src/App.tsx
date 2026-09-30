@@ -597,7 +597,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
 
   async function loadWorldState() {
-    const { data: season } = await supabase.from('seasons').select('id').eq('name', SEASON_NAME).maybeSingle()
+    const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
     if (!season?.id) return null
 
     const [{ data: clubRows }, { data: playerRows }] = await Promise.all([
