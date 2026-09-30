@@ -15,6 +15,8 @@ import {
 import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/match'
 import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
+import { playMatchSound } from '../engine/matchAudio'
+
 
 type Props = {
   fixture: Fixture
@@ -225,6 +227,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     if (!session) return
     if (session.events.length > lastEventCount) setLastEventCount(session.events.length)
     if (session.finished && phase === 'live') {
+      playMatchSound('whistle')
       setPaused(true)
       setPhase('postgame')
       setPostgameTab('events')
@@ -250,6 +253,14 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       setPhase('halftime')
     }
   }, [session, phase, paused, highlightEvent])
+
+  useEffect(() => {
+    if (!highlightEvent) return
+    if (highlightEvent.type === 'goal') playMatchSound(highlightEvent.team === userTeam ? 'goal_home' : 'goal_away')
+    if (highlightEvent.type === 'red_card') playMatchSound('red_card')
+    if (highlightEvent.type === 'injury') playMatchSound('injury')
+    if (highlightEvent.type === 'penalty') playMatchSound('penalty')
+  }, [highlightEvent, userTeam])
 
   const result = session?.finished ? interactiveMatchResult(session) : null
   const visibleEvents = session?.events ?? []
