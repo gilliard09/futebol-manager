@@ -133,6 +133,8 @@ export default function App() {
       .eq('season_id', season.id)
 
     await supabase.from('competition_history').delete().eq('season_id', season.id)
+    await supabase.from('world_transfers').delete().eq('season_id', season.id)
+    await supabase.rpc('reset_world_state')
     await supabase.from('season_club_movements').delete().eq('season_id', season.id)
     await supabase.from('seasons').update({ status: 'active', end_date: null, start_date: SEASON_START }).eq('id', season.id).eq('status', 'completed')
   }
