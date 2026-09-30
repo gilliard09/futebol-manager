@@ -836,7 +836,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const merged = [...items, ...current]
         .filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
         .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 20)
+         .slice(0, 80)
       localStorage.setItem(WORLD_NEWS_KEY, JSON.stringify(merged))
       return merged
     })
