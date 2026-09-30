@@ -20,6 +20,7 @@ import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
+import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
@@ -1769,7 +1770,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <Match key={activeMatchFixture.id} userClubId={career.club.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
+    return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
