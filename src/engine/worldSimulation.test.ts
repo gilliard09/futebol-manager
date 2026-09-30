@@ -6,6 +6,13 @@ const basePlayer = (id: string, clubId: string, position = 'ST'): Player & { clu
   id, clubId, first_name: id, last_name: 'Player', age: 21, nationality: 'Brasil', position,
   pace: 70, shooting: 70, passing: 65, dribbling: 68, defending: 40, physical: 65, goalkeeping: 30, mental: 70,
   potential: 88, form: 70, morale: 70, squad_number: 9, marketValue: 1000000, salary: 30000, contractUntil: '2027-12-31', clubPlayerId: 'cp-' + id,
+})
+
+const club = (id: string, budget: number, strength = 70): Club & { strength: number } => ({
+  id, name: id, short_name: id, city: 'Brasil', country: 'Brasil', division: 1, budget, reputation: 70, strength,
+})
+
+describe('world simulation', () => {
   it('releases players when their contracts expire', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
     const players = [basePlayer('expired', 'user')]
@@ -17,14 +24,6 @@ const basePlayer = (id: string, clubId: string, position = 'ST'): Player & { clu
     expect(players[0].contractUntil).toBeNull()
     expect(result.expiredContracts).toEqual([{ playerId: 'expired', clubId: 'user' }])
   })
-
-})
-
-const club = (id: string, budget: number, strength = 70): Club & { strength: number } => ({
-  id, name: id, short_name: id, city: 'Brasil', country: 'Brasil', division: 1, budget, reputation: 70, strength,
-})
-
-describe('world simulation', () => {
   it('never moves a player to the user club', () => {
     const clubs = [club('user', 1000000), club('ai-a', 5000000), club('ai-b', 5000000)]
     const players = [
