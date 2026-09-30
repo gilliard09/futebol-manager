@@ -74,6 +74,13 @@ function random01(seed: string) {
   return (hash(seed) % 10000) / 10000
 }
 
+type ClubBehavior = 'ambitious' | 'youth' | 'conservative' | 'seller' | 'balanced'
+
+function clubBehavior(club: WorldClub): ClubBehavior {
+  const profile = hash('behavior:' + club.id) % 5
+  return ['ambitious', 'youth', 'conservative', 'seller', 'balanced'][profile] as ClubBehavior
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(value)))
 }
