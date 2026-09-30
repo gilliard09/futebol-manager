@@ -16,7 +16,7 @@ import { applyTransfer, type TransferRecord, type TransferState } from './engine
 import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
-import { buildCompetitionHistoryResult } from './engine/seasonHistory'
+import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -204,6 +204,24 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [contractAlerts, setContractAlerts] = useState<Array<{ playerId: string; name: string; until: string | null; days: number | null; status: string }>>([])
   const [upcomingFixtures, setUpcomingFixtures] = useState<Fixture[]>([])
   const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
+  const [seasonClosed, setSeasonClosed] = useState(false)
+  const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
+
+  async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
+    const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+    const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
+    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+    if (!leagueId || !cupId) return
+    const { data: fixtures } = await supabase.from('fixtures').select('round,status,home_club_id,away_club_id,home_score,away_score,winner_club_id,competition_id').eq('season_id', seasonId).in('competition_id', [leagueId, cupId])
+    const leagueFixtures = (fixtures ?? []).filter(item => item.competition_id === leagueId)
+    const cupFixtures = (fixtures ?? []).filter(item => item.competition_id === cupId)
+    const completion = buildSeasonCompletion({ id: seasonId, name: SEASON_NAME }, leagueId, cupId, leagueFixtures, cupFixtures, Object.values(matches))
+    if (!completion) return
+    const { error } = await supabase.from('seasons').update({ status: 'completed', end_date: toDateKey(new Date().toISOString()) }).eq('id', seasonId).eq('status', 'active')
+    if (error) { console.error('Não foi possível fechar a temporada', error); return }
+    setSeasonClosed(true)
+    setSeasonCompletion(completion)
+  }
 
   function saveFinance(nextBalance: number, nextTransactions: FinanceTransaction[]) {
     setFinanceBalance(nextBalance)
@@ -501,6 +519,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
       localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
       setPlayedMatches(nextMatches)
+      if (seasonId) await finalizeSeasonIfComplete(seasonId, nextMatches)
 
       const { data: refreshedFixtures } = await supabase
         .from('fixtures')
@@ -536,6 +555,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional do Brasil</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
+    {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">Temporada 2026 concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada 2026 não pode mais ser considerada em andamento.</p></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
       <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Calendário da temporada</p><h2 className="mt-2 text-2xl font-bold">{clock ? formatSeasonDate(clock.currentDate) : 'Preparando calendário'}</h2><p className="mt-2 text-sm text-white/35">{nextFixture && nextMatchDate ? (matchReady ? 'Dia de jogo.' : `${daysBetween(clock!.currentDate, nextMatchDate)} dias até a próxima partida.`) : 'Nenhuma partida pendente.'}</p></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate)} className="flex items-center justify-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-white/70 hover:border-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">Descansar 1 dia <ArrowRight size={16} /></button>{nextFixture && <div className="rounded-xl border border-white/6 bg-black/10 px-4 py-3 text-sm"><span className="text-white/30">Próximo jogo</span><span className="ml-2 font-semibold">{opponent?.short_name ?? 'A definir'} · {formatSeasonDate(nextMatchDate!)}</span></div>}</div><div className="mt-5 space-y-2">{upcomingFixtures.slice(0, 5).map(item => { const itemDate = toDateKey(item.scheduled_at); const itemOpponent = item.home_club_id === career.club.id ? item.away_club : item.home_club; return <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === nextFixture?.id ? 'border-emerald-400/20 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10'}`}><div><p className="text-sm font-semibold">{itemOpponent?.short_name ?? 'Adversário'} {item.home_club_id === career.club.id ? '· Casa' : '· Fora'}</p><p className="mt-1 text-xs text-white/30">{item.competition_name ?? 'Competição'} · Rodada {item.round}</p></div><span className="text-xs font-semibold text-white/45">{formatSeasonDate(itemDate)}</span></div> })}</div></section>
