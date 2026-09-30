@@ -989,8 +989,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const activeLoans: LoanRecord[] = (() => {
         try {
           const stored: LoanState = JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}')
-          return stored.records ?? []
-        } catch { return [] }
+          return [...(stored.records ?? []), ...results.flatMap(item => item.loans ?? [])]
+        } catch { return results.flatMap(item => item.loans ?? []) }
       })()
       const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans)
       localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
