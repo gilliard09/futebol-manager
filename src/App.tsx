@@ -1360,7 +1360,15 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         createTransaction(nextClock.currentDate, 'other', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
       ]
       let nextBalance = financeBalance
-      for (const transaction of monthlyTransactions) nextBalance = addFinanceTransaction(transaction) ?? nextBalance
+      let nextTransactions = financeTransactions
+      for (const transaction of monthlyTransactions) {
+        if (nextTransactions.some(item => item.eventId === transaction.eventId)) continue
+        nextTransactions = [...nextTransactions, transaction]
+        nextBalance = applyTransaction(nextBalance, transaction)
+      }
+      setFinanceBalance(nextBalance)
+      setFinanceTransactions(nextTransactions)
+      localStorage.setItem(FINANCE_KEY, JSON.stringify(nextTransactions))
       const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
       localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
       onCareerUpdate(nextCareer)
