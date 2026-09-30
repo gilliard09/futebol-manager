@@ -421,7 +421,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         }
       }
 
-      const seasonId = allFixtures.find(item => item.id === activeMatchFixture.id)?.season_id
+      const seasonId = activeMatchFixture.season_id
       if (seasonId && activeMatchFixture.competition_id) {
         const { data: historyFixtures } = await supabase
           .from('fixtures')
