@@ -219,7 +219,247 @@ function GameApp() {
     await supabase.from('seasons').update({ status: 'active', end_date: null, start_date: SEASON_START }).eq('id', season.id).eq('status', 'completed')
   }
 
+  async function loadWorldState() {
+    const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+    if (!season?.id) return null
+
+    const [{ data: clubRows }, { data: playerRows }, { data: seasonStatRows }] = await Promise.all([
+      supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name'),
+      supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)'),
+      supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,goals,assists,avg_rating').eq('season_id', season.id),
+    ])
+
+    if (!clubRows?.length || !playerRows?.length) return null
+
+    const worldClubs = clubRows.map((club: any) => ({
+      ...club,
+      budget: Number(club.budget ?? 0),
+      strength: Number(club.strength ?? club.reputation ?? 60),
+    })) as WorldClub[]
+
+    const seasonStats = new Map((seasonStatRows ?? []).map((row: any) => [row.player_id, row]))
+    const playersForWorld = (playerRows as any[]).map(row => {
+      const player = Array.isArray(row.players) ? row.players[0] : row.players
+      const stats = seasonStats.get(player.id)
+      return {
+        ...player,
+        clubId: row.club_id ?? '',
+        injuredUntil: player.injured_until ?? null,
+        suspendedUntil: player.suspended_until ?? null,
+        yellowCards: Number(player.yellow_cards ?? 0),
+        redCards: Number(player.red_cards ?? 0),
+        marketValue: Number(row.market_value ?? 0),
+        salary: Number(row.salary ?? 0),
+        contractUntil: row.contract_until ?? null,
+        clubPlayerId: row.id,
+        seasonAppearances: Number(stats?.appearances ?? 0),
+        seasonStarts: Number(stats?.starts ?? 0),
+        seasonMinutes: Number(stats?.minutes ?? 0),
+        seasonAverageRating: Number(stats?.avg_rating ?? 0),
+      }
+    }) as WorldPlayer[]
+
+    const { data: leagueFixtures } = await supabase
+      .from('fixtures')
+      .select('home_club_id,away_club_id,scheduled_at,status,home_score,away_score,competitions!inner(name)')
+      .eq('season_id', season.id)
+      .eq('competitions.name', 'Liga Nacional do Brasil')
+      .eq('status', 'completed')
+      .not('home_score', 'is', null)
+      .not('away_score', 'is', null)
+      .order('scheduled_at')
+
+    const stats = new Map<string, { points: number; wins: number; draws: number; losses: number; gf: number; ga: number; recentResults: Array<'W' | 'D' | 'L'> }>()
+    for (const club of worldClubs) stats.set(club.id, { points: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, recentResults: [] })
+
+    for (const fixture of leagueFixtures ?? []) {
+      const home = stats.get(fixture.home_club_id)
+      const away = stats.get(fixture.away_club_id)
+      if (!home || !away || fixture.home_score == null || fixture.away_score == null) continue
+      const homeScore = Number(fixture.home_score)
+      const awayScore = Number(fixture.away_score)
+      home.gf += homeScore; home.ga += awayScore
+      away.gf += awayScore; away.ga += homeScore
+      if (homeScore > awayScore) {
+        home.wins++; home.points += 3; away.losses++
+        home.recentResults.push('W'); away.recentResults.push('L')
+      } else if (homeScore < awayScore) {
+        away.wins++; away.points += 3; home.losses++
+        home.recentResults.push('L'); away.recentResults.push('W')
+      } else {
+        home.draws++; away.draws++; home.points++; away.points++
+        home.recentResults.push('D'); away.recentResults.push('D')
+      }
+    }
+
+    const table = [...stats.entries()].sort((a, b) =>
+      b[1].points - a[1].points ||
+      b[1].wins - a[1].wins ||
+      (b[1].gf - b[1].ga) - (a[1].gf - a[1].ga) ||
+      b[1].gf - a[1].gf
+    )
+    const performanceByClub: Record<string, WorldClubPerformance> = {}
+    for (const [index, [clubId, value]] of table.entries()) {
+      const recentResults = value.recentResults.slice(-5)
+      const recentPoints = recentResults.reduce((sum, result) => sum + (result === 'W' ? 3 : result === 'D' ? 1 : 0), 0)
+      performanceByClub[clubId] = {
+        position: index + 1,
+        points: value.points,
+        goalDifference: value.gf - value.ga,
+        played: value.wins + value.draws + value.losses,
+        recentPoints,
+        recentResults,
+      }
+    }
+
+    return { seasonId: season.id as string, worldClubs, playersForWorld, performanceByClub }
+  }
+
+  async function persistWorldState(
+    seasonId: string,
+    worldClubs: WorldClub[],
+    playersForWorld: WorldPlayer[],
+    results: WorldSimulationResult[],
+  ) {
+    const evolvedPlayerIds = new Set(results.flatMap(result => result.evolvedPlayerIds))
+    const transfers = results.flatMap(result => result.transfers)
+    const renewals = results.flatMap(result => result.renewals)
+    const newLoans = results.flatMap(result => result.loans ?? [])
+    const retirements = results.flatMap(result => result.retirements)
+    const expiredContracts = results.flatMap(result => result.expiredContracts)
+    const youth = results.flatMap(result => result.youth)
+    const changedClubs = new Set(results.flatMap(result => result.changedClubs))
+    const currentLoanState: LoanState = (() => {
+      try { return JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}') } catch { return { records: [] } }
+    })()
+
+    if (newLoans.length) {
+      const known = new Set(currentLoanState.records.map(record => record.id))
+      const mergedRecords = [...currentLoanState.records, ...newLoans.filter(record => !known.has(record.id))]
+      const nextLoanState = { records: mergedRecords }
+      localStorage.setItem(LOANS_KEY, JSON.stringify(nextLoanState))
+      setLoanState(nextLoanState)
+    }
+
+    const changedPlayers = playersForWorld.filter(player => evolvedPlayerIds.has(player.id))
+    await Promise.all(changedPlayers.map(player =>
+      supabase.from('players').update({
+        age: player.age,
+        pace: player.pace,
+        shooting: player.shooting,
+        passing: player.passing,
+        dribbling: player.dribbling,
+        defending: player.defending,
+        physical: player.physical,
+        goalkeeping: player.goalkeeping,
+        mental: player.mental,
+        form: player.form,
+        morale: player.morale,
+      }).eq('id', player.id)
+      .then(() => supabase.from('club_players').update({
+        market_value: player.marketValue,
+      }).eq('id', player.clubPlayerId))
+    ))
+
+    const transferRows = transfers.map(transfer => ({
+      season_id: seasonId,
+      transfer_date: results.find(result => result.transfers.includes(transfer))?.date ?? SEASON_START,
+      player_id: transfer.playerId,
+      from_club_id: transfer.fromClubId,
+      to_club_id: transfer.toClubId,
+      fee: transfer.fee,
+      reason: 'ai_market',
+    }))
+    if (transferRows.length) {
+      await supabase.from('world_transfers').upsert(transferRows, { onConflict: 'season_id,player_id,transfer_date' })
+    }
+
+    const transferredPlayerIds = new Set(transfers.map(transfer => transfer.playerId))
+    await Promise.all([...transferredPlayerIds].map(playerId => {
+      const row = playersForWorld.find(player => player.id === playerId)
+      return row
+        ? supabase.from('club_players').update({ club_id: row.clubId }).eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
+
+    const latestRenewals = new Map<string, typeof renewals[number]>()
+    for (const renewal of renewals) latestRenewals.set(renewal.playerId, renewal)
+    await Promise.all([...latestRenewals.values()].map(renewal => {
+      const row = playersForWorld.find(player => player.id === renewal.playerId)
+      return row
+        ? supabase.from('club_players').update({ salary: renewal.salary, contract_until: renewal.contractUntil }).eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
+
+    const retiredIds = new Set(retirements.map(item => item.playerId))
+    await Promise.all([...retiredIds].map(playerId => {
+      const row = playersForWorld.find(player => player.id === playerId)
+      return row
+        ? supabase.from('club_players').delete().eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
+
+    const expiredIds = new Set(expiredContracts.map(item => item.playerId))
+    await Promise.all([...expiredIds].map(playerId => {
+      const row = playersForWorld.find(player => player.id === playerId)
+      return row
+        ? supabase.from('club_players').update({ club_id: null, salary: 0, contract_until: null }).eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
+
+    await Promise.all(youth.map(async prospect => {
+      const { data: createdPlayer, error: createPlayerError } = await supabase.from('players').insert({
+        first_name: prospect.firstName,
+        last_name: prospect.lastName,
+        age: prospect.age,
+        nationality: prospect.nationality,
+        position: prospect.position,
+        pace: prospect.pace,
+        shooting: prospect.shooting,
+        passing: prospect.passing,
+        dribbling: prospect.dribbling,
+        defending: prospect.defending,
+        physical: prospect.physical,
+        goalkeeping: prospect.goalkeeping,
+        mental: prospect.mental,
+        potential: prospect.potential,
+        form: prospect.form,
+        morale: prospect.morale,
+      }).select('id').single()
+      if (createPlayerError || !createdPlayer) return
+      await supabase.from('club_players').insert({
+        club_id: prospect.clubId,
+        player_id: createdPlayer.id,
+        squad_number: null,
+        contract_until: prospect.contractUntil,
+        salary: prospect.salary,
+        market_value: prospect.marketValue,
+      })
+    }))
+
+    const aiClubs = worldClubs.filter(club => club.id !== career.club.id)
+    await Promise.all(aiClubs.map(club =>
+      supabase.from('clubs').update({
+        budget: club.budget,
+        ...(changedClubs.has(club.id) ? { strength: club.strength, reputation: club.reputation } : {}),
+      }).eq('id', club.id)
+    ))
+  }
+
+  function appendWorldNews(items: WorldNews[]) {
+    if (!items.length) return
+    setWorldNews(current => {
+      const merged = [...items, ...current]
+        .filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 80)
+      localStorage.setItem(WORLD_NEWS_KEY, JSON.stringify(merged))
+      return merged
+    })
+  }
+
   async function startNextSeason() {
+    if (!career) return
     const currentYear = Number(career?.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
     const previousCommercial = (() => {
       try {
@@ -660,6 +900,14 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         .eq('id', player.id)
     }
 
+    const userPosition = leagueStandings.findIndex(team => team.id === career.club.id) + 1
+    const sponsorProgress = commercial.sponsor.sponsorId === 'regional'
+      ? Math.round(fanState.satisfaction)
+      : userPosition > 0 && userPosition <= commercial.sponsor.objectiveTarget
+        ? commercial.sponsor.objectiveTarget
+        : 0
+    const sponsorResolution = resolveSponsorAtSeasonEnd(commercial.sponsor, sponsorProgress, Number(career.club.reputation ?? 50))
+
     // Se o clube do treinador foi premiado, o mesmo efeito precisa chegar
     // imediatamente à carreira local e ao caixa exibido no dashboard.
     const userEffect = achievementByClub.get(career.club.id) ?? { budgetBonus: 0, reputationBonus: 0, strengthBonus: 0, marketMultiplier: 1 }
@@ -687,14 +935,6 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         ))
       }
     }
-
-    const userPosition = leagueStandings.findIndex(team => team.id === career.club.id) + 1
-    const sponsorProgress = commercial.sponsor.sponsorId === 'regional'
-      ? Math.round(fanState.satisfaction)
-      : userPosition > 0 && userPosition <= commercial.sponsor.objectiveTarget
-        ? commercial.sponsor.objectiveTarget
-        : 0
-    const sponsorResolution = resolveSponsorAtSeasonEnd(commercial.sponsor, sponsorProgress, Number(career.club.reputation ?? 50))
     const nextCommercial = {
       sponsor: {
         ...sponsorResolution.nextSponsor,
