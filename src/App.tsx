@@ -1410,6 +1410,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     } catch {}
   }, [])
   const opponent = nextFixture ? (nextFixture.home_club_id === career.club.id ? nextFixture.away_club : nextFixture.home_club) : null
+  const opponentStrength = opponent ? Number((opponent as { strength?: number; reputation?: number }).strength ?? (opponent as { strength?: number; reputation?: number }).reputation ?? 60) : 0
   const home = nextFixture?.home_club_id === career.club.id
   const rosterAlerts = getSquadAlerts(players, contractAlerts.length, financeBalance, salaryTotal)
   const initialCapital = financeTransactions.find(transaction => transaction.eventId === 'career:initial-budget')?.amount ?? career.club.budget
@@ -2725,12 +2726,12 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
                       <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-white/70">VS</p>
                       <p className="mt-2 text-[10px] font-medium text-white/65">{nextMatchDate ? formatSeasonDate(nextMatchDate) : 'Sem partida'}</p>
                     </div>
-                    <ClubMatchSide club={opponent} overall={opponent ? Math.round(Number(opponent.strength ?? opponent.reputation ?? 60)) : 0} align="left" />
+                    <ClubMatchSide club={opponent} overall={opponent ? Math.round(opponentStrength) : 0} align="left" />
                   </div>
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 bg-[#101827] px-5 py-4 sm:px-7">
-                <div><p className="label-mono text-white/35">Dificuldade</p><p className="mt-1 text-sm font-bold">{opponent ? (Math.abs((opponent.strength ?? opponent.reputation ?? 60) - avg) < 5 ? 'Equilibrado' : (opponent.strength ?? opponent.reputation ?? 60) > avg ? 'Difícil' : 'Favorável') : '—'}</p></div>
+                <div><p className="label-mono text-white/35">Dificuldade</p><p className="mt-1 text-sm font-bold">{opponent ? (Math.abs(opponentStrength - avg) < 5 ? 'Equilibrado' : opponentStrength > avg ? 'Difícil' : 'Favorável') : '—'}</p></div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
