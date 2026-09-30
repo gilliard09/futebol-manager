@@ -129,4 +129,5 @@ it('creates player-focused stories from individual season stats', () => {
   expect(news.some(item => item.title === 'Seu jogador é destaque na artilharia')).toBe(true)
   expect(news.some(item => item.title === 'Um dos seus jogadores vive grande fase')).toBe(true)
   expect(news.some(item => item.title === 'Titular entra na mira das críticas')).toBe(true)
+  expect(news.some(item => item.title === 'Artilheiro entra no radar do mercado')).toBe(true)
 })
