@@ -42,6 +42,10 @@ function teamName(fixture: Fixture, team: InteractiveTeam) {
   return team === 'home' ? fixture.home_club?.name ?? 'Mandante' : fixture.away_club?.name ?? 'Visitante'
 }
 
+function crestLabel(name: string) {
+  return name.split(/\\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+}
+
 function eventLabel(type: string) {
   if (type === 'goal') return 'GOL'
   if (type === 'red_card') return 'VERMELHO'
@@ -278,8 +282,8 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <aside className="space-y-4">
             <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
               <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Comando tático</p><p className="mt-1 text-sm font-semibold">Ajuste sem sair da partida</p></div><SlidersHorizontal size={16} className="text-white/25" /></div>
-              <div className="mt-4 grid grid-cols-3 gap-2">{(['defensive','balanced','offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => applyTactic(value)} className={user.tactic === value ? 'rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-2.5 text-[10px] font-bold text-emerald-300' : 'rounded-xl border border-white/6 bg-black/10 p-2.5 text-[10px] font-bold text-white/45'}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}</div>
-              <div className="mt-3 flex flex-wrap gap-1.5">{(['4-3-3','4-4-2','4-2-3-1','3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => applyTactic(user.tactic, value)} className={user.formation === value ? 'rounded-lg border border-white/20 bg-white/8 px-2.5 py-2 font-mono text-[9px] font-bold text-white' : 'rounded-lg border border-white/5 px-2.5 py-2 font-mono text-[9px] font-bold text-white/30'}>{value}</button>)}</div>
+              <div className="mt-4 grid grid-cols-3 gap-2">{(['defensive','balanced','offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => applyTactic(value)} className={user?.tactic === value ? 'rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-2.5 text-[10px] font-bold text-emerald-300' : 'rounded-xl border border-white/6 bg-black/10 p-2.5 text-[10px] font-bold text-white/45'}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}</div>
+              <div className="mt-3 flex flex-wrap gap-1.5">{(['4-3-3','4-4-2','4-2-3-1','3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => user && applyTactic(user.tactic, value)} className={user?.formation === value ? 'rounded-lg border border-white/20 bg-white/8 px-2.5 py-2 font-mono text-[9px] font-bold text-white' : 'rounded-lg border border-white/5 px-2.5 py-2 font-mono text-[9px] font-bold text-white/30'}>{value}</button>)}</div>
             </section>
             <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
               <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Lance a lance</p><p className="mt-1 text-xs text-white/25">Eventos em tempo real</p></div><span className="font-mono text-[9px] text-white/20">{visibleEvents.length}</span></div>
