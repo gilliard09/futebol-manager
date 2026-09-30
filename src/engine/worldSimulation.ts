@@ -175,6 +175,65 @@ export function playerMarketCompetitionFactor(interestCount: number) {
   return 1 + Math.min(0.24, Math.max(0, interestCount - 1) * 0.08)
 }
 
+
+export type SquadNeed = {
+  position: string
+  current: number
+  target: number
+  urgency: number
+}
+
+export function evaluateSquadNeeds(players: WorldPlayer[]) {
+  const targets: Record<string, number> = { GK: 2, CB: 4, LB: 2, RB: 2, DM: 2, CM: 3, AM: 2, LW: 2, RW: 2, ST: 3 }
+  const counts = players.reduce<Record<string, number>>((acc, player) => {
+    acc[player.position] = (acc[player.position] ?? 0) + 1
+    return acc
+  }, {})
+  return Object.entries(targets).map(([position, target]) => {
+    const current = counts[position] ?? 0
+    return { position, current, target, urgency: Math.max(0, target - current) + (current === 0 ? 4 : 0) }
+  }).filter(item => item.urgency > 0).sort((a, b) => b.urgency - a.urgency)
+}
+
+export function calculatePlayerMarketValue(player: WorldPlayer, competitionCount = 1) {
+  const performance = playerMarketPerformanceFactor(player)
+  const ageFactor = player.age <= 21 ? 1.12 : player.age <= 24 ? 1.07 : player.age <= 28 ? 1 : player.age <= 31 ? 0.9 : 0.78
+  const potentialFactor = 1 + Math.max(0, player.potential - playerOverall(player)) * 0.006
+  const competitionFactor = playerMarketCompetitionFactor(competitionCount)
+  return Math.max(100_000, Math.round((player.marketValue || 100_000) * performance * ageFactor * potentialFactor * competitionFactor / 10_000) * 10_000)
+}
+
+export function buildScoutingReport(player: WorldPlayer, scoutingLevel: 'basic' | 'detailed' | 'elite' = 'basic') {
+  const overall = playerOverall(player)
+  const reliability = scoutingLevel === 'elite' ? 0.96 : scoutingLevel === 'detailed' ? 0.86 : 0.68
+  const reveal = (value: number) => Math.round(value * reliability + (100 - reliability * 100) * 0.5)
+  const risk = player.age <= 21 && player.potential - overall >= 12 ? 'alto potencial' : player.age >= 30 ? 'risco de declínio' : player.morale < 45 ? 'risco de adaptação' : 'risco moderado'
+  return {
+    overallEstimate: clamp(reveal(overall), Math.max(1, overall - 10), Math.min(99, overall + 10)),
+    potentialEstimate: clamp(reveal(player.potential), 45, 99),
+    reliability: Math.round(reliability * 100),
+    keyAttributes: [
+      ['pace', player.pace], ['shooting', player.shooting], ['passing', player.passing],
+      ['dribbling', player.dribbling], ['defending', player.defending], ['physical', player.physical],
+      ['mental', player.mental],
+    ].sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3),
+    risk,
+    costRisk: player.marketValue > 0 ? Math.round(Math.min(100, (player.marketValue / 5_000_000) * 30 + (100 - player.morale) * 0.2)) : 0,
+  }
+}
+
+export function compareScoutingPlayers(players: WorldPlayer[]) {
+  return players.map(player => ({
+    id: player.id,
+    name: player.first_name + ' ' + player.last_name,
+    position: player.position,
+    overall: playerOverall(player),
+    potential: player.potential,
+    marketValue: player.marketValue,
+    age: player.age,
+  }))
+}
+
 function transferNeed(player: WorldPlayer, club: WorldClub, squadSize: number, performance?: WorldClubPerformance) {
   const overall = playerOverall(player)
   const budgetPressure = club.budget > 5000000 ? 1 : club.budget > 3000000 ? 0.5 : 0
