@@ -1983,10 +1983,12 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         .filter(item => !nextMatches[item.id])
       setUpcomingFixtures(refreshed)
       setNextFixture(refreshed[0] ?? null)
+      applyMatchManagement(result, activeMatchFixture)
       if (matchHome && clock) {
-        const attendance = estimateAttendance(career.club.reputation)
-        const revenue = calculateMatchRevenue(attendance)
-        const transaction = createTransaction(toDateKey(activeMatchFixture.scheduled_at), 'match_revenue', `Bilheteria · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'}`, revenue, undefined, `match_revenue:${activeMatchFixture.id}`)
+        const userOutcome: 'W' | 'D' | 'L' = result.homeScore > result.awayScore ? 'W' : result.homeScore < result.awayScore ? 'L' : 'D'
+        const attendance = estimateFanAttendance(career.club.reputation, fanState.satisfaction)
+        const revenue = calculateMatchRevenueFromAttendance(attendance, 35, userOutcome)
+        const transaction = createTransaction(toDateKey(activeMatchFixture.scheduled_at), 'match_revenue', `Bilheteria · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'} · ${attendance} torcedores`, revenue, undefined, `match_revenue:${activeMatchFixture.id}`)
         const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
         const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
