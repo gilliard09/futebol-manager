@@ -1465,7 +1465,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} state={transferState} loanState={loanState} currentSquadSize={players.length} personality={career.personality} onTransfer={(record, nextState, nextBalance) => { const transaction = createTransaction(record.date, record.kind === 'purchase' ? 'transfer_out' : 'transfer_in', `${record.kind === 'purchase' ? 'Compra' : 'Venda'} · ${record.playerName}`, record.kind === 'purchase' ? -record.fee : record.fee, undefined, `transfer:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setTransferState(nextState); localStorage.setItem(TRANSFERS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); setView('overview') }} back={() => setView('overview')} />
   if (view === 'squad') return <Squad players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => setView('overview')} />
   if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => setView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? SEASON_START, 'training', 'Treinamento do elenco', -cost, undefined, `training:${nextFixture?.id ?? (clock?.currentDate ?? 'unknown')}`); const nextBalance = addFinanceTransaction(transaction) ?? financeBalance; const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); setView('overview') }} />
-  if (view === 'tactics') return <Tactics players={players} club={career.club} back={() => setView('overview')} />
+  if (view === 'tactics') return <Tactics players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} back={() => setView('overview')} />
   if (view === 'match' && activeMatchFixture) {
     const matchHome = activeMatchFixture.home_club_id === career.club.id
     const finishMatch = async (result: MatchResult) => {
@@ -2055,6 +2055,7 @@ function Squad({ players, club, today, onContractChange, back }: { players: Play
             <p className="text-xs text-white/30">{player.nationality}</p>
             {(player.injuredUntil && player.injuredUntil > today) && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-red-300">Lesionado até {player.injuredUntil}</p>}
             {(!player.injuredUntil || player.injuredUntil <= today) && player.suspendedUntil && player.suspendedUntil > today && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Suspenso até {player.suspendedUntil}</p>}
+            {((player.yellowCards ?? 0) > 0 || (player.redCards ?? 0) > 0) && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-white/25">CA {player.yellowCards ?? 0} · CV {player.redCards ?? 0}</p>}
           </div>
           <span className="text-xs font-bold text-emerald-300">{player.position}</span>
           <span className="hidden text-sm text-white/50 md:block">{player.age}</span>
@@ -2072,7 +2073,7 @@ function Squad({ players, club, today, onContractChange, back }: { players: Play
   </main>
 }
 
-function Tactics({ players, club, back }: { players: Player[]; club: Club; back: () => void }) {
+function Tactics({ players, club, today, back }: { players: Player[]; club: Club; today: string; back: () => void }) {
   const formations = {
     '4-3-3': ['GK','LB','CB','CB','RB','CM','DM','CM','LW','ST','RW'],
     '4-4-2': ['GK','LB','CB','CB','RB','LW','CM','CM','RW','ST','ST'],
@@ -2100,7 +2101,7 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
 
   function bestForPosition(position: string, usedIds: Set<string>) {
     return players
-      .filter(player => !usedIds.has(player.id) && canPlayPosition(player, position))
+      .filter(player => isPlayerAvailable(player, today) && !usedIds.has(player.id) && canPlayPosition(player, position))
       .sort((a, b) => overall(b) - overall(a))[0]
   }
 
@@ -2138,9 +2139,9 @@ function Tactics({ players, club, back }: { players: Player[]; club: Club; back:
     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
       <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5">
         <div className="mb-5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Titulares</span><span className="text-xs text-white/30">{starters}/11</span></div>
-        <div className="grid gap-2">{selected.map(({position,index,player}) => <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3"><span className="w-10 text-xs font-bold text-emerald-300">{position}</span><select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"><option value="">Escolher jogador</option>{players.filter(p => !Object.values(lineup).includes(p.id) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {playerOverall(p)}</option>)}</select></div>)}</div>
+        <div className="grid gap-2">{selected.map(({position,index,player}) => <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3"><span className="w-10 text-xs font-bold text-emerald-300">{position}</span><select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"><option value="">Escolher jogador</option>{players.filter(p => (isPlayerAvailable(p, today) && (!Object.values(lineup).includes(p.id) || p.id === player?.id)) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {playerOverall(p)}{!isPlayerAvailable(p, today) ? ' · indisponível' : ''}</option>)}</select></div>)}</div>
       </section>
-      <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{playerOverall(p)}</span></div>)}</div></section>
+      <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => isPlayerAvailable(p, today) && !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{playerOverall(p)}</span></div>)}</div></section>
     </div>
     <div className="mt-6 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Sua escalação fica salva nesta carreira e será usada pelo motor da próxima partida.</div>
   </section></main>
