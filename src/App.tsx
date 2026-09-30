@@ -23,6 +23,7 @@ import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/s
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
+import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
@@ -45,6 +46,7 @@ const MARKET_INTEREST_KEY = 'futebol-manager:market-interest'
 const MARKET_NEGOTIATION_KEY = 'futebol-manager:market-negotiations'
 const BOARD_KEY = 'futebol-manager:board'
 const FANS_KEY = 'futebol-manager:fans'
+const COMMERCIAL_KEY = 'futebol-manager:commercial'
 
 
 function marketInterestStorageKey(seasonId: string) {
@@ -375,6 +377,15 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       return createBoardState(career.season, career.season, career.club.reputation ?? 50, career.club.budget ?? 0, career.club.strength ?? career.club.reputation ?? 50)
     }
   })
+  const [commercial, setCommercial] = useState<{ sponsor: SponsorContract; stadium: StadiumState }>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COMMERCIAL_KEY + ':' + career.season) ?? 'null')
+      if (saved) return saved
+    } catch {}
+    const sponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
+    return { sponsor, stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal') }
+  })
+
   const [fanState, setFanState] = useState<FanState>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(`${FANS_KEY}:${career.season}`) ?? 'null')
@@ -383,6 +394,20 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       return createFanState(career.season, career.club.reputation ?? 50, boardState.expectation)
     }
   })
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(COMMERCIAL_KEY + ':' + career.season)
+      if (saved) {
+        setCommercial(JSON.parse(saved))
+      } else {
+        const sponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
+        const next = { sponsor, stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal') }
+        setCommercial(next)
+        localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(next))
+      }
+    } catch {}
+  }, [career.season])
 
   useEffect(() => {
     const savedBoard = localStorage.getItem(`${BOARD_KEY}:${career.season}`)
