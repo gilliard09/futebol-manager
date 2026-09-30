@@ -25,6 +25,7 @@ type Props = {
   coachStyle: ManagerProfile['style']
   coachPersonality: ManagerProfile['personality']
   back: (result: MatchResult) => void
+  cancel: () => void
 }
 
 function addDaysLocal(date: string, days: number) {
@@ -137,7 +138,7 @@ function Bench({ session, userTeam, selectedOutgoing, onSelectIncoming }: { sess
   </section>
 }
 
-export default function InteractiveMatch({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back }: Props) {
+export default function InteractiveMatch({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back, cancel }: Props) {
   const userIsHome = fixture.home_club_id === userClubId
   const userTeam: InteractiveTeam = userIsHome ? 'home' : 'away'
   const [phase, setPhase] = useState<'pregame' | 'live' | 'postgame'>('pregame')
@@ -230,7 +231,11 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   return <main className="min-h-screen bg-[#0a0f1a]">
     <header className="sticky top-0 z-20 border-b border-white/6 bg-[#0a0f1a]/95 px-4 py-4 backdrop-blur md:px-8">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
-        <button onClick={() => session && phase === 'live' ? setPaused(true) : back(result ?? session ? (result ?? interactiveMatchResult(session!)) : ({ homeScore: 0, awayScore: 0 } as MatchResult))} className="flex items-center gap-2 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={16} /> Sair</button>
+        <button onClick={() => {
+          if (phase === 'pregame') { cancel(); return }
+          if (phase === 'live') { setPaused(true); return }
+          if (result) back(result)
+        }} className="flex items-center gap-2 text-xs font-semibold text-white/45 hover:text-white"><ArrowLeft size={16} /> {phase === 'pregame' ? 'Voltar' : 'Sair'}</button>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">PARTIDA INTERATIVA</p>
         <span className="font-mono text-xs font-bold tabular-nums text-white/50">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</span>
       </div>
