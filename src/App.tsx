@@ -36,6 +36,7 @@ function normalizeFixture(row: any): Fixture {
   return {
     id: row.id,
     competition_id: row.competition_id,
+    season_id: row.season_id ?? undefined,
     round: Number(row.round),
     scheduled_at: row.scheduled_at,
     status: row.status,
