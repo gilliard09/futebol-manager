@@ -1,4 +1,5 @@
 import type { Fixture, Formation, LineupPlayer, Player } from '../types/game'
+import { isPlayerAvailable } from './discipline'
 import {
   calculateTeamMetrics,
   getAiCoachProfile,
@@ -130,7 +131,7 @@ export function createInteractiveMatch(
   const effectiveAway = awayConfig ?? { tactic: awayCoach.tactic, formation: awayCoach.formation, coachStyle: awayCoach.style, coachPersonality: awayCoach.personality }
   const importance = (fixture.competition_name ?? '').toLowerCase().includes('copa') ? 1.1 : 1
   const matchDate = fixture.scheduled_at.slice(0, 10)
-  const available = (player: Player) => (!player.injuredUntil || player.injuredUntil <= matchDate) && (!player.suspendedUntil || player.suspendedUntil <= matchDate)
+  const available = (player: Player) => isPlayerAvailable(player, matchDate)
   const availableHomePlayers = homePlayers.filter(available)
   const availableAwayPlayers = awayPlayers.filter(available)
   const homeLineup = selectStartingLineup(availableHomePlayers, homeConfig.formation, homeConfig.coachStyle, homeConfig.coachPersonality, availableAwayPlayers, homePreferred, importance)
