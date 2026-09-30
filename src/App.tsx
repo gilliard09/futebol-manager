@@ -2792,6 +2792,17 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   </GameShell>
 }
 
+function ClubMatchSide({ club, overall, align }: { club: Club | null | undefined; overall: number; align: 'left' | 'right' }) {
+  const content = <div className={`flex items-center gap-3 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
+    {align === 'right' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Seu clube'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/90 p-2 shadow-lg sm:h-16 sm:w-16">
+      {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <Shield size={25} className="text-slate-700" />}
+    </div>
+    {align === 'left' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Adversário'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
+  </div>
+  return content
+}
+
 function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, children }: {
   career: ManagerProfile
   activeView: string
