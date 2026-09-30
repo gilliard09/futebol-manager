@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import { supabase } from './lib/supabase'
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -9,8 +10,17 @@ if ('serviceWorker' in navigator) {
 }
 import App from './App'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+async function bootstrap() {
+  const { data: sessionData } = await supabase.auth.getSession()
+  if (!sessionData.session) {
+    await supabase.auth.signInAnonymously().catch(() => undefined)
+  }
+
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}
+
+void bootstrap()
