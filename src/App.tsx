@@ -368,6 +368,49 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       await supabase.from('clubs').update({ budget: worldClubs.find(club => club.id === transfer.toClubId)?.budget ?? 0 }).eq('id', transfer.toClubId)
       await supabase.from('world_transfers').upsert({ season_id: season.id, transfer_date: nextDate, player_id: transfer.playerId, from_club_id: transfer.fromClubId, to_club_id: transfer.toClubId, fee: transfer.fee, reason: 'ai_market' }, { onConflict: 'season_id,player_id,transfer_date' })
     }
+
+    for (const renewal of result.renewals) {
+      const row = playersForWorld.find(player => player.id === renewal.playerId)
+      if (!row) continue
+      await supabase.from('club_players').update({ salary: renewal.salary, contract_until: renewal.contractUntil }).eq('id', row.clubPlayerId)
+    }
+
+    for (const retirement of result.retirements) {
+      const row = playersForWorld.find(player => player.id === retirement.playerId)
+      if (!row) continue
+      await supabase.from('club_players').delete().eq('id', row.clubPlayerId)
+    }
+
+    for (const prospect of result.youth) {
+      const { data: createdPlayer, error: createPlayerError } = await supabase.from('players').insert({
+        first_name: prospect.firstName,
+        last_name: prospect.lastName,
+        age: prospect.age,
+        nationality: prospect.nationality,
+        position: prospect.position,
+        pace: prospect.pace,
+        shooting: prospect.shooting,
+        passing: prospect.passing,
+        dribbling: prospect.dribbling,
+        defending: prospect.defending,
+        physical: prospect.physical,
+        goalkeeping: prospect.goalkeeping,
+        mental: prospect.mental,
+        potential: prospect.potential,
+        form: prospect.form,
+        morale: prospect.morale,
+      }).select('id').single()
+      if (createPlayerError || !createdPlayer) continue
+      await supabase.from('club_players').insert({
+        club_id: prospect.clubId,
+        player_id: createdPlayer.id,
+        squad_number: null,
+        contract_until: prospect.contractUntil,
+        salary: prospect.salary,
+        market_value: prospect.marketValue,
+      })
+    }
+
     for (const club of worldClubs.filter(item => result.changedClubs.includes(item.id))) {
       await supabase.from('clubs').update({ strength: club.strength }).eq('id', club.id)
     }
