@@ -311,7 +311,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
             </section>
           </aside>
         </div>
-      </section>
+      </section>}
 
       {phase === 'postgame' && session && result && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
