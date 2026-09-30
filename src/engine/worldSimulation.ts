@@ -18,6 +18,10 @@ export type WorldPlayer = Player & {
   salary: number
   contractUntil: string | null
   clubPlayerId: string
+  seasonAppearances?: number
+  seasonStarts?: number
+  seasonMinutes?: number
+  seasonAverageRating?: number
 }
 
 export type WorldSimulationResult = {
@@ -194,11 +198,17 @@ export function simulateWorldDay(
   // Desenvolvimento: jovens crescem mais, veteranos declinam gradualmente.
   if (day === 1 || day === 15) {
     for (const player of players) {
-      const probability = player.age <= 23 ? 0.72 : player.age >= 31 ? 0.5 : 0.18
+      const minutes = player.seasonMinutes ?? 0
+      const appearances = player.seasonAppearances ?? 0
+      const highUsage = minutes >= 900 || appearances >= 10
+      const lowUsage = minutes < 180 && appearances <= 2
+      const usageAdjustment = highUsage ? 0.12 : lowUsage ? -0.1 : 0
+      const baseProbability = player.age <= 23 ? 0.72 : player.age >= 31 ? 0.5 : 0.18
+      const probability = Math.max(0.05, Math.min(0.85, baseProbability + usageAdjustment))
       if (random01(seasonId + date + player.id) < probability) {
-        const direction = player.age >= 31 ? -1 : 1
+        const direction = player.age >= 31 && lowUsage ? -1 : player.age >= 31 ? -1 : 1
         const room = Math.max(0, player.potential - playerOverall(player))
-        const delta = direction > 0 ? Math.min(2, room) : -1
+        const delta = direction > 0 ? Math.min(2, room) : (lowUsage ? -1 : -1)
         if (delta !== 0) updatePlayer(player, delta)
       }
     }
