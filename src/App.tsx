@@ -1305,7 +1305,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           playerStateUpdates.set(playerRating.playerId, {
             form: Math.max(30, Math.min(95, current.form + resultDelta + performanceDelta)),
             morale: Math.max(25, Math.min(100, current.morale + resultDelta + (playerRating.rating >= 7.5 ? 1 : playerRating.rating < 5.5 ? -1 : 0))),
-            fatigue: Math.min(100, (current.fatigue ?? 0) + Math.round(playerRating.fatigue * 0.45)),
+            fatigue: Math.min(100, (current.fatigue ?? 0) + Math.round(playerRating.fatigue * (playerRating.minutes / 90) * 0.45)),
           })
         }
       }
