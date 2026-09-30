@@ -1133,7 +1133,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         .order('budget', { ascending: false })
         .limit(8)
 
-      const fee = Math.max(250000, Math.round(player.marketValue / 50000) * 50000)
+      const fee = Math.max(250000, Math.round((player.marketValue ?? 0) / 50000) * 50000)
       const buyer = (buyers ?? []).find(item => Number(item.budget ?? 0) >= fee)
 
       if (buyer) {
