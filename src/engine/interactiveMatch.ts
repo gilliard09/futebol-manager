@@ -226,9 +226,10 @@ function simulateTeamMinute(
   const possessionTarget = clamp(50 + midfield * 0.45 + (own.tactic === 'offensive' ? 3 : own.tactic === 'defensive' ? -2 : 0))
   stats.possession += (possessionTarget - stats.possession) * 0.24
 
-  const attackEdge = own.metrics.attack - opponent.metrics.defense
+  const homeAdvantage = teamName === 'home' ? 3.5 : 0
+  const attackEdge = own.metrics.attack + homeAdvantage - opponent.metrics.defense
   const tacticalBoost = own.tactic === 'offensive' ? 0.34 : own.tactic === 'defensive' ? -0.2 : 0
-  const chanceProbability = clamp(0.064 * (0.9 + attackEdge / 65 + tacticalBoost + stats.possession / 300), 0.012, 0.16)
+  const chanceProbability = clamp(0.045 * (0.9 + attackEdge / 65 + tacticalBoost + stats.possession / 300), 0.008, 0.105)
   if (state.rng() > chanceProbability || own.lineup.length < 7) return
 
   stats.chances += 1
@@ -252,7 +253,7 @@ function simulateTeamMinute(
   }
 
   stats.shotsOnTarget += 1
-  const saveChance = clamp(0.58 - (shotQuality - 50) / 170 + (opponent.metrics.goalkeeper - 50) / 220, 0.18, 0.78)
+  const saveChance = clamp(0.64 - (shotQuality - 50) / 190 + (opponent.metrics.goalkeeper - 50) / 230, 0.25, 0.84)
   if (state.rng() < saveChance) {
     pushEvent(state, { minute: state.minute, type: 'save', team: teamName === 'home' ? 'away' : 'home', player: 'Goleiro', text: 'Defesa importante do goleiro.' })
     return
@@ -262,7 +263,7 @@ function simulateTeamMinute(
   else state.awayScore += 1
   const assister = own.lineup.find(item => item.player.id !== attacker?.player.id && ['CM','AM','LW','RW','DM'].includes(item.role))
   const assistName = assister ? assister.player.first_name + ' ' + assister.player.last_name : undefined
-  pushEvent(state, { minute: state.minute, type: 'goal', team: teamName, player: playerName, playerId: attacker?.player.id, assistPlayer: assistName, text: 'Gol do ' + clubName + '!' + (assistName ? ' Assistência: ' + assistName + '.' : '') })
+  pushEvent(state, { minute: state.minute, type: 'goal', team: teamName, player: playerName, playerId: attacker?.player.id, assistPlayer: assistName, assistPlayerId: assister?.player.id, text: 'Gol do ' + clubName + '!' + (assistName ? ' Assistência: ' + assistName + '.' : '') })
 }
 
 function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
@@ -319,7 +320,7 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
     }
   }
 
-  if (random() < 0.008 && team.lineup.length) {
+  if (random() < 0.004 && team.lineup.length) {
     const injured = chooseWeighted(team.lineup, ['ST', 'LW', 'RW', 'AM', 'CM', 'CB', 'LB', 'RB', 'DM'], random)
     if (injured) {
       const name = injured.player.first_name + ' ' + injured.player.last_name
@@ -352,7 +353,7 @@ function aiSubstitution(state: InteractiveMatchState, teamName: InteractiveTeam)
   if (team.substitutions >= 5 || team.bench.length === 0 || ![55, 70, 80].includes(state.minute)) return
   const scoreDiff = teamName === 'home' ? state.homeScore - state.awayScore : state.awayScore - state.homeScore
   const tired = [...team.lineup].sort((a, b) => ((b.player.fatigue ?? 0) + state.minute) - ((a.player.fatigue ?? 0) + state.minute))[0]
-  const shouldChange = scoreDiff < 0 ? true : scoreDiff > 0 ? state.minute >= 70 : Boolean(tired && (tired.player.fatigue ?? 0) + state.minute > 82)
+  const shouldChange = scoreDiff < 0 ? true : scoreDiff > 0 ? state.minute >= 70 : Boolean(tired && (tired.player.fatigue ?? 0) + state.minute > 70)
   if (!shouldChange || !tired) return
   const replacement = [...team.bench].sort((a, b) => {
     const aScore = rating(a, tired.role) + (scoreDiff < 0 && ['ST', 'LW', 'RW', 'AM'].includes(a.position) ? 5 : 0)
@@ -371,6 +372,8 @@ function aiSubstitution(state: InteractiveMatchState, teamName: InteractiveTeam)
     type: 'substitution',
     team: teamName,
     player: replacement.first_name + ' ' + replacement.last_name,
+    playerId: replacement.id,
+    outgoingPlayerId: tired.player.id,
     text: replacement.first_name + ' ' + replacement.last_name + ' entra no lugar de ' + tired.player.first_name + ' ' + tired.player.last_name + '.',
   })
 }
@@ -414,6 +417,7 @@ export function makeInteractiveSubstitution(
     team: teamName,
     player: incoming.first_name + ' ' + incoming.last_name,
     playerId: incoming.id,
+    outgoingPlayerId: outgoing.player.id,
     text: incoming.first_name + ' ' + incoming.last_name + ' entra no lugar de ' + outgoing.player.first_name + ' ' + outgoing.player.last_name + '.',
   })
   return next
@@ -511,12 +515,23 @@ function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
       const name = playerNameForRating(player)
       const playerEvents = state.events.filter(event => event.team === teamName && event.player === name)
       const goals = playerEvents.filter(event => event.type === 'goal').length
-      const assists = state.events.filter(event => event.type === 'goal' && event.assistPlayer === name).length
-      const cards = playerEvents.filter(event => event.type === 'card' || event.type === 'red_card').length
-      const wasRemoved = team.removed.has(player.id)
-      const substitutionEvent = state.events.find(event => event.type === 'substitution' && event.playerId === player.id)
-      const minutes = wasRemoved ? Math.max(1, state.minute - 1) : substitutionEvent ? Math.max(1, state.minute - substitutionMinute(state, player.id)) : state.minute
+      const assists = state.events.filter(event => event.type === 'goal' && event.assistPlayerId === player.id).length
+      const cards = playerEvents.filter(event => (event.type === 'card' || event.type === 'red_card') && event.playerId === player.id).length
+      const outgoingEvent = state.events.find(event => event.type === 'substitution' && event.outgoingPlayerId === player.id)
+      const incomingEvent = state.events.find(event => event.type === 'substitution' && event.playerId === player.id && event.outgoingPlayerId)
+      const injuryEvent = state.events.find(event => event.type === 'injury' && event.playerId === player.id)
+      const enteredMinute = incomingEvent?.minute ?? 1
+      const minutes = outgoingEvent
+        ? Math.max(0, outgoingEvent.minute - 1)
+        : injuryEvent
+          ? Math.max(0, injuryEvent.minute - 1)
+          : incomingEvent
+            ? Math.max(0, state.minute - enteredMinute)
+            : startingIds.has(player.id) && !team.removed.has(player.id)
+              ? state.minute
+              : 0
       const base = 5.5 + (playerOverall(player) - 60) * 0.055
+      if (minutes <= 0) continue
       ratings.push({
         playerId: player.id,
         name,
@@ -536,11 +551,6 @@ function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
 
 function playerNameForRating(player: Player) {
   return player.first_name + ' ' + player.last_name
-}
-
-function substitutionMinute(state: InteractiveMatchState, playerId: string) {
-  const event = state.events.find(item => item.type === 'substitution' && item.playerId === playerId)
-  return event?.minute ?? 1
 }
 
 export function interactiveMatchResult(state: InteractiveMatchState): MatchResult {
