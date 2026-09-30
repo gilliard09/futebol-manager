@@ -27,11 +27,12 @@ type TransferMarketProps = {
   state: TransferState
   loanState: import('../engine/loans').LoanState
   currentSquadSize: number
+  personality?: string
   onTransfer: (record: TransferRecord, nextState: TransferState, nextBalance: number) => void
   back: () => void
 }
 
-export default function TransferMarket({ club, clubs, balance, today, state, loanState, currentSquadSize, onTransfer, back }: TransferMarketProps) {
+export default function TransferMarket({ club, clubs, balance, today, state, loanState, currentSquadSize, personality, onTransfer, back }: TransferMarketProps) {
   const [marketPlayers, setMarketPlayers] = useState<MarketPlayer[]>([])
   const [position, setPosition] = useState('ALL')
   const [search, setSearch] = useState('')
@@ -97,7 +98,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
   }, [marketPlayers, position, search, club.id])
 
   const selectedAsking = selected ? calculateAskingPrice(selected.player, selected.marketValue) : 0
-  const negotiation = selected ? negotiateTransfer(selectedAsking, offer) : null
+  const negotiation = selected ? negotiateTransfer(selectedAsking, offer, personality) : null
 
   function openPlayer(item: MarketPlayer, nextMode: 'buy' | 'sell') {
     setSelected(item)
