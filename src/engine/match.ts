@@ -453,6 +453,10 @@ export function simulateMatch(
 ): MatchResult {
   const competition = (fixture.competition_name ?? '').toLowerCase()
   const matchImportance = competition.includes('copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1)
+  const matchDate = fixture.scheduled_at.slice(0, 10)
+  const available = (player: Player) => (!player.injuredUntil || player.injuredUntil <= matchDate) && (!player.suspendedUntil || player.suspendedUntil <= matchDate)
+  const availableHomePlayers = homePlayers.filter(available)
+  const availableAwayPlayers = awayPlayers.filter(available)
   const preferredHome = Object.fromEntries((homeLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
   const preferredAway = Object.fromEntries((awayLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
   const awayCoach = getAiCoachProfile(fixture.away_club_id)
@@ -460,10 +464,10 @@ export function simulateMatch(
   const effectiveAwayFormation = awayFormation ?? awayCoach.formation
   const effectiveAwayStyle = awayCoachStyle ?? awayCoach.style
   const effectiveAwayPersonality = awayCoachPersonality ?? awayCoach.personality
-  const home = selectStartingLineup(homePlayers, formation, coachStyle, coachPersonality, awayPlayers, preferredHome, matchImportance)
-  const away = selectStartingLineup(awayPlayers, effectiveAwayFormation, effectiveAwayStyle, effectiveAwayPersonality, homePlayers, preferredAway, matchImportance)
-  const homeBench = homePlayers.filter(player => !home.some(item => item.player.id === player.id))
-  const awayBench = awayPlayers.filter(player => !away.some(item => item.player.id === player.id))
+  const home = selectStartingLineup(availableHomePlayers, formation, coachStyle, coachPersonality, availableAwayPlayers, preferredHome, matchImportance)
+  const away = selectStartingLineup(availableAwayPlayers, effectiveAwayFormation, effectiveAwayStyle, effectiveAwayPersonality, availableHomePlayers, preferredAway, matchImportance)
+  const homeBench = availableHomePlayers.filter(player => !home.some(item => item.player.id === player.id))
+  const awayBench = availableAwayPlayers.filter(player => !away.some(item => item.player.id === player.id))
   const homeActive = [...home]
   const awayActive = [...away]
   const minutesById = new Map<string, number>()
@@ -605,11 +609,11 @@ export function simulateMatch(
         const previousYellows = events.filter(event => event.team === team && event.player === name && event.type === 'card').length
         if (previousYellows >= 1 || random() < 0.035) {
           stats.redCards = (stats.redCards ?? 0) + 1
-          events.push({ minute, type: 'red_card', team, player: name, text: previousYellows >= 1 ? 'Segundo amarelo. Expulso!' : 'Cartão vermelho direto. Expulso!' })
+          events.push({ minute, type: 'red_card', team, player: name, playerId: player.player.id, text: previousYellows >= 1 ? 'Segundo amarelo. Expulso!' : 'Cartão vermelho direto. Expulso!' })
           const index = side.findIndex(item => item.player.id === player.player.id)
           if (index >= 0 && player.player.position !== 'GK') side.splice(index, 1)
         } else {
-          events.push({ minute, type: 'card', team, player: name, text: 'Cartão amarelo.' })
+          events.push({ minute, type: 'card', team, player: name, playerId: player.player.id, text: 'Cartão amarelo.' })
         }
       }
     }
@@ -636,7 +640,7 @@ export function simulateMatch(
         stats.injuries = (stats.injuries ?? 0) + 1
         const index = side.findIndex(item => item.player.id === player.player.id)
         if (index >= 0) side.splice(index, 1)
-        events.push({ minute, type: 'injury', team, player: name, text: name + ' sente uma lesão e deixa a partida.' })
+        events.push({ minute, type: 'injury', team, player: name, playerId: player.player.id, text: name + ' sente uma lesão e deixa a partida.' })
       }
     }
 
