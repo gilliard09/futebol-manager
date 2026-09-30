@@ -1,5 +1,5 @@
 import type { Club, Player } from '../types/game'
-import { playerOverall } from './match'
+import { getSquadRole, playerOverall } from './match'
 
 export type WorldClub = Club & { strength: number }
 
@@ -204,13 +204,34 @@ export function simulateWorldDay(
       const appearances = player.seasonAppearances ?? 0
       const highUsage = minutes >= 900 || appearances >= 10
       const lowUsage = minutes < 180 && appearances <= 2
+      const role = getSquadRole(player)
       const usageAdjustment = highUsage ? 0.12 : lowUsage ? -0.1 : 0
-      const baseProbability = player.age <= 23 ? 0.72 : player.age >= 31 ? 0.5 : 0.18
-      const probability = Math.max(0.05, Math.min(0.85, baseProbability + usageAdjustment))
+      const roleAdjustment = role === 'starter'
+        ? 0.08
+        : role === 'rotation'
+          ? 0.03
+          : role === 'prospect'
+            ? 0.04
+            : -0.02
+      const performanceAdjustment = (player.seasonAverageRating ?? 0) >= 7.3
+        ? 0.08
+        : (player.seasonAverageRating ?? 0) > 0 && (player.seasonAverageRating ?? 0) < 6
+          ? -0.05
+          : 0
+      const ageBase = player.age <= 23 ? 0.68 : player.age >= 31 ? 0.5 : 0.16
+      const probability = Math.max(0.05, Math.min(0.88, ageBase + usageAdjustment + roleAdjustment + performanceAdjustment))
       if (random01(seasonId + date + player.id) < probability) {
-        const direction = player.age >= 31 && lowUsage ? -1 : player.age >= 31 ? -1 : 1
+        const direction = player.age >= 31
+          ? -1
+          : player.age <= 23 || highUsage || role === 'starter' || role === 'rotation'
+            ? 1
+            : 0
         const room = Math.max(0, player.potential - playerOverall(player))
-        const delta = direction > 0 ? Math.min(2, room) : (lowUsage ? -1 : -1)
+        const delta = direction > 0
+          ? Math.min(player.age <= 23 && role === 'starter' ? 2 : 1, room)
+          : direction < 0
+            ? -1
+            : 0
         if (delta !== 0) updatePlayer(player, delta)
       }
     }
