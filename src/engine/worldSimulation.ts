@@ -22,8 +22,9 @@ export type WorldPlayer = Player & {
 
 export type WorldSimulationResult = {
   date: string
-  transfers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  transfers: Array<{ playerId: string; fromClubId: string | null; toClubId: string; fee: number }>
   offers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  expiredContracts: Array<{ playerId: string; clubId: string }>
   renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
   retirements: Array<{ playerId: string; clubId: string }>
   youth: Array<{
@@ -144,6 +145,7 @@ export function simulateWorldDay(
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
+  const expiredContracts: WorldSimulationResult['expiredContracts'] = []
   const renewals: WorldSimulationResult['renewals'] = []
   const retirements: WorldSimulationResult['retirements'] = []
   const youth: WorldSimulationResult['youth'] = []
@@ -202,6 +204,17 @@ export function simulateWorldDay(
     }
   }
 
+  // Contratos vencidos viram jogadores livres. Isso vale também para o clube do treinador.
+  // O jogador permanece no banco de dados, mas deixa de pertencer a qualquer clube.
+  for (const player of players) {
+    if (!player.clubId || !player.contractUntil || player.contractUntil >= date) continue
+    const previousClubId = player.clubId
+    player.clubId = ''
+    player.contractUntil = null
+    player.salary = 0
+    expiredContracts.push({ playerId: player.id, clubId: previousClubId })
+    changedClubs.add(previousClubId)
+  }
   // Mercado: cada clube pode contratar uma vez por janela mensal.
   if ([10, 20].includes(day)) {
     for (const buyer of aiClubs) {
@@ -237,6 +250,25 @@ export function simulateWorldDay(
         continue
       }
 
+      // Jogadores livres podem ser assinados sem taxa de transferência.
+      const freeAgent = players
+        .filter(player => player.clubId === '')
+        .filter(player => player.position === weakestPosition.position)
+        .filter(player => player.age <= 32)
+        .filter(player => playerOverall(player) >= Math.max(56, buyer.strength - (urgentMarket ? 10 : ambitiousMarket ? 5 : 7)))
+        .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))[0]
+
+      if (freeAgent && random01(`${date}:free-agent:${buyer.id}:${freeAgent.id}`) < 0.35) {
+        const salary = Math.round(Math.max(8000, freeAgent.salary || playerOverall(freeAgent) * 120) / 500) * 500
+        freeAgent.clubId = buyer.id
+        freeAgent.salary = salary
+        freeAgent.contractUntil = addYears(date, 2)
+        buyer.budget = Math.max(0, buyer.budget - salary * 0.5)
+        changedClubs.add(buyer.id)
+        transfers.push({ playerId: freeAgent.id, fromClubId: null, toClubId: buyer.id, fee: 0 })
+        byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), freeAgent])
+        continue
+      }
       const candidates = players
         .filter(player => player.clubId !== buyer.id && player.clubId !== userClubId)
         .filter(player => player.position === weakestPosition.position)
@@ -409,5 +441,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, offers, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
+  return { date, transfers, offers, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
 }
