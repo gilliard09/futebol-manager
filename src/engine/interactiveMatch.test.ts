@@ -84,6 +84,17 @@ describe('interactive match', () => {
     expect(next.events.some(event => event.type === 'substitution')).toBe(true)
   })
 
+  it('keeps home and away tactical configurations independent', () => {
+    const homeConfig = { ...config, tactic: 'offensive' as const, formation: '4-4-2' as const }
+    const awayConfig = { ...config, tactic: 'defensive' as const, formation: '4-3-3' as const }
+    const state = createInteractiveMatch(fixture, squad('H'), squad('A'), homeConfig, awayConfig, {}, {}, () => 0.5)
+
+    expect(state.home.tactic).toBe('offensive')
+    expect(state.home.formation).toBe('4-4-2')
+    expect(state.away.tactic).toBe('defensive')
+    expect(state.away.formation).toBe('4-3-3')
+  })
+
   it('finishes at minute 90 instead of calculating the whole match upfront', () => {
     let state = createInteractiveMatch(fixture, squad('H'), squad('A'), config, config, {}, {}, () => 0.5)
     for (let index = 0; index < 90; index += 1) state = advanceInteractiveMinute(state, 'home')
