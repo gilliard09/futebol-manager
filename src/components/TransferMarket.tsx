@@ -3,6 +3,7 @@ import { ArrowLeft, Search, ShoppingBag, Tag, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/match'
 import { getActiveLoan } from '../engine/loans'
+import { buildScoutingReport } from '../engine/worldSimulation'
 import { canAddPlayer } from '../engine/roster'
 import { applyTransfer, calculateAskingPrice, canCompleteTransfer, createTransferRecord, negotiateTransfer, type TransferRecord, type TransferState } from '../engine/transfers'
 import type { Club, Player } from '../types/game'
@@ -227,6 +228,15 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
         <div className="flex items-start justify-between gap-4">
           <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">{selected.club.short_name} · {selected.player.position}</p><h2 className="mt-2 text-3xl font-bold">{selected.player.first_name} {selected.player.last_name}</h2><p className="mt-2 text-sm text-white/35">{selected.player.age} anos · GER {playerOverall(selected.player)} · Potencial {selected.player.potential}</p></div>
           <button onClick={() => setSelected(null)} className="rounded-lg p-2 text-white/35 hover:bg-white/5 hover:text-white"><X size={20} /></button>
+        </div>
+        <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Relatório de scouting</p><p className="mt-1 text-xs text-white/30">Estimativa inicial · confiabilidade 68%</p></div><span className="text-xs font-bold text-emerald-300">{buildScoutingReport(selected.player, 'basic').risk}</span></div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div><p className="text-xs text-white/25">GER estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, 'basic').overallEstimate}</p></div>
+            <div><p className="text-xs text-white/25">Potencial estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, 'basic').potentialEstimate}</p></div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">{buildScoutingReport(selected.player, 'basic').keyAttributes.map(([name, value]) => <span key={name} className="rounded-lg border border-white/6 px-2.5 py-1.5 text-xs text-white/45">{name}: {value}</span>)}</div>
+          <p className="mt-3 text-xs text-white/30">Risco de custo/adaptação: {buildScoutingReport(selected.player, 'basic').costRisk}%</p>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Valor de mercado</p><p className="mt-1 font-semibold">{money(selected.marketValue)}</p></div>
