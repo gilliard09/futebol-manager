@@ -17,7 +17,7 @@ import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loan
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
-import { simulateWorldDay, type WorldClub } from './engine/worldSimulation'
+import { simulateWorldDay, type WorldClub, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -346,19 +346,52 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const nextMatchDate = nextFixture ? toDateKey(nextFixture.scheduled_at) : null
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
 
-  async function simulateOtherClubs(nextDate: string) {
+  async function loadWorldState() {
     const { data: season } = await supabase.from('seasons').select('id').eq('name', SEASON_NAME).maybeSingle()
-    if (!season?.id) return
-    const { data: clubRows } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name')
-    const { data: playerRows } = await supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)')
-    if (!clubRows?.length || !playerRows?.length) return
-    const worldClubs = clubRows.map((club: any) => ({ ...club, budget: Number(club.budget ?? 0), strength: Number(club.strength ?? club.reputation ?? 60) })) as WorldClub[]
+    if (!season?.id) return null
+
+    const [{ data: clubRows }, { data: playerRows }] = await Promise.all([
+      supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name'),
+      supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)'),
+    ])
+
+    if (!clubRows?.length || !playerRows?.length) return null
+
+    const worldClubs = clubRows.map((club: any) => ({
+      ...club,
+      budget: Number(club.budget ?? 0),
+      strength: Number(club.strength ?? club.reputation ?? 60),
+    })) as WorldClub[]
+
     const playersForWorld = (playerRows as any[]).map(row => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players
-      return { ...player, clubId: row.club_id, marketValue: Number(row.market_value ?? 0), salary: Number(row.salary ?? 0), contractUntil: row.contract_until ?? null, clubPlayerId: row.id }
-    })
-    const result = simulateWorldDay(nextDate, season.id, worldClubs, playersForWorld, career.club.id)
-    const changedPlayers = playersForWorld.filter(player => result.evolvedPlayerIds.includes(player.id))
+      return {
+        ...player,
+        clubId: row.club_id,
+        marketValue: Number(row.market_value ?? 0),
+        salary: Number(row.salary ?? 0),
+        contractUntil: row.contract_until ?? null,
+        clubPlayerId: row.id,
+      }
+    }) as WorldPlayer[]
+
+    return { seasonId: season.id as string, worldClubs, playersForWorld }
+  }
+
+  async function persistWorldState(
+    seasonId: string,
+    worldClubs: WorldClub[],
+    playersForWorld: WorldPlayer[],
+    results: WorldSimulationResult[],
+  ) {
+    const evolvedPlayerIds = new Set(results.flatMap(result => result.evolvedPlayerIds))
+    const transfers = results.flatMap(result => result.transfers)
+    const renewals = results.flatMap(result => result.renewals)
+    const retirements = results.flatMap(result => result.retirements)
+    const youth = results.flatMap(result => result.youth)
+    const changedClubs = new Set(results.flatMap(result => result.changedClubs))
+
+    const changedPlayers = playersForWorld.filter(player => evolvedPlayerIds.has(player.id))
     await Promise.all(changedPlayers.map(player =>
       supabase.from('players').update({
         pace: player.pace,
@@ -373,28 +406,45 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         morale: player.morale,
       }).eq('id', player.id)
     ))
-    for (const transfer of result.transfers) {
+
+    const transferRows = transfers.map(transfer => ({
+      season_id: seasonId,
+      transfer_date: results.find(result => result.transfers.includes(transfer))?.date ?? SEASON_START,
+      player_id: transfer.playerId,
+      from_club_id: transfer.fromClubId,
+      to_club_id: transfer.toClubId,
+      fee: transfer.fee,
+      reason: 'ai_market',
+    }))
+    if (transferRows.length) {
+      await supabase.from('world_transfers').upsert(transferRows, { onConflict: 'season_id,player_id,transfer_date' })
+    }
+
+    await Promise.all(transfers.map(transfer => {
       const row = playersForWorld.find(player => player.id === transfer.playerId)
-      if (!row) continue
-      await supabase.from('club_players').update({ club_id: transfer.toClubId }).eq('id', row.clubPlayerId)
-      await supabase.from('clubs').update({ budget: worldClubs.find(club => club.id === transfer.fromClubId)?.budget ?? 0 }).eq('id', transfer.fromClubId)
-      await supabase.from('clubs').update({ budget: worldClubs.find(club => club.id === transfer.toClubId)?.budget ?? 0 }).eq('id', transfer.toClubId)
-      await supabase.from('world_transfers').upsert({ season_id: season.id, transfer_date: nextDate, player_id: transfer.playerId, from_club_id: transfer.fromClubId, to_club_id: transfer.toClubId, fee: transfer.fee, reason: 'ai_market' }, { onConflict: 'season_id,player_id,transfer_date' })
-    }
+      return row
+        ? supabase.from('club_players').update({ club_id: transfer.toClubId }).eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
 
-    for (const renewal of result.renewals) {
+    const latestRenewals = new Map<string, typeof renewals[number]>()
+    for (const renewal of renewals) latestRenewals.set(renewal.playerId, renewal)
+    await Promise.all([...latestRenewals.values()].map(renewal => {
       const row = playersForWorld.find(player => player.id === renewal.playerId)
-      if (!row) continue
-      await supabase.from('club_players').update({ salary: renewal.salary, contract_until: renewal.contractUntil }).eq('id', row.clubPlayerId)
-    }
+      return row
+        ? supabase.from('club_players').update({ salary: renewal.salary, contract_until: renewal.contractUntil }).eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
 
-    for (const retirement of result.retirements) {
-      const row = playersForWorld.find(player => player.id === retirement.playerId)
-      if (!row) continue
-      await supabase.from('club_players').delete().eq('id', row.clubPlayerId)
-    }
+    const retiredIds = new Set(retirements.map(item => item.playerId))
+    await Promise.all([...retiredIds].map(playerId => {
+      const row = playersForWorld.find(player => player.id === playerId)
+      return row
+        ? supabase.from('club_players').delete().eq('id', row.clubPlayerId)
+        : Promise.resolve()
+    }))
 
-    for (const prospect of result.youth) {
+    await Promise.all(youth.map(async prospect => {
       const { data: createdPlayer, error: createPlayerError } = await supabase.from('players').insert({
         first_name: prospect.firstName,
         last_name: prospect.lastName,
@@ -413,7 +463,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         form: prospect.form,
         morale: prospect.morale,
       }).select('id').single()
-      if (createPlayerError || !createdPlayer) continue
+      if (createPlayerError || !createdPlayer) return
       await supabase.from('club_players').insert({
         club_id: prospect.clubId,
         player_id: createdPlayer.id,
@@ -422,11 +472,38 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         salary: prospect.salary,
         market_value: prospect.marketValue,
       })
+    }))
+
+    const aiClubs = worldClubs.filter(club => club.id !== career.club.id)
+    await Promise.all(aiClubs.map(club =>
+      supabase.from('clubs').update({
+        budget: club.budget,
+        ...(changedClubs.has(club.id) ? { strength: club.strength } : {}),
+      }).eq('id', club.id)
+    ))
+  }
+
+  async function simulateOtherClubs(nextDate: string) {
+    const state = await loadWorldState()
+    if (!state) return
+    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id)
+    await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
+  }
+
+  async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
+    const state = await loadWorldState()
+    if (!state) return
+
+    const results: WorldSimulationResult[] = []
+    let currentDate = startDate
+
+    while (currentDate < targetDate) {
+      currentDate = advanceSeasonDay(createSeasonClock(currentDate, targetDate, 0)).currentDate
+      results.push(simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id))
     }
 
-    for (const club of worldClubs.filter(item => result.changedClubs.includes(item.id))) {
-      await supabase.from('clubs').update({ strength: club.strength }).eq('id', club.id)
-    }
+    await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, results)
+    return results
   }
 
   const [advancingDays, setAdvancingDays] = useState(false)
@@ -465,12 +542,49 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays) return
     setAdvancingDays(true)
     try {
+      await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
+
       let current = clock
+      let nextPlayers = players
+      let nextBalance = financeBalance
+      let nextTransactions = financeTransactions
+
       while (current.currentDate < nextMatchDate) {
-        const advanced = await advanceOneDay(current)
-        if (!advanced) break
-        current = advanceSeasonDay(current)
+        const nextClock = advanceSeasonDay(current)
+        nextPlayers = recoverPlayers(nextPlayers, 8)
+
+        if (nextClock.currentDate.slice(0, 7) !== current.currentDate.slice(0, 7)) {
+          const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
+          const transaction = createTransaction(
+            nextClock.currentDate,
+            'salary',
+            `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`,
+            salaryExpense,
+            undefined,
+            `salary:${nextClock.currentDate.slice(0, 7)}`,
+          )
+          if (!nextTransactions.some(item => item.eventId === transaction.eventId)) {
+            nextTransactions = [...nextTransactions, transaction]
+            nextBalance = applyTransaction(nextBalance, transaction)
+          }
+        }
+
+        current = nextClock
       }
+
+      setClock(current)
+      setPlayers(nextPlayers)
+      setFinanceBalance(nextBalance)
+      setFinanceTransactions(nextTransactions)
+
+      localStorage.setItem(CLOCK_KEY, JSON.stringify(current))
+      localStorage.setItem(FINANCE_KEY, JSON.stringify(nextTransactions))
+      localStorage.setItem(CAREER_KEY, JSON.stringify({ ...career, club: { ...career.club, budget: nextBalance } }))
+      localStorage.setItem(TRAINING_KEY, JSON.stringify({
+        ...JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}'),
+        players: Object.fromEntries(nextPlayers.map(player => [player.id, player])),
+      }))
+      onCareerUpdate({ ...career, club: { ...career.club, budget: nextBalance } })
     } finally {
       setAdvancingDays(false)
     }
