@@ -157,7 +157,8 @@ export function buildWorldNews(
 
   const evolved = result.evolvedPlayerIds
     .map(id => playerById.get(id))
-    .filter((player): player is WorldPlayer => Boolean(player) && player.clubId !== '')
+    .filter((player): player is WorldPlayer => Boolean(player))
+    .filter(player => player.clubId !== '')
     .filter(player => player.age <= 23 && (getSquadRole(player) === 'starter' || (player.seasonMinutes ?? 0) >= 900))
     .slice(0, 3)
 
