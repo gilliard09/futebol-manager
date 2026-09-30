@@ -127,7 +127,7 @@ export function createInteractiveMatch(
   random: () => number = Math.random,
 ): InteractiveMatchState {
   const awayCoach = getAiCoachProfile(fixture.away_club_id)
-  const effectiveAway = awayConfig ?? awayCoach
+  const effectiveAway = awayConfig ?? { tactic: awayCoach.tactic, formation: awayCoach.formation, coachStyle: awayCoach.style, coachPersonality: awayCoach.personality }
   const importance = (fixture.competition_name ?? '').toLowerCase().includes('copa') ? 1.1 : 1
   const matchDate = fixture.scheduled_at.slice(0, 10)
   const available = (player: Player) => (!player.injuredUntil || player.injuredUntil <= matchDate) && (!player.suspendedUntil || player.suspendedUntil <= matchDate)
