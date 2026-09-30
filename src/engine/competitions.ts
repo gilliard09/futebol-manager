@@ -108,6 +108,12 @@ export type NextKnockoutFixture = {
   scheduledAt: string
 }
 
+export function choosePenaltyWinner(homeClubId: string, awayClubId: string, seed = '') {
+  let hash = 0
+  for (const char of homeClubId + awayClubId + seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return hash % 2 === 0 ? homeClubId : awayClubId
+}
+
 export function getNextKnockoutRound(round: number) {
   if (round === 2) return 3
   if (round === 4) return 5
