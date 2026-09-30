@@ -513,8 +513,8 @@ function buildRatings(state: InteractiveMatchState): PlayerMatchRating[] {
   for (const [teamName, team, squad, startingIds] of teams) {
     for (const player of squad) {
       const name = playerNameForRating(player)
-      const playerEvents = state.events.filter(event => event.team === teamName && event.player === name)
-      const goals = playerEvents.filter(event => event.type === 'goal').length
+      const playerEvents = state.events.filter(event => event.team === teamName && event.playerId === player.id)
+      const goals = state.events.filter(event => event.team === teamName && event.type === 'goal' && event.playerId === player.id).length
       const assists = state.events.filter(event => event.type === 'goal' && event.assistPlayerId === player.id).length
       const cards = playerEvents.filter(event => (event.type === 'card' || event.type === 'red_card') && event.playerId === player.id).length
       const outgoingEvent = state.events.find(event => event.type === 'substitution' && event.outgoingPlayerId === player.id)
