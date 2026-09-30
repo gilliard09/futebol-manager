@@ -9,7 +9,7 @@ function normalizeFixture(row: any): Fixture {
   return {
     id: row.id, competition_id: row.competition_id, round: Number(row.round), scheduled_at: row.scheduled_at,
     status: row.status, home_club_id: row.home_club_id, away_club_id: row.away_club_id,
-    home_score: row.home_score, away_score: row.away_score,
+    home_score: row.home_score, away_score: row.away_score, winner_club_id: row.winner_club_id ?? null,
     home_club: Array.isArray(row.home_club) ? (row.home_club[0] ?? null) : (row.home_club ?? null),
     away_club: Array.isArray(row.away_club) ? (row.away_club[0] ?? null) : (row.away_club ?? null),
   }
@@ -38,7 +38,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       setLoading(true)
       const { data } = await supabase
         .from('fixtures')
-        .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions!inner(name)')
+        .select('id,season_id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,winner_club_id,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions!inner(name)')
         .eq('competitions.name', competition)
         .order('round')
         .order('scheduled_at')
@@ -74,6 +74,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
     ? fixtures.find(item => item.round === 7 && item.status === 'completed')?.home_club_id && fixtures.find(item => item.round === 7 && item.status === 'completed')?.away_club_id
       ? (() => {
           const final = fixtures.find(item => item.round === 7 && item.status === 'completed')!
+          if (final.winner_club_id === final.home_club_id) return final.home_club
+          if (final.winner_club_id === final.away_club_id) return final.away_club
           if ((final.home_score ?? 0) > (final.away_score ?? 0)) return final.home_club
           if ((final.away_score ?? 0) > (final.home_score ?? 0)) return final.away_club
           return null
@@ -142,7 +144,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
                     const secondAway = second?.away_score
                     const homeAggregate = (first ? (first.home_club_id === homeId ? first.home_score ?? 0 : first.away_score ?? 0) : 0) + (second ? (second.home_club_id === homeId ? second.home_score ?? 0 : second.away_score ?? 0) : 0)
                     const awayAggregate = (first ? (first.home_club_id === awayId ? first.home_score ?? 0 : first.away_score ?? 0) : 0) + (second ? (second.home_club_id === awayId ? second.home_score ?? 0 : second.away_score ?? 0) : 0)
-                    const winnerId = second?.winner_club_id ?? (stage.rounds.length === 1 && first && first.home_score != null && first.away_score != null ? (first.home_score > first.away_score ? first.home_club_id : first.away_score > first.home_score ? first.away_club_id : null) : null)
+                    const winnerId = second?.winner_club_id ?? first?.winner_club_id ?? (stage.rounds.length === 1 && first && first.home_score != null && first.away_score != null ? (first.home_score > first.away_score ? first.home_club_id : first.away_score > first.home_score ? first.away_club_id : null) : null)
                     const completed = tie.filter(item => item.status === 'completed').length
                     const score = (clubId: string) => stage.rounds.length === 1 ? (first?.home_club_id === clubId ? firstHome : firstAway) : (first?.home_club_id === clubId ? firstHome : firstAway) + ' / ' + (second ? (second.home_club_id === clubId ? secondHome : secondAway) : '—')
                     return <div key={index} className="relative rounded-xl border border-white/6 bg-black/15 p-3">
