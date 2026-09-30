@@ -210,6 +210,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
   const [seasonClosed, setSeasonClosed] = useState(false)
   const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
+  const [pendingEvent, setPendingEvent] = useState<{ type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number } | null>(null)
 
   async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
     const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
@@ -493,18 +494,25 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
   async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
     const state = await loadWorldState()
-    if (!state) return
+    if (!state) return { date: startDate, event: null as { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number } | null }
 
     const results: WorldSimulationResult[] = []
     let currentDate = startDate
+    let event: { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number } | null = null
 
     while (currentDate < targetDate) {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
-      results.push(simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id))
+      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id)
+      results.push(result)
+      const offer = result.offers[0]
+      if (offer) {
+        event = { type: 'player_offer', date: result.date, ...offer }
+        break
+      }
     }
 
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, results)
-    return results
+    return { date: event?.date ?? targetDate, event }
   }
 
   const [advancingDays, setAdvancingDays] = useState(false)
@@ -543,14 +551,16 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays) return
     setAdvancingDays(true)
     try {
-      await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
+      const advanceResult = await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
+      const targetDate = advanceResult?.date ?? nextMatchDate
+      if (advanceResult?.event) setPendingEvent(advanceResult.event)
 
       let current = clock
       let nextPlayers = players
       let nextBalance = financeBalance
       let nextTransactions = financeTransactions
 
-      while (current.currentDate < nextMatchDate) {
+      while (current.currentDate < targetDate) {
         const nextClock = advanceSeasonDay(current)
         nextPlayers = recoverPlayers(nextPlayers, 8)
 
@@ -589,6 +599,45 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     } finally {
       setAdvancingDays(false)
     }
+  }
+
+  async function respondToPlayerOffer(accept: boolean) {
+    if (!pendingEvent) return
+    const player = players.find(item => item.id === pendingEvent.playerId)
+    if (!player) { setPendingEvent(null); return }
+
+    if (accept) {
+      const { data: row } = await supabase
+        .from('club_players')
+        .select('id')
+        .eq('player_id', pendingEvent.playerId)
+        .eq('club_id', career.club.id)
+        .maybeSingle()
+
+      if (row?.id) {
+        const { error } = await supabase.from('club_players').update({ club_id: pendingEvent.toClubId }).eq('id', row.id)
+        if (!error) {
+          const transaction = createTransaction(
+            pendingEvent.date,
+            'transfer_in',
+            `Venda · ${player.first_name} ${player.last_name}`,
+            pendingEvent.fee,
+            undefined,
+            `world_offer:${pendingEvent.playerId}:${pendingEvent.date}`,
+          )
+          const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
+          const nextPlayers = players.filter(item => item.id !== pendingEvent.playerId)
+          setPlayers(nextPlayers)
+          const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
+          localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+          onCareerUpdate(nextCareer)
+          setPendingEvent(null)
+          return
+        }
+      }
+    }
+
+    setPendingEvent(null)
   }
 
   if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} back={() => setView('overview')} />
@@ -786,6 +835,20 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional do Brasil</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
+    {pendingEvent && (() => {
+      const offeredPlayer = players.find(item => item.id === pendingEvent.playerId)
+      const buyerClub = clubs.find(item => item.id === pendingEvent.toClubId)
+      if (!offeredPlayer || !buyerClub) return null
+      return <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Decisão importante</p>
+        <h2 className="mt-2 text-2xl font-bold">Recebemos uma proposta por um jogador</h2>
+        <p className="mt-3 text-sm leading-6 text-white/45">{buyerClub.name} fez uma proposta de {money(pendingEvent.fee)} por <span className="font-semibold text-white/80">{offeredPlayer.first_name} {offeredPlayer.last_name}</span>.</p>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <button onClick={() => respondToPlayerOffer(false)} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar proposta</button>
+          <button onClick={() => respondToPlayerOffer(true)} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(pendingEvent.fee)}</button>
+        </div>
+      </section>
+    })()}
     {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">Temporada 2026 concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada 2026 não pode mais ser considerada em andamento.</p></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
       <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
