@@ -26,11 +26,19 @@ export type WorldPlayer = Player & {
   seasonAssists?: number
 }
 
+export type MarketInterest = {
+  playerId: string
+  clubIds: string[]
+  startedAt: string
+  stage: 'monitoring' | 'scouting' | 'proposal_ready'
+  lastUpdated: string
+}
+
 export type WorldSimulationResult = {
   date: string
   transfers: Array<{ playerId: string; fromClubId: string | null; toClubId: string; fee: number }>
   offers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
-  marketInterest: Array<{ playerId: string; clubIds: string[] }>
+  marketInterest: MarketInterest[]
   expiredContracts: Array<{ playerId: string; clubId: string }>
   renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
   retirements: Array<{ playerId: string; clubId: string }>
@@ -181,6 +189,7 @@ export function simulateWorldDay(
   players: WorldPlayer[],
   userClubId: string,
   performanceByClub: Record<string, WorldClubPerformance> = {},
+  previousMarketInterest: MarketInterest[] = [],
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
@@ -283,7 +292,15 @@ export function simulateWorldDay(
     expiredContracts.push({ playerId: player.id, clubId: previousClubId })
     changedClubs.add(previousClubId)
   }
-  // Jogadores em grande fase passam a ser acompanhados por vários clubes.
+  // O mercado guarda memória: interesse nasce, amadurece e só depois pode virar proposta.
+  const previousInterestByKey = new Map<string, MarketInterest>()
+  for (const interest of previousMarketInterest) {
+    for (const clubId of interest.clubIds) {
+      previousInterestByKey.set(interest.playerId + ':' + clubId, interest)
+    }
+  }
+
+  const candidateInterests = new Map<string, Set<string>>()
   if ([10, 20].includes(day)) {
     const standoutPlayers = players
       .filter(player => player.clubId && player.age <= 31)
@@ -322,9 +339,10 @@ export function simulateWorldDay(
           return need >= 48 && price <= club.budget * 0.9 && (strengthGap <= 15 || clubBehavior(club) === 'ambitious')
         })
         .sort((a, b) => {
+          const performance = performanceByClub[a.id]
           const score = (club: WorldClub) => {
-            const performance = performanceByClub[club.id]
-            const urgency = performance && (performance.position >= 13 || performance.recentPoints <= 4) ? 8 : 0
+            const current = performanceByClub[club.id]
+            const urgency = current && (current.position >= 13 || current.recentPoints <= 4) ? 8 : 0
             const ambition = clubBehavior(club) === 'ambitious' ? 5 : 0
             return club.budget / 1000000 + urgency + ambition
           }
@@ -333,9 +351,36 @@ export function simulateWorldDay(
         .slice(0, 4)
 
       if (interested.length >= 2) {
-        marketInterest.push({ playerId: player.id, clubIds: interested.map(club => club.id) })
+        candidateInterests.set(player.id, new Set(interested.map(club => club.id)))
       }
     }
+  }
+
+  const activePlayerIds = new Set(players.filter(player => player.clubId).map(player => player.id))
+  for (const previous of previousMarketInterest) {
+    if (!activePlayerIds.has(previous.playerId)) continue
+    const candidates = candidateInterests.get(previous.playerId)
+    const nextClubs = candidates ? [...new Set([...previous.clubIds, ...candidates])] : previous.clubIds
+    const elapsedDays = Math.max(0, Math.round((new Date(date).getTime() - new Date(previous.startedAt).getTime()) / 86400000))
+    const stage = elapsedDays >= 28 ? 'proposal_ready' : elapsedDays >= 14 ? 'scouting' : 'monitoring'
+    marketInterest.push({
+      ...previous,
+      clubIds: nextClubs,
+      stage,
+      lastUpdated: date,
+    })
+    if (candidates) candidateInterests.delete(previous.playerId)
+  }
+
+  for (const [playerId, clubsSet] of candidateInterests) {
+    const clubIds = [...clubsSet]
+    marketInterest.push({
+      playerId,
+      clubIds,
+      startedAt: date,
+      stage: 'monitoring',
+      lastUpdated: date,
+    })
   }
 
   // Mercado: cada clube pode contratar uma vez por janela mensal.
@@ -365,22 +410,31 @@ export function simulateWorldDay(
         })
         .sort((a, b) => a.average - b.average || a.count - b.count)[0]
 
-      const userCandidates = players
-        .filter(player => player.clubId === userClubId)
-        .filter(player => player.age <= 31)
-        .filter(player => playerOverall(player) >= Math.max(62, buyer.strength - (urgentMarket ? 7 : 3)))
+      const matureTargets = marketInterest
+        .filter(interest => interest.stage === 'proposal_ready' && interest.clubIds.includes(buyer.id))
+        .map(interest => players.find(player => player.id === interest.playerId))
+        .filter((player): player is WorldPlayer => Boolean(player?.clubId === userClubId && player.age <= 31))
         .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))
 
-      const userTarget = userCandidates.find(player => {
-        const price = Math.max(250000, Math.round(player.marketValue * (player.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
-        return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7)
+      const userTarget = matureTargets.find(player => {
+        const price = Math.max(
+          250000,
+          Math.round(
+            player.marketValue *
+            (player.age <= 23 ? 1.18 : 1.08) *
+            playerMarketPerformanceFactor(player) *
+            playerMarketCompetitionFactor(marketInterest.find(item => item.playerId === player.id)?.clubIds.length ?? 1) /
+            50000,
+          ) * 50000,
+        )
+        return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.82 : 0.72)
       })
 
       const userPerformance = userTarget
         ? (userTarget.seasonGoals ?? 0) * 0.8 + (userTarget.seasonAssists ?? 0) * 0.5 + ((userTarget.seasonAverageRating ?? 0) >= 7.4 ? 3 : 0)
         : 0
       const offerChance = userTarget
-        ? Math.min(0.48, 0.16 + Math.max(0, userPerformance - 3) * 0.035)
+        ? Math.min(0.7, 0.35 + Math.max(0, userPerformance - 3) * 0.035)
         : 0
 
       if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < offerChance) {
@@ -429,6 +483,7 @@ export function simulateWorldDay(
         if (sellerSquad.length <= 16) return false
         const interest = marketInterest.find(item => item.playerId === player.id)
         const competitionFactor = interest ? playerMarketCompetitionFactor(interest.clubIds.length) : 1
+        if (interest && (interest.stage !== 'proposal_ready' || !interest.clubIds.includes(buyer.id))) return false
         const performanceFactor = playerMarketPerformanceFactor(player)
         const price = Math.max(
           150000,
