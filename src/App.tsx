@@ -2085,7 +2085,15 @@ function Tactics({ players, club, today, back }: { players: Player[]; club: Club
   })
   const [tactic, setTactic] = useState(() => { try { return JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').tactic ?? 'balanced' } catch { return 'balanced' } })
   const [lineup, setLineup] = useState<Record<number, string>>(() => {
-    try { return JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {} } catch { return {} }
+    try {
+      const saved = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
+      return Object.fromEntries(
+        Object.entries(saved).filter(([, playerId]) => {
+          const player = players.find(item => item.id === playerId)
+          return player ? isPlayerAvailable(player, today) : false
+        }),
+      ) as Record<number, string>
+    } catch { return {} }
   })
   const slots = formations[formation]
   const overall = (p: Player) => p.position === 'GK' ? p.goalkeeping : Math.round((p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7)
