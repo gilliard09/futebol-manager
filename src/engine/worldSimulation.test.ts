@@ -34,6 +34,17 @@ describe('world simulation', () => {
     expect(result.transfers.every(item => item.toClubId !== 'user')).toBe(true)
   })
 
+  it('reduces morale when a player is close to contract expiry', () => {
+    const clubs = [club('user', 1000000), club('ai', 5000000)]
+    const player = basePlayer('contract', 'user')
+    player.contractUntil = '2026-05-01'
+    const before = player.morale
+
+    simulateWorldDay('2026-01-10', 'season', clubs, [player], 'user')
+
+    expect(player.morale).toBeLessThan(before)
+  })
+
   it('can evolve young players on development days', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
     const players = Array.from({ length: 6 }, (_, i) => basePlayer('p' + i, 'ai', i === 0 ? 'GK' : 'ST'))
