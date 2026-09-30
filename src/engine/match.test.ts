@@ -69,6 +69,25 @@ describe('match engine', () => {
     expect(result.playerRatings.every(player => player.minutes > 0 && player.minutes <= 90)).toBe(true)
   })
 
+  it('adapts rotation to the coach profile and match state', () => {
+    const starters = lineup(80).map(item => ({ ...item.player, fatigue: 0 }))
+    const bench = [player('bench-1', 'CM', 78), player('bench-2', 'ST', 78), player('bench-3', 'LW', 78), player('bench-4', 'CB', 78)]
+    const homePlayers = [...starters, ...bench]
+    const awayPlayers = [...starters.map((item, index) => ({ ...item, id: 'away-' + index })), ...bench.map((item, index) => ({ ...item, id: 'away-bench-' + index }))]
+    const homeLineup = lineup(80).map(item => ({ ...item, player: { ...item.player, fatigue: 0 } }))
+    const awayLineup = homeLineup.map((item, index) => ({ ...item, player: awayPlayers[index] }))
+
+    const highPress = simulateMatch(fixture, homePlayers, awayPlayers, 'balanced', '4-3-3', homeLineup, awayLineup, () => 0.5, 'high_press', 'motivator')
+    const defensive = simulateMatch(fixture, homePlayers, awayPlayers, 'balanced', '4-3-3', homeLineup, awayLineup, () => 0.5, 'defensive_block', 'disciplinarian')
+    const highPressSub = highPress.events.find(event => event.type === 'substitution' && event.team === 'home')
+    const defensiveSub = defensive.events.find(event => event.type === 'substitution' && event.team === 'home')
+
+    expect(highPressSub).toBeDefined()
+    expect(defensiveSub).toBeDefined()
+    expect(highPressSub!.minute).toBeLessThanOrEqual(defensiveSub!.minute)
+    expect(highPress.events.filter(event => event.type === 'substitution' && event.team === 'home').length).toBeLessThanOrEqual(5)
+  })
+
   it('produces deterministic output when a random source is injected', () => {
     const random = () => 0.5
     const a = simulateMatch(fixture, lineup().map(x => x.player), lineup().map(x => x.player), 'balanced', '4-3-3', lineup(), lineup(), random)
