@@ -37,6 +37,7 @@ const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
 const WORLD_NEWS_KEY = 'futebol-manager:world-news'
 const MARKET_INTEREST_KEY = 'futebol-manager:market-interest'
+const MARKET_NEGOTIATION_KEY = 'futebol-manager:market-negotiations'
 
 
 function marketInterestStorageKey(seasonId: string) {
@@ -50,6 +51,39 @@ function loadMarketInterest(seasonId: string): MarketInterest[] {
   } catch {
     return []
   }
+}
+
+
+type MarketNegotiation = {
+  playerId: string
+  buyerId: string
+  sellerId: string
+  offer: number
+  round: number
+  nextDate: string
+}
+
+function marketNegotiationStorageKey(seasonId: string) {
+  return `${MARKET_NEGOTIATION_KEY}:${seasonId}`
+}
+
+function loadMarketNegotiations(seasonId: string): MarketNegotiation[] {
+  try {
+    const stored = localStorage.getItem(marketNegotiationStorageKey(seasonId))
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function saveMarketNegotiations(seasonId: string, negotiations: MarketNegotiation[]) {
+  localStorage.setItem(marketNegotiationStorageKey(seasonId), JSON.stringify(negotiations))
+}
+
+function addDays(date: string, days: number) {
+  const next = new Date(date + 'T00:00:00Z')
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString().slice(0, 10)
 }
 
 function money(value: number) {
@@ -216,7 +250,7 @@ export default function App() {
 
     if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
     localStorage.removeItem(WORLD_NEWS_KEY)
-    Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':')).forEach(key => localStorage.removeItem(key))
+    Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':')).forEach(key => localStorage.removeItem(key))
     window.location.reload()
   }
   async function newCareer() {
@@ -885,6 +919,55 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
     while (currentDate < targetDate) {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
+
+      const negotiations = loadMarketNegotiations(state.seasonId)
+      const dueNegotiation = negotiations.find(item => item.nextDate <= currentDate)
+      if (dueNegotiation) {
+        const player = state.playersForWorld.find(item => item.id === dueNegotiation.playerId)
+        const buyer = state.worldClubs.find(item => item.id === dueNegotiation.buyerId)
+        if (player && buyer && player.clubId === career.club.id) {
+          const responseRoll = eventHash(`negotiation:${dueNegotiation.playerId}:${dueNegotiation.buyerId}:${dueNegotiation.round}:${currentDate}`) % 100
+          const marketCeiling = Math.max(250000, Math.round(player.marketValue * 1.25 / 50000) * 50000)
+          const affordable = Math.min(buyer.budget * 0.9, marketCeiling)
+          let responseFee = dueNegotiation.offer
+          if (responseRoll < 55 && dueNegotiation.offer <= affordable) {
+            responseFee = dueNegotiation.offer
+          } else if (responseRoll < 85 && dueNegotiation.offer < affordable) {
+            responseFee = Math.min(affordable, Math.round(dueNegotiation.offer * 1.08 / 50000) * 50000)
+          } else {
+            responseFee = 0
+          }
+
+          const remainingNegotiations = negotiations.filter(item => !(item.playerId === dueNegotiation.playerId && item.buyerId === dueNegotiation.buyerId))
+          saveMarketNegotiations(state.seasonId, remainingNegotiations)
+
+          if (responseFee > 0) {
+            event = {
+              type: 'player_offer',
+              date: currentDate,
+              playerId: player.id,
+              fromClubId: career.club.id,
+              toClubId: buyer.id,
+              fee: responseFee,
+              offers: [{ playerId: player.id, fromClubId: career.club.id, toClubId: buyer.id, fee: responseFee }],
+              negotiationRound: dueNegotiation.round,
+              negotiationStatus: 'counter_response',
+            }
+            break
+          }
+
+          news.push({
+            id: `negotiation-ended:${player.id}:${buyer.id}:${currentDate}`,
+            date: currentDate,
+            title: 'Negociação encerrada',
+            message: `${buyer.name} encerrou as conversas por ${player.first_name} ${player.last_name} após a contraproposta.`,
+            tone: 'warning',
+            category: 'market',
+            priority: 74,
+          })
+        }
+      }
+
       const previousMarketInterest = loadMarketInterest(state.seasonId)
       const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest)
       localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
@@ -893,7 +976,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const offer = result.offers[0]
       if (offer) {
         const playerOffers = result.offers.filter(item => item.playerId === offer.playerId)
-        event = { type: 'player_offer', date: result.date, ...offer, offers: playerOffers }
+        event = { type: 'player_offer', date: result.date, ...offer, offers: playerOffers, negotiationRound: 0, negotiationStatus: 'new' }
         break
       }
       const importantEvent = maybeCreateImportantEvent(result.date, state.performanceByClub)
@@ -909,7 +992,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   }
 
   type ImportantEvent =
-    | { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number; offers: WorldSimulationResult['offers'] }
+    | { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number; offers: WorldSimulationResult['offers']; negotiationRound?: number; negotiationStatus?: 'new' | 'counter_response' }
     | { type: 'board_message'; date: string; title: string; message: string; tone: 'positive' | 'warning' }
     | { type: 'player_message'; date: string; playerId: string; title: string; message: string }
     | { type: 'player_request'; date: string; playerId: string; request: 'renewal' | 'leave'; title: string; message: string }
@@ -1124,6 +1207,27 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     } finally {
       setAdvancingDays(false)
     }
+  }
+
+  function counterPlayerOffer(offer: WorldSimulationResult['offers'][number]) {
+    if (!pendingEvent || pendingEvent.type !== 'player_offer') return
+    const raw = window.prompt('Digite o valor da contraproposta:', String(Math.round(offer.fee * 1.12 / 50000) * 50000))
+    if (!raw) return
+    const normalized = Number(raw.replace(/[^0-9]/g, ''))
+    if (!Number.isFinite(normalized) || normalized <= offer.fee) return
+
+    const negotiation: MarketNegotiation = {
+      playerId: offer.playerId,
+      buyerId: offer.toClubId,
+      sellerId: offer.fromClubId,
+      offer: Math.round(normalized / 50000) * 50000,
+      round: (pendingEvent.negotiationRound ?? 0) + 1,
+      nextDate: addDays(pendingEvent.date, 7),
+    }
+    const existing = loadMarketNegotiations(career.season)
+      .filter(item => !(item.playerId === negotiation.playerId && item.buyerId === negotiation.buyerId))
+    saveMarketNegotiations(career.season, [...existing, negotiation])
+    setPendingEvent(null)
   }
 
   async function respondToPlayerOffer(
@@ -1658,7 +1762,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
             {offerOptions.length > 1 ? 'Clubes estão disputando seu jogador' : 'Recebemos uma proposta por um jogador'}
           </h2>
           <p className="mt-3 text-sm leading-6 text-white/45">
-            {offeredPlayer.first_name} {offeredPlayer.last_name} chamou atenção de {offerOptions.length} clube(s). {offerOptions.length > 1 ? 'As propostas abaixo refletem a concorrência pelo jogador.' : 'Você pode aceitar ou recusar a proposta.'}
+            {offeredPlayer.first_name} {offeredPlayer.last_name} chamou atenção de {offerOptions.length} clube(s). {offerOptions.length > 1 ? 'As propostas abaixo refletem a concorrência pelo jogador.' : 'Você pode aceitar, recusar ou tentar melhorar o valor.'} {pendingEvent.negotiationStatus === 'counter_response' ? 'O clube voltou a responder à sua contraproposta.' : ''}
           </p>
           <div className="mt-5 space-y-3">
             {offerOptions.map(offer => {
@@ -1669,7 +1773,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
                   <p className="font-semibold text-white/85">{buyer.name}</p>
                   <p className="mt-1 text-xs text-white/35">Proposta de {money(offer.fee)}</p>
                 </div>
-                <button onClick={() => respondToPlayerOffer(true, offer)} className="rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(offer.fee)}</button>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => respondToPlayerOffer(true, offer)} className="rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(offer.fee)}</button>
+                  <button onClick={() => counterPlayerOffer(offer)} className="rounded-xl border border-amber-400/30 px-4 py-2.5 text-sm font-semibold text-amber-200 hover:border-amber-300">Contraproposta</button>
+                </div>
               </div>
             })}
           </div>
