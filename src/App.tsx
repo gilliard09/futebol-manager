@@ -220,6 +220,7 @@ function GameApp() {
   }
 
   async function loadWorldState() {
+    if (!career) return null
     const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
     if (!season?.id) return null
 
@@ -321,6 +322,7 @@ function GameApp() {
     playersForWorld: WorldPlayer[],
     results: WorldSimulationResult[],
   ) {
+    if (!career) return
     const evolvedPlayerIds = new Set(results.flatMap(result => result.evolvedPlayerIds))
     const transfers = results.flatMap(result => result.transfers)
     const renewals = results.flatMap(result => result.renewals)
@@ -338,7 +340,6 @@ function GameApp() {
       const mergedRecords = [...currentLoanState.records, ...newLoans.filter(record => !known.has(record.id))]
       const nextLoanState = { records: mergedRecords }
       localStorage.setItem(LOANS_KEY, JSON.stringify(nextLoanState))
-      setLoanState(nextLoanState)
     }
 
     const changedPlayers = playersForWorld.filter(player => evolvedPlayerIds.has(player.id))
@@ -448,14 +449,20 @@ function GameApp() {
 
   function appendWorldNews(items: WorldNews[]) {
     if (!items.length) return
-    setWorldNews(current => {
-      const merged = [...items, ...current]
-        .filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 80)
-      localStorage.setItem(WORLD_NEWS_KEY, JSON.stringify(merged))
-      return merged
-    })
+    let current: WorldNews[] = []
+    try { current = JSON.parse(localStorage.getItem(WORLD_NEWS_KEY) ?? '[]') } catch {}
+    const merged = [...items, ...current]
+      .filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 80)
+    localStorage.setItem(WORLD_NEWS_KEY, JSON.stringify(merged))
+  }
+
+  function addFinanceTransaction(transaction: FinanceTransaction) {
+    let current: FinanceTransaction[] = []
+    try { current = JSON.parse(localStorage.getItem(FINANCE_KEY) ?? '[]') } catch {}
+    if (transaction.eventId && current.some(item => item.eventId === transaction.eventId)) return
+    localStorage.setItem(FINANCE_KEY, JSON.stringify([...current, transaction]))
   }
 
   async function startNextSeason() {
