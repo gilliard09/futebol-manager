@@ -240,13 +240,14 @@ function simulateSide(
   events: MatchEvent[],
   random: Random,
   clubName: string,
+  coach?: { attack: number; defense: number; possession: number; fatigue: number },
 ) {
-  const midfieldControl = clamp(own.midfield * 0.62 + own.overall * 0.38 - opponent.midfield * 0.45)
+  const midfieldControl = clamp(own.midfield * 0.62 + own.overall * 0.38 + (coach?.possession ?? 0) * 0.35 - opponent.midfield * 0.45)
   const attackEdge = own.attack - opponent.defense
   const possessionTarget = clamp(50 + midfieldControl * 0.45 + (tactic === 'offensive' ? 2 : tactic === 'defensive' ? -1 : 0))
   stats.possession += (possessionTarget - stats.possession) * 0.22
 
-  const pressure = clamp(0.9 + attackEdge / 65 + (tactic === 'offensive' ? 0.32 : tactic === 'defensive' ? -0.2 : 0) + stats.possession / 300, 0.15, 2.2)
+  const pressure = clamp(0.9 + attackEdge / 65 + (coach?.attack ?? 0) / 12 + (tactic === 'offensive' ? 0.32 : tactic === 'defensive' ? -0.2 : 0) + stats.possession / 300, 0.15, 2.2)
   const chanceProbability = 0.065 * pressure
   if (random() > chanceProbability) return
 
@@ -316,7 +317,7 @@ export function simulateMatch(
 
   for (let minute = 1; minute <= 90; minute++) {
     const homeBefore = events.length
-    simulateSide(minute, 'home', home, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName)
+    simulateSide(minute, 'home', home, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName, modifiers)
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
 
     const awayBefore = events.length
