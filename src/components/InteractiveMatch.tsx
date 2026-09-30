@@ -71,13 +71,8 @@ function MatchHeader({ session, fixture }: { session: InteractiveMatchState; fix
   </div>
 }
 
-function TacticControls({ session, userTeam }: { session: InteractiveMatchState; userTeam: InteractiveTeam }) {
+function TacticControls({ session, userTeam, onTactic }: { session: InteractiveMatchState; userTeam: InteractiveTeam; onTactic: (tactic: InteractiveTactic, formation?: Formation) => void }) {
   const team = userTeam === 'home' ? session.home : session.away
-  const setTactic = (value: InteractiveTactic) => {
-    // A mudança é deliberadamente registrada como parte da partida: ela altera
-    // o estado que será usado pelos minutos seguintes, não apenas a interface.
-    return value
-  }
   return <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
     <div className="flex items-center justify-between gap-3">
       <div>
@@ -87,10 +82,10 @@ function TacticControls({ session, userTeam }: { session: InteractiveMatchState;
       <span className="text-[10px] font-bold uppercase tracking-wider text-white/25">{team.formation}</span>
     </div>
     <div className="mt-4 grid grid-cols-3 gap-2">
-      {(['defensive', 'balanced', 'offensive'] as InteractiveTactic[]).map(value => <button key={value} data-tactic={setTactic(value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${team.tactic === value ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/40 hover:text-white'}`}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}
+      {(['defensive', 'balanced', 'offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => onTactic(value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${team.tactic === value ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/40 hover:text-white'}`}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}
     </div>
     <div className="mt-3 grid grid-cols-4 gap-2">
-      {(['4-3-3', '4-4-2', '4-2-3-1', '3-5-2'] as Formation[]).map(value => <button key={value} className={`rounded-lg border px-2 py-2 text-[10px] font-bold ${team.formation === value ? 'border-white/15 bg-white/8 text-white' : 'border-white/5 text-white/30'}`}>{value}</button>)}
+      {(['4-3-3', '4-4-2', '4-2-3-1', '3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => onTactic(team.tactic, value)} className={`rounded-lg border px-2 py-2 text-[10px] font-bold ${team.formation === value ? 'border-white/15 bg-white/8 text-white' : 'border-white/5 text-white/30'}`}>{value}</button>)}
     </div>
     <p className="mt-3 text-[10px] leading-4 text-white/25">Use os controles abaixo durante a partida. A alteração será aplicada ao próximo minuto simulado.</p>
   </section>
@@ -262,7 +257,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           </section>
 
           <aside className="space-y-4">
-            <TacticControls session={session} userTeam={userTeam} />
+            <TacticControls session={session} userTeam={userTeam} onTactic={applyTactic} />
             <SubstitutionPanel session={session} userTeam={userTeam} onSubstitute={applySubstitution} />
             {user && <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Estado da equipe</p><div className="mt-4 grid grid-cols-2 gap-2">{[['Ataque', user.metrics.attack.toFixed(0)],['Meio', user.metrics.midfield.toFixed(0)],['Defesa', user.metrics.defense.toFixed(0)],['Moral', user.metrics.morale.toFixed(0)]].map(([label,value]) => <div key={label} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">{label}</p><p className="mt-1 font-mono text-lg font-bold">{value}</p></div>)}</div></section>}
           </aside>
