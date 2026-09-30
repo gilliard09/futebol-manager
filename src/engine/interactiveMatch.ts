@@ -370,7 +370,7 @@ export function changeInteractiveTactics(
   recalculateMetrics(team)
   next.events.push({
     minute: next.minute,
-    type: 'substitution',
+    type: 'tactical_change',
     team: teamName,
     player: 'Comissão técnica',
     text: 'A equipe muda sua abordagem para ' + (tactic === 'offensive' ? 'ofensiva' : tactic === 'defensive' ? 'defensiva' : 'equilibrada') + (formation ? ' e ajusta a formação para ' + formation + '.' : '.'),
