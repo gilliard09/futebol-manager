@@ -66,16 +66,16 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
     </div>
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-7 text-center md:px-10">
       <div>
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]">{crestLabel(teamName(fixture, 'home'))}</div>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-black/10 p-2.5">{fixture.home_club?.logo_url ? <img src={fixture.home_club.logo_url} alt="" className="h-full w-full object-contain drop-shadow-lg" /> : <span className="text-sm font-black text-white/70">{crestLabel(teamName(fixture, 'home'))}</span>}</div>
         <p className="mt-3 text-sm font-bold">{teamName(fixture, 'home')}</p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/25">CASA</p>
       </div>
       <div>
-        <p className="font-mono text-5xl font-bold tabular-nums">{homeScore}<span className="mx-2 text-white/20">:</span>{awayScore}</p>
+        <p key={homeScore + '-' + awayScore} className="score-pulse font-mono text-5xl font-bold tabular-nums">{homeScore}<span className="mx-2 text-white/20">:</span>{awayScore}</p>
         <span className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-bold tabular-nums ${finished ? 'border-white/10 text-white/50' : 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'}`}>{finished ? 'FIM' : minute + "'"}</span>
       </div>
       <div>
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04]">{crestLabel(teamName(fixture, 'away'))}</div>
+        <div className="mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-black/10 p-2.5">{fixture.away_club?.logo_url ? <img src={fixture.away_club.logo_url} alt="" className="h-full w-full object-contain drop-shadow-lg" /> : <span className="text-sm font-black text-white/70">{crestLabel(teamName(fixture, 'away'))}</span>}</div>
         <p className="mt-3 text-sm font-bold">{teamName(fixture, 'away')}</p>
         <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/25">FORA</p>
       </div>
@@ -295,7 +295,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
                   const icon = goal ? <Goal size={14} /> : event.type === 'injury' ? <HeartPulse size={14} /> : event.type === 'red_card' || event.type === 'card' ? <CreditCard size={14} /> : event.type === 'substitution' ? <Users size={14} /> : <Zap size={14} />
                   const cardClass = goal ? 'border-emerald-400/25 bg-emerald-400/8' : danger ? 'border-red-400/25 bg-red-400/7' : event.type === 'card' ? 'border-yellow-400/15 bg-yellow-400/5' : 'border-white/5 bg-black/10'
                   const iconClass = goal ? 'bg-emerald-400/15 text-emerald-300' : danger ? 'bg-red-400/15 text-red-300' : event.type === 'card' ? 'bg-yellow-400/10 text-yellow-300' : 'bg-white/5 text-white/35'
-                  return <div key={event.minute + '-' + index} className={'flex items-start gap-2 rounded-xl border p-3 ' + cardClass}>
+                  return <div key={event.minute + '-' + index} className={'event-slide-in flex items-start gap-2 rounded-xl border p-3 ' + cardClass}>
                     <span className={'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ' + iconClass}>{icon}</span><span className="w-7 shrink-0 font-mono text-[10px] font-bold text-white/35">{event.minute}'</span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-[8px] font-bold uppercase tracking-wider text-white/25">{eventLabel(event.type)}</span><span className={event.team === 'home' ? 'h-1.5 w-1.5 rounded-full bg-emerald-400' : 'h-1.5 w-1.5 rounded-full bg-orange-400'} /></div><p className="mt-1 text-xs font-bold">{event.player}</p><p className="mt-1 text-[10px] leading-4 text-white/35">{event.text}</p></div>
                   </div>
                 })}
@@ -318,7 +318,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-wider text-white/25">{teamName(fixture, 'away')}</p><div className="mt-4 space-y-2">{[['Posse', result.awayStats.possession + '%'],['Finalizações', String(result.awayStats.shots)],['No alvo', String(result.awayStats.shotsOnTarget)],['xG', result.awayStats.xg.toFixed(1)],['Cartões', String(result.awayStats.yellowCards)],['Vermelhos', String(result.awayStats.redCards ?? 0)],['Impedimentos', String(result.awayStats.offsides ?? 0)],['Lesões', String(result.awayStats.injuries ?? 0)]].map(([label,value]) => <div key={label} className="flex items-center justify-between rounded-lg border border-white/5 px-3 py-2.5"><span className="text-xs text-white/35">{label}</span><span className="font-mono text-xs font-bold">{value}</span></div>)}</div></div>
         </section>}
         <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-wider text-white/25">Notas dos jogadores</p><div className="mt-4 grid gap-2 md:grid-cols-2">{result.playerRatings.sort((a,b) => b.rating-a.rating).map(player => <div key={player.playerId + player.team} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3"><div><p className="text-sm font-semibold">{player.name}</p><p className="text-xs text-white/30">{player.team === 'home' ? teamName(fixture, 'home') : teamName(fixture, 'away')} · {player.position}</p></div><span className="rounded-lg bg-emerald-400/10 px-2.5 py-1.5 font-mono text-xs font-bold text-emerald-300">{player.rating.toFixed(1)}</span></div>)}</div></section>
-        <button onClick={() => back(result)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao clube <ArrowLeft size={16} /></button>
+        <button onClick={() => back(result)} className="safe-bottom sticky bottom-3 z-10 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c] shadow-2xl shadow-black/30">Voltar ao clube <ArrowLeft size={16} /></button>
         <button onClick={restart} className="mx-auto flex items-center gap-2 text-xs font-semibold text-white/30 hover:text-white"><RotateCcw size={14} /> Repetir partida</button>
       </section>}
     </section>
