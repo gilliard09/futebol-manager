@@ -23,7 +23,7 @@ import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/s
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
-import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, type SponsorContract, type StadiumState } from './engine/commercial'
+import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
@@ -221,6 +221,14 @@ function GameApp() {
 
   async function startNextSeason() {
     const currentYear = Number(career?.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
+    const previousCommercial = (() => {
+      try {
+        const raw = localStorage.getItem(COMMERCIAL_KEY + ':' + career?.season)
+        return raw ? JSON.parse(raw) as { sponsor: SponsorContract; stadium: StadiumState } : null
+      } catch {
+        return null
+      }
+    })()
     const nextYear = currentYear + 1
     const nextSeasonName = seasonName(nextYear)
 
@@ -272,11 +280,23 @@ function GameApp() {
     const { error: cupError } = await supabase.from('fixtures').insert(cupFixtures)
     if (cupError) { console.error('Não foi possível criar a nova Copa', cupError); await supabase.from('fixtures').delete().eq('season_id', newSeason.id); await supabase.from('seasons').delete().eq('id', newSeason.id); return }
 
+    const nextCommercial = previousCommercial
+      ? {
+          sponsor: { ...previousCommercial.sponsor, seasonId: nextSeasonName, status: 'active' as const, progress: 0 },
+          stadium: carryStadiumToNextSeason(previousCommercial.stadium, nextSeasonName),
+        }
+      : {
+          sponsor: { ...chooseSponsor(career?.club.reputation ?? 50), seasonId: nextSeasonName },
+          stadium: createStadium(career?.club.id ?? '', nextSeasonName, career?.club.stadium ?? 'Estádio Municipal'),
+        }
+    localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify(nextCommercial))
+
     if (career) { const nextCareer = { ...career, season: nextSeasonName }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); setCareer(nextCareer) }
     localStorage.removeItem(WORLD_NEWS_KEY)
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(TRAINING_KEY)
+    localStorage.removeItem(COMMERCIAL_KEY + ':' + career.season)
     Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':')).forEach(key => localStorage.removeItem(key))
     window.location.reload()
   }
@@ -630,6 +650,27 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       }
     }
 
+    const userPosition = leagueStandings.findIndex(team => team.id === career.club.id) + 1
+    const sponsorProgress = commercial.sponsor.sponsorId === 'regional'
+      ? Math.round(fanState.satisfaction)
+      : userPosition > 0 && userPosition <= commercial.sponsor.objectiveTarget
+        ? commercial.sponsor.objectiveTarget
+        : 0
+    const sponsorResolution = resolveSponsorAtSeasonEnd(commercial.sponsor, sponsorProgress, Number(career.club.reputation ?? 50))
+    const closedSponsor = {
+      ...commercial.sponsor,
+      status: sponsorResolution.fulfilled ? 'fulfilled' as const : 'terminated' as const,
+      progress: sponsorProgress,
+    }
+    const nextCommercial = {
+      sponsor: {
+        ...sponsorResolution.nextSponsor,
+        seasonId: seasonId,
+      },
+      stadium: commercial.stadium,
+    }
+    setCommercial(nextCommercial)
+    localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(nextCommercial))
     const finalBoard = resolveContractAtSeasonEnd(boardState)
     saveManagement(finalBoard, fanState)
     if (finalBoard.managerStatus === 'renewed') {
