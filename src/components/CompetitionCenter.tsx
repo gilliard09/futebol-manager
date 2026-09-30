@@ -52,18 +52,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         ? await supabase.from('clubs').select('id,short_name,name').in('id', championIds)
         : { data: [] as any[] }
       const clubName = new Map((championClubs ?? []).map(item => [item.id, item.short_name ?? item.name]))
-      const historyBySeason = new Map<string, { leagueChampion: string; cupChampion: string }>()
-      for (const row of allHistory ?? []) {
-        const current = historyBySeason.get(row.season_id) ?? { leagueChampion: '—', cupChampion: '—' }
-        if (row.competition_id === (allHistory ?? []).find(item => item.competition_id === row.competition_id)?.competition_id) {
-          const seasonCompetition = row.competition_id
-          if (seasonCompetition) {
-            // Competition IDs are resolved below from the current competition records.
-          }
-        }
-        historyBySeason.set(row.season_id, current)
-      }
       const { data: competitionRows } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+      const historyBySeason = new Map<string, { leagueChampion: string; cupChampion: string }>()
       const leagueId = competitionRows?.find(item => item.name === 'Liga Nacional do Brasil')?.id
       const cupId = competitionRows?.find(item => item.name === 'Copa Nacional do Brasil')?.id
       for (const row of allHistory ?? []) {
