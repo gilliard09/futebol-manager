@@ -830,6 +830,34 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         if (updateError) console.error('Não foi possível persistir o resultado da fixture', fixtureId, updateError)
       }
 
+      // O resultado da partida passa a ter consequência no mundo: titulares ganham/perdem forma
+      // e a moral reage ao resultado e ao desempenho individual.
+      const playerStateUpdates = new Map<string, { form: number; morale: number }>()
+      for (const match of Object.values(matchesToPersist)) {
+        for (const playerRating of match.playerRatings ?? []) {
+          const home = playerRating.team === 'home'
+          const teamScore = home ? match.homeScore : match.awayScore
+          const opponentScore = home ? match.awayScore : match.homeScore
+          const resultDelta = teamScore > opponentScore ? 2 : teamScore < opponentScore ? -2 : 0
+          const performanceDelta = Math.round((playerRating.rating - 6.5) * 0.8)
+          const current = players.find(player => player.id === playerRating.playerId)
+          if (!current) continue
+          playerStateUpdates.set(playerRating.playerId, {
+            form: Math.max(30, Math.min(95, current.form + resultDelta + performanceDelta)),
+            morale: Math.max(25, Math.min(100, current.morale + resultDelta + (playerRating.rating >= 7.5 ? 1 : playerRating.rating < 5.5 ? -1 : 0))),
+          })
+        }
+      }
+      if (playerStateUpdates.size) {
+        await Promise.all([...playerStateUpdates.entries()].map(([playerId, values]) =>
+          supabase.from('players').update(values).eq('id', playerId)
+        ))
+        setPlayers(current => current.map(player => {
+          const values = playerStateUpdates.get(player.id)
+          return values ? { ...player, ...values } : player
+        }))
+      }
+
       if (activeMatchFixture.competition_id && activeMatchFixture.round > 0) {
         const { data: competitionRows } = await supabase
           .from('fixtures')
