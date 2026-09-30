@@ -39,10 +39,11 @@ export function calculateMinimumOffer(askingPrice: number) {
   return Math.max(0, Math.round(askingPrice * 0.9 / 10000) * 10000)
 }
 
-export function negotiateTransfer(askingPrice: number, offer: number) {
+export function negotiateTransfer(askingPrice: number, offer: number, personality?: string) {
   const asking = Math.max(0, askingPrice)
   const proposed = Math.max(0, offer)
-  const minimum = calculateMinimumOffer(asking)
+  const baseMinimum = calculateMinimumOffer(asking)
+  const minimum = personality === 'negotiator' ? Math.max(0, Math.round(baseMinimum * 0.94 / 10000) * 10000) : baseMinimum
   return {
     accepted: proposed >= minimum,
     minimum,
