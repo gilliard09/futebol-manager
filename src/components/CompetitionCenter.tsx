@@ -86,7 +86,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       setLoading(false)
     })()
     return () => { active = false }
-  }, [competition])
+  }, [competition, seasonName])
 
   const table = competition === 'Liga Nacional do Brasil'
     ? buildStandings(clubs.map(c => ({ id: c.id, name: c.short_name })), fixtures)
