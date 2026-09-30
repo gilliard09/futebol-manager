@@ -97,16 +97,33 @@ function ageFactor(player: Player) {
   return -0.4
 }
 
+export function playerMarketPerformanceFactor(player: WorldPlayer) {
+  const rating = player.seasonAverageRating ?? 0
+  return Math.max(
+    0.94,
+    Math.min(
+      1.08,
+      1
+        + Math.min(0.04, (player.seasonGoals ?? 0) * 0.004)
+        + Math.min(0.02, (player.seasonAssists ?? 0) * 0.0025)
+        + (rating >= 7.4 ? 0.025 : rating >= 7 ? 0.012 : rating > 0 && rating < 5.9 ? -0.03 : 0),
+    ),
+  )
+}
+
 function transferNeed(player: WorldPlayer, club: WorldClub, squadSize: number, performance?: WorldClubPerformance) {
   const overall = playerOverall(player)
   const budgetPressure = club.budget > 5000000 ? 1 : club.budget > 3000000 ? 0.5 : 0
   const sportingUrgency = performance && (performance.position >= 13 || performance.recentPoints <= 4) ? 6 : 0
   const usageBonus = (player.seasonMinutes ?? 0) >= 900 ? 4 : (player.seasonMinutes ?? 0) < 180 ? -2 : 0
   const ratingBonus = (player.seasonAverageRating ?? 0) >= 7.2 ? 5 : (player.seasonAverageRating ?? 0) >= 6.8 ? 2 : (player.seasonAverageRating ?? 0) > 0 && (player.seasonAverageRating ?? 0) < 6 ? -2 : 0
+  const goalBonus = Math.min(7, (player.seasonGoals ?? 0) * 0.8)
+  const assistBonus = Math.min(4, (player.seasonAssists ?? 0) * 0.5)
+  const performanceBonus = goalBonus + assistBonus + ((player.seasonAverageRating ?? 0) >= 7.4 ? 3 : 0)
   const role = getSquadRole(player)
   const roleBonus = role === 'starter' ? 4 : role === 'rotation' ? 2 : role === 'prospect' ? 1 : -2
   const moraleBonus = player.morale <= 45 ? 3 : player.morale >= 80 ? -1 : 0
-  return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0) + sportingUrgency + usageBonus + ratingBonus + roleBonus + moraleBonus
+  return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0) + sportingUrgency + usageBonus + ratingBonus + performanceBonus + roleBonus + moraleBonus
 }
 
 const firstNames = ['Lucas', 'Gabriel', 'Pedro', 'Matheus', 'João', 'Rafael', 'Gustavo', 'Arthur', 'Miguel', 'Enzo', 'Caio', 'Felipe']
@@ -282,7 +299,14 @@ export function simulateWorldDay(
         return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7)
       })
 
-      if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < 0.18) {
+      const userPerformance = userTarget
+        ? (userTarget.seasonGoals ?? 0) * 0.8 + (userTarget.seasonAssists ?? 0) * 0.5 + ((userTarget.seasonAverageRating ?? 0) >= 7.4 ? 3 : 0)
+        : 0
+      const offerChance = userTarget
+        ? Math.min(0.42, 0.18 + Math.max(0, userPerformance - 4) * 0.025)
+        : 0
+
+      if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < offerChance) {
         const fee = Math.max(250000, Math.round(userTarget.marketValue * (userTarget.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
         offers.push({ playerId: userTarget.id, fromClubId: userClubId, toClubId: buyer.id, fee })
         continue
@@ -465,6 +489,7 @@ export function simulateWorldDay(
         const ageFactor = player.age <= 23 ? 1.04 : player.age >= 32 ? 0.93 : 1
         const formFactor = player.form >= 80 ? 1.025 : player.form <= 45 ? 0.96 : 1
         const potentialFactor = player.potential >= overall + 10 ? 1.025 : 1
+        const performanceFactor = playerMarketPerformanceFactor(player)
         const role = getSquadRole(player)
         const roleFactor = role === 'starter'
           ? 1.035
@@ -473,7 +498,7 @@ export function simulateWorldDay(
             : role === 'prospect'
               ? 1.025
               : 0.985
-        const multiplier = positionFactor * recentFactor * ageFactor * formFactor * potentialFactor * roleFactor
+        const multiplier = positionFactor * recentFactor * ageFactor * formFactor * potentialFactor * performanceFactor * roleFactor
         player.marketValue = Math.max(100000, Math.round((player.marketValue * multiplier) / 50000) * 50000)
         evolvedPlayerIds.add(player.id)
       }
