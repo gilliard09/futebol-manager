@@ -871,7 +871,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       news.push(...buildWorldNews(result, state.worldClubs, state.playersForWorld))
       const offer = result.offers[0]
       if (offer) {
-        event = { type: 'player_offer', date: result.date, ...offer }
+        const playerOffers = result.offers.filter(item => item.playerId === offer.playerId)
+        event = { type: 'player_offer', date: result.date, ...offer, offers: playerOffers }
         break
       }
       const importantEvent = maybeCreateImportantEvent(result.date, state.performanceByClub)
@@ -887,7 +888,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   }
 
   type ImportantEvent =
-    | { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number }
+    | { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number; offers: WorldSimulationResult['offers'] }
     | { type: 'board_message'; date: string; title: string; message: string; tone: 'positive' | 'warning' }
     | { type: 'player_message'; date: string; playerId: string; title: string; message: string }
     | { type: 'player_request'; date: string; playerId: string; request: 'renewal' | 'leave'; title: string; message: string }
@@ -1104,59 +1105,71 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     }
   }
 
-  async function respondToPlayerOffer(accept: boolean) {
+  async function respondToPlayerOffer(
+    accept: boolean,
+    selectedOffer?: WorldSimulationResult['offers'][number],
+  ) {
     if (!pendingEvent || pendingEvent.type !== 'player_offer') return
-    const player = players.find(item => item.id === pendingEvent.playerId)
+    if (!accept) {
+      setPendingEvent(null)
+      return
+    }
+
+    const offer = selectedOffer ?? {
+      playerId: pendingEvent.playerId,
+      fromClubId: pendingEvent.fromClubId,
+      toClubId: pendingEvent.toClubId,
+      fee: pendingEvent.fee,
+    }
+    const player = players.find(item => item.id === offer.playerId)
     if (!player) { setPendingEvent(null); return }
 
-    if (accept) {
-      const { data: row } = await supabase
-        .from('club_players')
-        .select('id')
-        .eq('player_id', pendingEvent.playerId)
-        .eq('club_id', career.club.id)
-        .maybeSingle()
+    const { data: row } = await supabase
+      .from('club_players')
+      .select('id')
+      .eq('player_id', offer.playerId)
+      .eq('club_id', career.club.id)
+      .maybeSingle()
 
-      const { data: buyer } = await supabase
-        .from('clubs')
-        .select('id,budget')
-        .eq('id', pendingEvent.toClubId)
-        .maybeSingle()
+    const { data: buyer } = await supabase
+      .from('clubs')
+      .select('id,budget')
+      .eq('id', offer.toClubId)
+      .maybeSingle()
 
-      const buyerBudget = Number(buyer?.budget ?? 0)
-      if (row?.id && buyer && buyerBudget >= pendingEvent.fee) {
-        const { error } = await supabase.from('club_players').update({ club_id: pendingEvent.toClubId }).eq('id', row.id)
-        if (!error) {
-          await Promise.all([
-            supabase.from('clubs').update({ budget: buyerBudget - pendingEvent.fee }).eq('id', pendingEvent.toClubId),
-            supabase.from('world_transfers').upsert({
-              season_id: (await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()).data?.id,
-              transfer_date: pendingEvent.date,
-              player_id: pendingEvent.playerId,
-              from_club_id: career.club.id,
-              to_club_id: pendingEvent.toClubId,
-              fee: pendingEvent.fee,
-              reason: 'ai_offer',
-            }, { onConflict: 'season_id,player_id,transfer_date' }),
-          ])
+    const buyerBudget = Number(buyer?.budget ?? 0)
+    if (row?.id && buyer && buyerBudget >= offer.fee) {
+      const { error } = await supabase.from('club_players').update({ club_id: offer.toClubId }).eq('id', row.id)
+      if (!error) {
+        await Promise.all([
+          supabase.from('clubs').update({ budget: buyerBudget - offer.fee }).eq('id', offer.toClubId),
+          supabase.from('world_transfers').upsert({
+            season_id: (await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()).data?.id,
+            transfer_date: pendingEvent.date,
+            player_id: offer.playerId,
+            from_club_id: career.club.id,
+            to_club_id: offer.toClubId,
+            fee: offer.fee,
+            reason: 'ai_offer',
+          }, { onConflict: 'season_id,player_id,transfer_date' }),
+        ])
 
-          const transaction = createTransaction(
-            pendingEvent.date,
-            'transfer_in',
-            `Venda · ${player.first_name} ${player.last_name}`,
-            pendingEvent.fee,
-            undefined,
-            `world_offer:${pendingEvent.playerId}:${pendingEvent.date}`,
-          )
-          const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
-          const nextPlayers = players.filter(item => item.id !== pendingEvent.playerId)
-          setPlayers(nextPlayers)
-          const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
-          localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
-          onCareerUpdate(nextCareer)
-          setPendingEvent(null)
-          return
-        }
+        const transaction = createTransaction(
+          pendingEvent.date,
+          'transfer_in',
+          `Venda · ${player.first_name} ${player.last_name}`,
+          offer.fee,
+          undefined,
+          `world_offer:${offer.playerId}:${pendingEvent.date}`,
+        )
+        const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
+        const nextPlayers = players.filter(item => item.id !== offer.playerId)
+        setPlayers(nextPlayers)
+        const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
+        localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+        onCareerUpdate(nextCareer)
+        setPendingEvent(null)
+        return
       }
     }
 
@@ -1606,19 +1619,40 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional do Brasil</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
     {pendingEvent && (() => {
       const offeredPlayer = pendingEvent.type === 'player_offer' ? players.find(item => item.id === pendingEvent.playerId) : null
-      const buyerClub = pendingEvent.type === 'player_offer' ? clubs.find(item => item.id === pendingEvent.toClubId) : null
+      const offerOptions = pendingEvent.type === 'player_offer'
+        ? (pendingEvent.offers.length ? pendingEvent.offers : [{
+            playerId: pendingEvent.playerId,
+            fromClubId: pendingEvent.fromClubId,
+            toClubId: pendingEvent.toClubId,
+            fee: pendingEvent.fee,
+          }])
+        : []
       const messagePlayer = (pendingEvent.type === 'player_message' || pendingEvent.type === 'player_request') ? players.find(item => item.id === pendingEvent.playerId) : null
       const managerClub = pendingEvent.type === 'manager_offer' ? clubs.find(item => item.id === pendingEvent.fromClubId) : null
 
-      if (pendingEvent.type === 'player_offer' && offeredPlayer && buyerClub) {
+      if (pendingEvent.type === 'player_offer' && offeredPlayer) {
         return <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Decisão importante</p>
-          <h2 className="mt-2 text-2xl font-bold">Recebemos uma proposta por um jogador</h2>
-          <p className="mt-3 text-sm leading-6 text-white/45">{buyerClub.name} fez uma proposta de {money(pendingEvent.fee)} por <span className="font-semibold text-white/80">{offeredPlayer.first_name} {offeredPlayer.last_name}</span>.</p>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <button onClick={() => respondToPlayerOffer(false)} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar proposta</button>
-            <button onClick={() => respondToPlayerOffer(true)} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(pendingEvent.fee)}</button>
+          <h2 className="mt-2 text-2xl font-bold">
+            {offerOptions.length > 1 ? 'Clubes estão disputando seu jogador' : 'Recebemos uma proposta por um jogador'}
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-white/45">
+            {offeredPlayer.first_name} {offeredPlayer.last_name} chamou atenção de {offerOptions.length} clube(s). {offerOptions.length > 1 ? 'As propostas abaixo refletem a concorrência pelo jogador.' : 'Você pode aceitar ou recusar a proposta.'}
+          </p>
+          <div className="mt-5 space-y-3">
+            {offerOptions.map(offer => {
+              const buyer = clubs.find(item => item.id === offer.toClubId)
+              if (!buyer) return null
+              return <div key={offer.toClubId} className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="font-semibold text-white/85">{buyer.name}</p>
+                  <p className="mt-1 text-xs text-white/35">Proposta de {money(offer.fee)}</p>
+                </div>
+                <button onClick={() => respondToPlayerOffer(true, offer)} className="rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(offer.fee)}</button>
+              </div>
+            })}
           </div>
+          <button onClick={() => respondToPlayerOffer(false)} className="mt-4 rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar todas as propostas</button>
         </section>
       }
 
