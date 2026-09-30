@@ -12,7 +12,8 @@ import CompetitionCenter from './components/CompetitionCenter'
 import PressCenter from './components/PressCenter'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
-import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, createTransaction, estimateAttendance, type FinanceTransaction } from './engine/finance'
+import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, createTransaction, estimateAttendance, calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
+import { applyFanResult, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } from './engine/loans'
@@ -42,6 +43,8 @@ const LOANS_KEY = 'futebol-manager:loans'
 const WORLD_NEWS_KEY = 'futebol-manager:world-news'
 const MARKET_INTEREST_KEY = 'futebol-manager:market-interest'
 const MARKET_NEGOTIATION_KEY = 'futebol-manager:market-negotiations'
+const BOARD_KEY = 'futebol-manager:board'
+const FANS_KEY = 'futebol-manager:fans'
 
 
 function marketInterestStorageKey(seasonId: string) {
@@ -364,6 +367,33 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const [worldNews, setWorldNews] = useState<WorldNews[]>(() => {
     try { return JSON.parse(localStorage.getItem(WORLD_NEWS_KEY) ?? '[]') } catch { return [] }
   })
+  const [boardState, setBoardState] = useState<BoardState>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${BOARD_KEY}:${career.season}`) ?? 'null')
+      return saved ?? createBoardState(career.season, career.season, career.club.reputation ?? 50, career.club.budget ?? 0, career.club.strength ?? career.club.reputation ?? 50)
+    } catch {
+      return createBoardState(career.season, career.season, career.club.reputation ?? 50, career.club.budget ?? 0, career.club.strength ?? career.club.reputation ?? 50)
+    }
+  })
+  const [fanState, setFanState] = useState<FanState>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${FANS_KEY}:${career.season}`) ?? 'null')
+      return saved ?? createFanState(career.season, career.club.reputation ?? 50, boardState.expectation)
+    } catch {
+      return createFanState(career.season, career.club.reputation ?? 50, boardState.expectation)
+    }
+  })
+
+  useEffect(() => {
+    const savedBoard = localStorage.getItem(`${BOARD_KEY}:${career.season}`)
+    const nextBoard = savedBoard ? JSON.parse(savedBoard) as BoardState : createBoardState(career.season, career.season, career.club.reputation ?? 50, financeBalance, career.club.strength ?? career.club.reputation ?? 50)
+    setBoardState(nextBoard)
+    localStorage.setItem(`${BOARD_KEY}:${career.season}`, JSON.stringify(nextBoard))
+    const savedFans = localStorage.getItem(`${FANS_KEY}:${career.season}`)
+    const nextFans = savedFans ? JSON.parse(savedFans) as FanState : createFanState(career.season, career.club.reputation ?? 50, nextBoard.expectation)
+    setFanState(nextFans)
+    localStorage.setItem(`${FANS_KEY}:${career.season}`, JSON.stringify(nextFans))
+  }, [career.season])
 
   async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
     const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
