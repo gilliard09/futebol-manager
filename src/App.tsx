@@ -2664,7 +2664,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     activeView={view}
     onNavigate={goToView}
     onAdvanceDay={matchReady ? restOneDay : advanceToNextMatch}
-    canAdvance={!advancingDays && Boolean(clock) && Boolean(nextMatchDate) && (matchReady || clock.currentDate < nextMatchDate)}
+    canAdvance={!advancingDays && (matchReady || (clock?.currentDate && nextMatchDate ? clock.currentDate < nextMatchDate : false))}
   >
     <main className="min-h-screen">
       <section className="px-4 py-5 sm:px-6 lg:px-8">
@@ -2957,7 +2957,7 @@ function StadiumScreen({ club, commercial, balance, fanSatisfaction, reputation,
   </main>
 }
 
-function OpponentSquad({ players, club, today, back }: { players: Player[]; club: Club | null; today: string; back: () => void }) {
+function OpponentSquad({ players, club, today, back }: { players: Player[]; club: Pick<Club, 'name' | 'short_name' | 'city' | 'stadium' | 'logo_url'> | null; today: string; back: () => void }) {
   const coach = club ? getAiCoachProfile(club.id) : null
   const lineup = club && players.length && coach ? selectStartingLineup(players, coach.formation, coach.style, coach.personality, [], {}, 1) : []
   return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
