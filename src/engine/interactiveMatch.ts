@@ -291,7 +291,7 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
           team.removed.add(fouler.player.id)
         }
       } else {
-        pushEvent(state, { minute: state.minute, type: 'card', team: teamName, player: name, text: 'Cartão amarelo.' })
+        pushEvent(state, { minute: state.minute, type: 'card', team: teamName, player: name, playerId: fouler.player.id, text: 'Cartão amarelo.' })
       }
     }
   }
