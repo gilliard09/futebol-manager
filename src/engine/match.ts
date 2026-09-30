@@ -9,6 +9,7 @@ export type MatchEvent = {
   player: string
   playerId?: string
   text: string
+  assistPlayer?: string
 }
 
 export type MatchStats = {
