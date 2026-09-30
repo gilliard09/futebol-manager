@@ -282,6 +282,16 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
     const fouler = chooseWeighted(team.lineup, ['CB', 'LB', 'RB', 'DM', 'CM'], random) ?? team.lineup[0]
     const name = fouler.player.first_name + ' ' + fouler.player.last_name
     pushEvent(state, { minute: state.minute, type: 'foul', team: teamName, player: name, text: name + ' comete falta.' })
+    if (random() < 0.12) {
+      const clubName = teamName === 'home' ? (state.fixture.home_club?.short_name ?? 'Casa') : (state.fixture.away_club?.short_name ?? 'Fora')
+      pushEvent(state, {
+        minute: state.minute,
+        type: 'penalty',
+        team: teamName === 'home' ? 'away' : 'home',
+        player: teamName === 'home' ? (state.fixture.away_club?.short_name ?? 'Visitante') : (state.fixture.home_club?.short_name ?? 'Mandante'),
+        text: 'Pênalti para ' + (teamName === 'home' ? (state.fixture.away_club?.short_name ?? 'Visitante') : (state.fixture.home_club?.short_name ?? 'Mandante')) + '! Falta de ' + name + '.',
+      })
+    }
     if (random() < 0.24) {
       const yellows = team.yellowCards.get(fouler.player.id) ?? 0
       team.yellowCards.set(fouler.player.id, yellows + 1)
@@ -424,7 +434,7 @@ export function resolveInteractivePenalty(state: InteractiveMatchState, teamName
     stats.shots += 1
     stats.shotsOnTarget += 1
     stats.xg += 0.76
-    next.events.push({ minute: next.minute, type: 'goal', team: teamName, player: name, playerId: kicker.player.id, text: name + ' converte o pênalti! Gol do ' + clubName + '.' })
+    next.events.push({ minute: next.minute, type: 'goal', team: teamName, player: name, playerId: kicker.player.id, text: name + ' cobra o pênalti, desloca o goleiro e marca! Gol do ' + clubName + '.' })
   } else {
     next.events.push({ minute: next.minute, type: 'shot', team: teamName, player: name, playerId: kicker.player.id, text: name + ' cobra o pênalti, mas a bola não entra.' })
   }
