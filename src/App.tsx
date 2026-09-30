@@ -23,6 +23,7 @@ import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPe
 import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
+import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
@@ -1609,6 +1610,27 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         [activeMatchFixture.id, toDateKey(activeMatchFixture.scheduled_at)],
         ...remainingFixtures.map(item => [item.id, toDateKey(item.scheduled_at)] as [string, string]),
       ])
+      const involvedClubIds = [...new Set(Object.values(matchesToPersist).flatMap(match => [match.home_club_id, match.away_club_id]))]
+      const { data: upcomingAvailabilityFixtures } = activeMatchFixture.season_id
+        ? await supabase
+          .from('fixtures')
+          .select('home_club_id,away_club_id,scheduled_at,status')
+          .eq('season_id', activeMatchFixture.season_id)
+          .eq('status', 'scheduled')
+          .order('scheduled_at')
+        : { data: [] }
+      const upcomingByClub = new Map<string, string[]>()
+      for (const fixture of upcomingAvailabilityFixtures ?? []) {
+        const date = toDateKey(fixture.scheduled_at)
+        if (!involvedClubIds.includes(fixture.home_club_id) && !involvedClubIds.includes(fixture.away_club_id)) continue
+        for (const clubId of [fixture.home_club_id, fixture.away_club_id]) {
+          if (!involvedClubIds.includes(clubId)) continue
+          const dates = upcomingByClub.get(clubId) ?? []
+          dates.push(date)
+          upcomingByClub.set(clubId, dates)
+        }
+      }
+
       const availabilityUpdates = new Map<string, { injuredUntil?: string | null; suspendedUntil?: string | null; yellowCards?: number; redCards?: number }>()
       for (const [fixtureId, match] of Object.entries(matchesToPersist)) {
         const matchDate = fixtureDates.get(fixtureId) ?? toDateKey(activeMatchFixture.scheduled_at)
@@ -1617,19 +1639,33 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           const current = matchPlayers.get(event.playerId)
           if (!current) continue
           const previous = availabilityUpdates.get(event.playerId) ?? {}
+          const clubId = event.team === 'home' ? match.home_club_id : match.away_club_id
+          const upcomingDates = upcomingByClub.get(clubId) ?? []
+
           if (event.type === 'card') {
-            previous.yellowCards = Number(previous.yellowCards ?? current.yellowCards ?? 0) + 1
+            const previousYellow = Number(previous.yellowCards ?? current.yellowCards ?? 0)
+            const nextYellow = previousYellow + 1
+            previous.yellowCards = nextYellow
+            if (shouldSuspendForYellowAccumulation(previousYellow, nextYellow)) {
+              previous.suspendedUntil = calculateSuspensionReturnDate(matchDate, upcomingDates, 1)
+            }
           }
+
           if (event.type === 'red_card') {
             previous.redCards = Number(previous.redCards ?? current.redCards ?? 0) + 1
             if (event.text.includes('Segundo amarelo')) {
-              previous.yellowCards = Number(previous.yellowCards ?? current.yellowCards ?? 0) + 1
+              const previousYellow = Number(previous.yellowCards ?? current.yellowCards ?? 0)
+              const nextYellow = previousYellow + 1
+              previous.yellowCards = nextYellow
             }
-            previous.suspendedUntil = addDays(matchDate, 7)
+            const matches = suspensionMatchesForRed(event.text)
+            previous.suspendedUntil = calculateSuspensionReturnDate(matchDate, upcomingDates, matches)
           }
+
           if (event.type === 'injury') {
-            previous.injuredUntil = addDays(matchDate, 14)
+            previous.injuredUntil = calculateInjuryReturnDate(matchDate)
           }
+
           availabilityUpdates.set(event.playerId, previous)
         }
       }
