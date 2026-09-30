@@ -39,6 +39,10 @@ export type Player = {
   seasonStarts?: number
   seasonMinutes?: number
   seasonAverageRating?: number
+  injuredUntil?: string | null
+  suspendedUntil?: string | null
+  yellowCards?: number
+  redCards?: number
 }
 
 export type Fixture = {
