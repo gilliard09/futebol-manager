@@ -160,6 +160,19 @@ export function buildWorldNews(
     const topScorer = [...activePlayers].sort((a, b) => (b.seasonGoals ?? 0) - (a.seasonGoals ?? 0))[0]
     if (topScorer && (topScorer.seasonGoals ?? 0) >= 5) {
       const isUser = topScorer.clubId === userClubId
+      const alreadyOffered = result.offers.some(offer => offer.playerId === topScorer.id)
+      if (!alreadyOffered && (topScorer.seasonGoals ?? 0) >= 7) {
+        push({
+          date: result.date,
+          title: isUser ? 'Artilheiro entra no radar do mercado' : 'Artilheiro desperta interesse',
+          message: playerName(topScorer.id) + ' vive uma temporada de destaque e começa a chamar atenção de outros clubes após marcar ' + topScorer.seasonGoals + ' gol(s).',
+          tone: 'neutral',
+          category: 'market',
+          priority: isUser ? 89 : 66,
+          id: 'market-scorer:' + result.date + ':' + topScorer.id + ':' + topScorer.seasonGoals,
+        })
+      }
+      const isUser = topScorer.clubId === userClubId
       push({
         date: result.date,
         title: isUser ? 'Seu jogador é destaque na artilharia' : 'Artilheiro começa a chamar atenção',
