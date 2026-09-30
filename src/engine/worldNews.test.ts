@@ -66,3 +66,41 @@ it('prioritizes news involving the user club and major events', () => {
   expect(news[0].priority).toBe(100)
   expect(news.some(item => item.title === 'Crise de resultados')).toBe(true)
 })
+
+
+it('creates contextual season narratives from the table and streaks', () => {
+  const clubs = [
+    { ...club('a', 'Clube A'), reputation: 82 },
+    { ...club('b', 'Clube B'), reputation: 80 },
+    { ...club('c', 'Clube C'), reputation: 79 },
+    { ...club('d', 'Clube D'), reputation: 78 },
+    { ...club('e', 'Clube E'), reputation: 72 },
+  ]
+  const simulation = result()
+  const news = buildWorldNews(simulation, clubs, [], {
+    a: { position: 1, points: 21, goalDifference: 8, played: 7, recentPoints: 13, recentResults: ['W', 'W', 'W', 'W', 'W'] },
+    b: { position: 2, points: 19, goalDifference: 7, played: 7, recentPoints: 12, recentResults: ['W', 'W', 'W', 'D', 'W'] },
+    c: { position: 3, points: 17, goalDifference: 4, played: 7, recentPoints: 8, recentResults: ['D', 'W', 'D', 'W', 'L'] },
+    d: { position: 4, points: 16, goalDifference: 2, played: 7, recentPoints: 5, recentResults: ['L', 'L', 'W', 'L', 'L'] },
+    e: { position: 5, points: 14, goalDifference: 0, played: 7, recentPoints: 7, recentResults: ['W', 'D', 'L', 'W', 'D'] },
+  }, 'a')
+
+  expect(news.some(item => item.title === 'Seu clube entrou na briga pelo título')).toBe(true)
+  expect(news.some(item => item.title === 'Seu clube vive uma sequência de vitórias')).toBe(true)
+  expect(news.some(item => item.title === 'Briga pelo G4 ganha tensão')).toBe(true)
+  expect(news.find(item => item.title === 'Seu clube entrou na briga pelo título')?.priority).toBe(96)
+})
+
+it('creates a contextual crisis story for a high-reputation club', () => {
+  const clubs = [
+    { ...club('a', 'Clube A'), reputation: 82 },
+    { ...club('b', 'Clube B'), reputation: 80 },
+  ]
+  const simulation = result()
+  const news = buildWorldNews(simulation, clubs, [], {
+    a: { position: 10, points: 8, goalDifference: -5, played: 7, recentPoints: 3, recentResults: ['L', 'L', 'D', 'L', 'L'] },
+    b: { position: 1, points: 18, goalDifference: 8, played: 7, recentPoints: 12, recentResults: ['W', 'W', 'W', 'D', 'W'] },
+  }, 'b')
+
+  expect(news.some(item => item.title === 'Grande clube vive momento difícil')).toBe(true)
+})
