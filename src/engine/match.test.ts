@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateTeamMetrics, selectStartingLineup, simulateMatch } from './match'
+import { calculateTeamMetrics, getAiCoachProfile, selectStartingLineup, simulateMatch } from './match'
 import type { Fixture, LineupPlayer, Player } from '../types/game'
 
 function player(id: string, position: Player['position'], base = 70): Player {
@@ -59,6 +59,19 @@ describe('match engine', () => {
     const striker = selected.find(item => item.role === 'ST')
 
     expect(striker?.player.id).toBe(freshStriker.id)
+    expect(selected).toHaveLength(11)
+    expect(new Set(selected.map(item => item.player.id)).size).toBe(11)
+  })
+
+  it('keeps AI coach profiles deterministic and makes opponent strength influence selection', () => {
+    const first = getAiCoachProfile('club-alpha')
+    expect(getAiCoachProfile('club-alpha')).toEqual(first)
+    expect(['4-3-3', '4-4-2', '4-2-3-1', '3-5-2']).toContain(first.formation)
+
+    const squad = lineup(70).map(item => item.player)
+    const eliteOpponent = lineup(82).map(item => item.player)
+    const selected = selectStartingLineup(squad, '4-3-3', 'balanced', 'motivator', eliteOpponent, {}, 1.1)
+
     expect(selected).toHaveLength(11)
     expect(new Set(selected.map(item => item.player.id)).size).toBe(11)
   })
