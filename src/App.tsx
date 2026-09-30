@@ -15,7 +15,7 @@ import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loans'
 import { getSquadAlerts } from './engine/roster'
-import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage } from './engine/competitions'
+import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -43,6 +43,7 @@ function normalizeFixture(row: any): Fixture {
     away_club_id: row.away_club_id,
     home_score: row.home_score,
     away_score: row.away_score,
+    winner_club_id: row.winner_club_id ?? null,
     home_club: Array.isArray(row.home_club) ? (row.home_club[0] ?? null) : (row.home_club ?? null),
     away_club: Array.isArray(row.away_club) ? (row.away_club[0] ?? null) : (row.away_club ?? null),
     competition_name: Array.isArray(row.competitions) ? (row.competitions[0]?.name ?? null) : (row.competitions?.name ?? null),
@@ -358,7 +359,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       for (const [fixtureId, match] of Object.entries(matchesToPersist)) {
         const { error: updateError } = await supabase
           .from('fixtures')
-          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore })
+          .update({ status: 'completed', home_score: match.homeScore, away_score: match.awayScore, winner_club_id: activeMatchFixture.competition_name === 'Copa Nacional do Brasil' && [2,4,6].includes(activeMatchFixture.round) && match.homeScore === match.awayScore ? choosePenaltyWinner(activeMatchFixture.home_club_id, activeMatchFixture.away_club_id, activeMatchFixture.id) : null })
           .eq('id', fixtureId)
           .eq('status', 'scheduled')
 
