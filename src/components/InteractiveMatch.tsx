@@ -13,7 +13,7 @@ import {
   type InteractiveTeam,
 } from '../engine/interactiveMatch'
 import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/match'
-import type { MatchResult } from '../engine/match'
+import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
 
 type Props = {
@@ -134,19 +134,19 @@ function ProjectedPitch({ lineup, team, compact = false }: { lineup: LineupPlaye
   const starters = lineup
   return <div className={compact ? 'rounded-2xl border border-white/8 bg-[#131b2a] p-2' : 'rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4'}>
     <div className="mb-2 flex items-center justify-between"><div><p className="label-mono text-white/30">Formação em campo</p><p className="mt-1 text-xs text-white/35">{compact ? 'Escalação atual' : 'Posições projetadas para o início da partida'}</p></div><span className="rounded-full border border-white/8 px-2.5 py-1 font-mono text-[9px] font-bold text-white/30">{starters.length}/11</span></div>
-    <div className={compact ? 'relative mx-auto aspect-[5/4] max-w-[320px]' : 'relative mx-auto aspect-[4/5] max-w-[420px]' overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]">
+    <div className={(compact ? 'relative mx-auto aspect-[5/4] max-w-[320px]' : 'relative mx-auto aspect-[4/5] max-w-[420px]') + ' overflow-hidden rounded-2xl border border-white/10 bg-[#123b2d]'}>
       <div className="absolute inset-3 rounded-xl border border-white/30" />
       <div className="absolute left-1/2 top-1/2 h-px w-[calc(100%-24px)] -translate-x-1/2 bg-white/20" />
       <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
       <div className="absolute left-1/2 top-3 h-10 w-28 -translate-x-1/2 border border-t-0 border-white/20" />
       <div className="absolute bottom-3 left-1/2 h-10 w-28 -translate-x-1/2 border border-b-0 border-white/20" />
-      {starters.map(player => {
-        const occurrence = counts[player.position] ?? 0
-        counts[player.position] = occurrence + 1
-        const pos = playerFieldPosition(player.position, team, occurrence)
-        return <div key={player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
-          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-500 text-[9px] font-black text-[#04110c] shadow-lg md:h-10 md:w-10">{player.first_name[0]}{player.last_name[0]}</div>
-          <span className="mt-1 block max-w-16 truncate rounded bg-black/55 px-1 text-[8px] font-bold text-white">{player.last_name}</span>
+      {starters.map(item => {
+        const occurrence = counts[item.role] ?? 0
+        counts[item.role] = occurrence + 1
+        const pos = playerFieldPosition(item.role, team, occurrence)
+        return <div key={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
+          <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-500 text-[9px] font-black text-[#04110c] shadow-lg md:h-10 md:w-10">{item.player.first_name[0]}{item.player.last_name[0]}</div>
+          <span className="mt-1 block max-w-16 truncate rounded bg-black/55 px-1 text-[8px] font-bold text-white">{item.player.last_name}</span>
         </div>
       })}
     </div>
