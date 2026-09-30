@@ -83,13 +83,21 @@ export function buildWorldNews(
   }
 
   for (const interest of result.marketInterest ?? []) {
+    if (!interest.stageChanged) continue
     const player = playerById.get(interest.playerId)
     const interestedClubs = interest.clubIds.map(clubName)
     const isUserPlayer = player?.clubId === userClubId
+    const stageLabel = interest.stage === 'monitoring'
+      ? 'entrou no radar'
+      : interest.stage === 'scouting'
+        ? 'passou a ser acompanhado de perto'
+        : 'está pronto para receber propostas'
     push({
       date: result.date,
-      title: isUserPlayer ? 'Seu jogador entrou no radar de vários clubes' : 'Vários clubes monitoram o mesmo jogador',
-      message: `${playerName(interest.playerId)} está sendo acompanhado por ${interestedClubs.join(', ')}. A concorrência aumenta o valor e pode transformar o jogador em um dos alvos da próxima janela.`,
+      title: isUserPlayer
+        ? (interest.stage === 'proposal_ready' ? 'Seu jogador está na mira do mercado' : 'Seu jogador ganhou novos interessados')
+        : (interest.stage === 'proposal_ready' ? 'Jogador entra na fase de propostas' : 'Vários clubes monitoram o mesmo jogador'),
+      message: `${playerName(interest.playerId)} ${stageLabel} por ${interestedClubs.join(', ')}. A concorrência aumenta o valor e aproxima o jogador de uma possível negociação.`,
       tone: 'neutral',
       category: 'market',
       priority: isUserPlayer ? 91 : 74,
