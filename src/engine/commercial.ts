@@ -53,8 +53,8 @@ export function carryStadiumToNextSeason(state: StadiumState, seasonId: string) 
   return { ...state, seasonId }
 }
 
-export function createStadium(clubId: string, seasonId: string, stadiumName = 'Estádio Municipal'): StadiumState {
-  return { clubId, seasonId, name: stadiumName, capacity: 12_000, level: 1, baseTicketPrice: 35, attendanceRate: 0.72, maintenance: 15_000, upgrades: [] }
+export function createStadium(clubId: string, seasonId: string, stadiumName = 'Estádio Municipal', initialCapacity = 12_000): StadiumState {
+  return { clubId, seasonId, name: stadiumName, capacity: Math.max(8_000, initialCapacity), level: 1, baseTicketPrice: 35, attendanceRate: 0.72, maintenance: 15_000, upgrades: [] }
 }
 
 export function stadiumUpgradeCost(level: number) {
