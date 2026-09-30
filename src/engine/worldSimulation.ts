@@ -3,18 +3,43 @@ import { playerOverall } from './match'
 
 export type WorldClub = Club & { strength: number }
 
-export type WorldSimulationResult = {
-  date: string
-  transfers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
-  evolvedPlayers: number
-  changedClubs: string[]
-}
-
-type PlayerRow = Player & {
+export type WorldPlayer = Player & {
   clubId: string
   marketValue: number
   salary: number
   contractUntil: string | null
+  clubPlayerId: string
+}
+
+export type WorldSimulationResult = {
+  date: string
+  transfers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
+  retirements: Array<{ playerId: string; clubId: string }>
+  youth: Array<{
+    firstName: string
+    lastName: string
+    age: number
+    position: string
+    nationality: string
+    pace: number
+    shooting: number
+    passing: number
+    dribbling: number
+    defending: number
+    physical: number
+    goalkeeping: number
+    mental: number
+    potential: number
+    form: number
+    morale: number
+    marketValue: number
+    salary: number
+    contractUntil: string
+    clubId: string
+  }>
+  evolvedPlayers: number
+  changedClubs: string[]
 }
 
 function hash(input: string) {
@@ -34,6 +59,17 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Math.round(value)))
 }
 
+function addYears(date: string, years: number) {
+  const [year, month, day] = date.split('-').map(Number)
+  return `${year + years}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+function addMonths(date: string, months: number) {
+  const [year, month, day] = date.split('-').map(Number)
+  const next = new Date(Date.UTC(year, month - 1 + months, day))
+  return next.toISOString().slice(0, 10)
+}
+
 function ageFactor(player: Player) {
   if (player.age <= 20) return 0.95
   if (player.age <= 23) return 0.7
@@ -49,26 +85,65 @@ function transferNeed(player: Player, club: WorldClub, squadSize: number) {
   return overall + budgetPressure * 4 + (squadSize < 18 ? 8 : 0)
 }
 
+const firstNames = ['Lucas', 'Gabriel', 'Pedro', 'Matheus', 'João', 'Rafael', 'Gustavo', 'Arthur', 'Miguel', 'Enzo', 'Caio', 'Felipe']
+const lastNames = ['Almeida', 'Barbosa', 'Carvalho', 'Costa', 'Ferreira', 'Gomes', 'Lima', 'Martins', 'Mendes', 'Oliveira', 'Pereira', 'Ribeiro']
+const positions = ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST']
+
+function createYouth(date: string, club: WorldClub, index: number) {
+  const seed = `${date}:${club.id}:youth:${index}`
+  const base = 54 + Math.floor(random01(seed) * 10)
+  const position = positions[hash(seed + ':position') % positions.length]
+  const pace = clamp(base + (position === 'ST' || position === 'LW' || position === 'RW' ? 5 : 0), 1, 99)
+  const shooting = clamp(base + (position === 'ST' ? 7 : position === 'AM' ? 3 : 0), 1, 99)
+  const defending = clamp(base + (position === 'CB' || position === 'DM' ? 6 : 0), 1, 99)
+  const goalkeeping = position === 'GK' ? clamp(base + 8, 1, 99) : clamp(base - 15, 1, 99)
+  return {
+    firstName: firstNames[hash(seed + ':first') % firstNames.length],
+    lastName: lastNames[hash(seed + ':last') % lastNames.length],
+    age: 17 + (hash(seed + ':age') % 3),
+    position,
+    nationality: 'Brasil',
+    pace,
+    shooting,
+    passing: clamp(base + (position === 'CM' || position === 'AM' ? 6 : 0), 1, 99),
+    dribbling: clamp(base + (position === 'LW' || position === 'RW' || position === 'AM' ? 5 : 0), 1, 99),
+    defending,
+    physical: clamp(base + 2, 1, 99),
+    goalkeeping,
+    mental: clamp(base + 4, 1, 99),
+    potential: clamp(76 + Math.floor(random01(seed + ':potential') * 18), 70, 94),
+    form: 65,
+    morale: 72,
+    marketValue: 250000 + base * 5000,
+    salary: 9000 + base * 100,
+    contractUntil: addYears(date, 3),
+    clubId: club.id,
+  }
+}
+
 export function simulateWorldDay(
   date: string,
   seasonId: string,
   clubs: WorldClub[],
-  players: PlayerRow[],
+  players: WorldPlayer[],
   userClubId: string,
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
+  const renewals: WorldSimulationResult['renewals'] = []
+  const retirements: WorldSimulationResult['retirements'] = []
+  const youth: WorldSimulationResult['youth'] = []
   const changedClubs = new Set<string>()
   let evolvedPlayers = 0
 
-  const byClub = new Map<string, PlayerRow[]>()
+  const byClub = new Map<string, WorldPlayer[]>()
   for (const player of players) {
     const squad = byClub.get(player.clubId) ?? []
     squad.push(player)
     byClub.set(player.clubId, squad)
   }
 
-  const updatePlayer = (player: PlayerRow, delta: number) => {
+  const updatePlayer = (player: WorldPlayer, delta: number) => {
     const attributes: Array<keyof Player> = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical', 'goalkeeping', 'mental']
     const key = attributes[hash(player.id + date) % attributes.length]
     const next = clamp(Number(player[key]) + delta, 1, 99)
@@ -79,30 +154,29 @@ export function simulateWorldDay(
     evolvedPlayers++
   }
 
-  // O desenvolvimento acontece mensalmente. Jovens com potencial alto têm maior
-  // probabilidade de crescer; veteranos podem perder atributos gradualmente.
-  if (date.endsWith('-01') || date.endsWith('-15')) {
+  const day = Number(date.slice(8, 10))
+  const month = Number(date.slice(5, 7))
+
+  // Desenvolvimento: jovens crescem mais, veteranos declinam gradualmente.
+  if (day === 1 || day === 15) {
     for (const player of players) {
-      const probability = player.age <= 23 ? 0.7 : player.age >= 31 ? 0.45 : 0.2
-      const roll = random01(seasonId + date + player.id)
-      if (roll < probability) {
+      const probability = player.age <= 23 ? 0.72 : player.age >= 31 ? 0.5 : 0.18
+      if (random01(seasonId + date + player.id) < probability) {
         const direction = player.age >= 31 ? -1 : 1
-        const cappedDelta = direction > 0 ? Math.max(0, Math.min(2, player.potential - playerOverall(player))) : -1
-        if (cappedDelta !== 0) updatePlayer(player, cappedDelta)
+        const room = Math.max(0, player.potential - playerOverall(player))
+        const delta = direction > 0 ? Math.min(2, room) : -1
+        if (delta !== 0) updatePlayer(player, delta)
       }
     }
   }
 
-  // Mercado vivo: em dois dias fixos do mês, cada clube pode realizar no máximo
-  // uma operação. Clubes procuram posições onde seu elenco está mais fraco.
-  const day = Number(date.slice(8, 10))
+  // Mercado: cada clube pode contratar uma vez por janela mensal.
   if ([10, 20].includes(day)) {
     for (const buyer of aiClubs) {
       const squad = byClub.get(buyer.id) ?? []
-      if (squad.length >= 22 && random01(date + buyer.id) < 0.55) continue
+      if (squad.length >= 22 && random01(date + buyer.id) < 0.65) continue
       if (buyer.budget < 750000) continue
 
-      const positions = ['GK', 'CB', 'CM', 'ST']
       const weakestPosition = positions
         .map(position => {
           const group = squad.filter(player => player.position === position)
@@ -121,6 +195,8 @@ export function simulateWorldDay(
       const target = candidates.find(player => {
         const seller = clubs.find(club => club.id === player.clubId)
         if (!seller || seller.id === buyer.id || seller.id === userClubId) return false
+        const sellerSquad = byClub.get(seller.id) ?? []
+        if (sellerSquad.length <= 16) return false
         const price = Math.max(150000, Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) / 50000) * 50000)
         return price <= buyer.budget * 0.7 && (player.contractUntil === null || player.contractUntil >= date)
       })
@@ -142,15 +218,99 @@ export function simulateWorldDay(
     }
   }
 
+  // Renovações: clubes protegem titulares e jovens de alto potencial antes do fim do contrato.
+  for (const club of aiClubs) {
+    const squad = byClub.get(club.id) ?? []
+    for (const player of squad) {
+      if (!player.contractUntil || player.age > 33) continue
+      const monthsToEnd = Math.round((new Date(player.contractUntil).getTime() - new Date(date).getTime()) / (30 * 86400000))
+      if (monthsToEnd > 6 || monthsToEnd < 0) continue
+      const overall = playerOverall(player)
+      const important = overall >= club.strength - 2 || player.potential >= 84
+      if (!important || club.budget < 250000) continue
+      if (random01(`${date}:renew:${player.id}`) > 0.7) continue
+      const salary = Math.round(Math.max(player.salary * 1.08, overall * 1200) / 500) * 500
+      player.salary = salary
+      player.contractUntil = addYears(date, 2)
+      club.budget = Math.max(0, club.budget - salary * 0.2)
+      renewals.push({ playerId: player.id, clubId: club.id, salary, contractUntil: player.contractUntil })
+    }
+  }
+
+  // Janela de fim de temporada: veteranos podem se aposentar e clubes recompõem a base.
+  if (month === 12 && day === 20) {
+    for (const club of aiClubs) {
+      const squad = byClub.get(club.id) ?? []
+      for (const player of [...squad]) {
+        if (player.age < 34) continue
+        if (random01(`${seasonId}:retire:${player.id}`) > 0.38) continue
+        retirements.push({ playerId: player.id, clubId: club.id })
+        byClub.set(club.id, (byClub.get(club.id) ?? []).filter(item => item.id !== player.id))
+        player.clubId = ''
+        changedClubs.add(club.id)
+      }
+
+      const afterRetirements = byClub.get(club.id) ?? []
+      const targetSize = 18
+      let youthIndex = 0
+      while (afterRetirements.length + youthIndex < targetSize) {
+        const prospect = createYouth(date, club, youthIndex++)
+        youth.push(prospect)
+      }
+    }
+  }
+
+  // Pequena inflação/pressão financeira mantém o mercado ligado à economia do clube.
+  if (day === 1) {
+    for (const club of aiClubs) {
+      const squad = byClub.get(club.id) ?? []
+      const payroll = squad.reduce((sum, player) => sum + player.salary, 0)
+      club.budget = Math.max(0, club.budget - payroll)
+      if (club.budget < 500000 && squad.length > 18) {
+        const sale = [...squad]
+          .filter(player => playerOverall(player) < club.strength + 2 && player.age < 32)
+          .sort((a, b) => playerOverall(a) - playerOverall(b))[0]
+        if (sale && random01(date + ':forced-sale:' + sale.id) < 0.45) {
+          const buyer = aiClubs
+            .filter(other => other.id !== club.id && other.budget > sale.marketValue)
+            .sort((a, b) => b.budget - a.budget)[0]
+          if (buyer) {
+            const fee = Math.max(150000, Math.round(sale.marketValue / 50000) * 50000)
+            sale.clubId = buyer.id
+            club.budget += fee
+            buyer.budget -= fee
+            changedClubs.add(club.id)
+            changedClubs.add(buyer.id)
+            transfers.push({ playerId: sale.id, fromClubId: club.id, toClubId: buyer.id, fee })
+            byClub.set(club.id, (byClub.get(club.id) ?? []).filter(item => item.id !== sale.id))
+            byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), sale])
+          }
+        }
+      }
+    }
+  }
+
+  // Uma geração de jovens pode ocorrer mesmo antes da virada de temporada se o elenco cair abaixo de 16.
+  if (day === 25) {
+    for (const club of aiClubs) {
+      const squad = byClub.get(club.id) ?? []
+      if (squad.length >= 16 || random01(date + ':academy:' + club.id) > 0.22) continue
+      const prospect = createYouth(date, club, squad.length)
+      youth.push(prospect)
+      changedClubs.add(club.id)
+    }
+  }
+
   for (const club of aiClubs) {
     const squad = byClub.get(club.id) ?? []
     const average = squad.length ? squad.reduce((sum, player) => sum + playerOverall(player), 0) / squad.length : club.strength
-    const nextStrength = clamp(average + Math.min(4, Math.max(0, club.reputation - 50) / 25), 35, 95)
+    const depthPenalty = squad.length < 16 ? (16 - squad.length) * 2 : 0
+    const nextStrength = clamp(average + Math.min(4, Math.max(0, club.reputation - 50) / 25) - depthPenalty, 35, 95)
     if (nextStrength !== club.strength) {
       club.strength = nextStrength
       changedClubs.add(club.id)
     }
   }
 
-  return { date, transfers, evolvedPlayers, changedClubs: [...changedClubs] }
+  return { date, transfers, renewals, retirements, youth, evolvedPlayers, changedClubs: [...changedClubs] }
 }
