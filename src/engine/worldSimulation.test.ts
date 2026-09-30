@@ -47,25 +47,26 @@ describe('world simulation', () => {
 
   it('gives playing time an effect on development probability', () => {
     const clubs = [club('user', 1000000), club('ai', 5000000)]
-    const highUsage = Array.from({ length: 24 }, (_, i) => {
+    const highUsage = Array.from({ length: 200 }, (_, i) => {
       const player = basePlayer('high-' + i, 'user')
       player.seasonMinutes = 1800
       player.seasonAppearances = 20
       return player
     })
-    const lowUsage = Array.from({ length: 24 }, (_, i) => {
+    const lowUsage = Array.from({ length: 200 }, (_, i) => {
       const player = basePlayer('low-' + i, 'user')
       player.seasonMinutes = 0
       player.seasonAppearances = 0
       return player
     })
-    const beforeHigh = highUsage.map(player => player.shooting)
-    const beforeLow = lowUsage.map(player => player.shooting)
+    const score = (player: Player) => player.pace + player.shooting + player.passing + player.dribbling + player.defending + player.physical + player.mental
+    const beforeHigh = highUsage.map(score)
+    const beforeLow = lowUsage.map(score)
 
     simulateWorldDay('2026-01-01', 'season', clubs, [...highUsage, ...lowUsage], 'user')
 
-    const evolvedHigh = highUsage.filter((player, index) => player.shooting > beforeHigh[index]).length
-    const evolvedLow = lowUsage.filter((player, index) => player.shooting > beforeLow[index]).length
+    const evolvedHigh = highUsage.filter((player, index) => score(player) > beforeHigh[index]).length
+    const evolvedLow = lowUsage.filter((player, index) => score(player) > beforeLow[index]).length
     expect(evolvedHigh).toBeGreaterThan(evolvedLow)
   })
 
