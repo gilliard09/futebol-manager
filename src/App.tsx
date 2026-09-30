@@ -394,6 +394,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const changedPlayers = playersForWorld.filter(player => evolvedPlayerIds.has(player.id))
     await Promise.all(changedPlayers.map(player =>
       supabase.from('players').update({
+        age: player.age,
         pace: player.pace,
         shooting: player.shooting,
         passing: player.passing,
@@ -405,6 +406,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         form: player.form,
         morale: player.morale,
       }).eq('id', player.id)
+      .then(() => supabase.from('club_players').update({
+        market_value: player.marketValue,
+      }).eq('id', player.clubPlayerId))
     ))
 
     const transferRows = transfers.map(transfer => ({
