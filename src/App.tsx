@@ -531,7 +531,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={finishMatch} />
+    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} coachStyle={coachStyle} coachPersonality={coachPersonality} back={finishMatch} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
