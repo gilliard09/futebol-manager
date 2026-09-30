@@ -296,6 +296,10 @@ export function simulateWorldDay(
   activeLoans: LoanRecord[] = [],
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
+
+  const marketCompetition = new Map<string, number>()
+  for (const interest of previousMarketInterest) marketCompetition.set(interest.playerId, interest.clubIds.length)
+
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
   const negotiationEvents: WorldSimulationResult['negotiationEvents'] = []
