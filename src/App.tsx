@@ -1508,7 +1508,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
+    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
@@ -1839,17 +1839,16 @@ function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyl
     try {
       savedLineup = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
     } catch {}
-    const homeLineup = homePlayers.length && fixture.home_club_id === fixture.home_club_id
-      ? lineupFromPlayerIds(homePlayers, formation as Formation, savedLineup)
-      : []
+    const homeLineup = lineupFromPlayerIds(homePlayers, formation as Formation, savedLineup)
+    const awayLineup = lineupFromPlayerIds(awayPlayers, formation as Formation, savedLineup)
     const match = simulateMatch(
       fixture,
       homePlayers,
       awayPlayers,
       tactic,
       formation as Formation,
-      fixture.home_club_id === fixture.home_club_id && homeLineup.length ? homeLineup : undefined,
-      undefined,
+      homeLineup.length >= 7 ? homeLineup : undefined,
+      awayLineup.length >= 7 ? awayLineup : undefined,
       Math.random,
       coachStyle,
       coachPersonality,
