@@ -266,6 +266,8 @@ export function simulateWorldDay(
         buyer.budget = Math.max(0, buyer.budget - salary * 0.5)
         changedClubs.add(buyer.id)
         transfers.push({ playerId: freeAgent.id, fromClubId: null, toClubId: buyer.id, fee: 0 })
+        renewals.push({ playerId: freeAgent.id, clubId: buyer.id, salary, contractUntil: freeAgent.contractUntil })
+        byClub.set('', (byClub.get('') ?? []).filter(player => player.id !== freeAgent.id))
         byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), freeAgent])
         continue
       }
