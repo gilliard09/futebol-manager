@@ -718,7 +718,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (pendingEvent.type === 'manager_offer' && action === 'accept') {
       const targetClub = clubs.find(club => club.id === pendingEvent.fromClubId)
       if (targetClub) {
-        const nextCareer = { ...career, club: { ...targetClub, budget: Number(targetClub.budget ?? 0) } }
+        const targetBudget = Number(targetClub.budget ?? 0)
+        const nextCareer = { ...career, club: { ...targetClub, budget: targetBudget } }
+        setFinanceBalance(targetBudget)
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
         onCareerUpdate(nextCareer)
         setPendingEvent(null)
