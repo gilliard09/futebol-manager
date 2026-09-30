@@ -574,7 +574,7 @@ export function simulateWorldDay(
             playerId: target.id,
             buyerId: buyer.id,
             sellerId: seller.id,
-            action: decision.action === 'accept' ? 'accepted' : decision.action === 'counter' ? 'countered' : decision.action,
+            action: decision.action === 'accept' ? 'accepted' : decision.action === 'counter' ? 'countered' : decision.action === 'reject' ? 'rejected' : 'withdrawn',
             round,
             offer: currentOffer,
             ...(decision.action === 'counter' ? { counterOffer: decision.counterOffer } : {}),
