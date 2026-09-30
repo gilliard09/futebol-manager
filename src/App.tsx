@@ -787,6 +787,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       const matchesToPersist: Record<string, PlayedMatch> = {
         [activeMatchFixture.id]: nextMatches[activeMatchFixture.id],
       }
+      const matchPlayers = new Map<string, Player>()
+      for (const player of players) matchPlayers.set(player.id, player)
       const clubIds = [...new Set(remainingFixtures.flatMap(fixture => [fixture.home_club_id, fixture.away_club_id]))]
 
       if (clubIds.length) {
@@ -798,6 +800,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         const squads = new Map<string, Player[]>()
         for (const row of squadRows ?? []) {
           const player = normalizePlayer(row)
+          matchPlayers.set(player.id, player)
           const squad = squads.get(row.club_id) ?? []
           squad.push(player)
           squads.set(row.club_id, squad)
@@ -840,7 +843,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           const opponentScore = home ? match.awayScore : match.homeScore
           const resultDelta = teamScore > opponentScore ? 2 : teamScore < opponentScore ? -2 : 0
           const performanceDelta = Math.round((playerRating.rating - 6.5) * 0.8)
-          const current = players.find(player => player.id === playerRating.playerId)
+          const current = matchPlayers.get(playerRating.playerId)
           if (!current) continue
           playerStateUpdates.set(playerRating.playerId, {
             form: Math.max(30, Math.min(95, current.form + resultDelta + performanceDelta)),
