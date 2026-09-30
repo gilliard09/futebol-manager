@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
-import { getAiCoachProfile, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
+import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
@@ -916,7 +916,13 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     if ((day === 5 || day === 20) && players.length) {
       const concerned = [...players]
         .filter(player => player.morale <= 48 || player.form <= 45)
-        .sort((a, b) => a.morale - b.morale || a.form - b.form)[0]
+        .sort((a, b) => {
+          const roleWeight = (role: Player) => {
+            const squadRole = getSquadRole(role)
+            return squadRole === 'backup' ? 2 : squadRole === 'rotation' ? 1 : 0
+          }
+          return roleWeight(b) - roleWeight(a) || a.morale - b.morale || a.form - b.form
+        })[0]
 
       if (concerned) {
         const monthsToEnd = concerned.contractUntil
@@ -934,21 +940,28 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           }
         }
 
-        if (concerned.morale <= 35 && eventHash(date + ':leave-request:' + concerned.id) % 100 < 26) {
+        const concernedRole = getSquadRole(concerned)
+        const lowUsage = concernedRole === 'backup' || concernedRole === 'rotation' || concernedRole === 'prospect'
+        const leaveChance = lowUsage ? 38 : 26
+        if (concerned.morale <= 35 && eventHash(date + ':leave-request:' + concerned.id) % 100 < leaveChance) {
           return {
             type: 'player_request',
             date,
             playerId: concerned.id,
             request: 'leave',
             title: concerned.first_name + ' ' + concerned.last_name + ' quer deixar o clube',
-            message: 'O jogador está insatisfeito com seu momento e pediu para ser colocado à disposição do mercado.',
+            message: lowUsage
+              ? 'O jogador sente que perdeu espaço no elenco e pediu para ser colocado à disposição do mercado.'
+              : 'O jogador está insatisfeito com seu momento e pediu para ser colocado à disposição do mercado.',
           }
         }
 
         if (eventHash(date + ':player:' + concerned.id) % 100 < 28) {
-          const reason = concerned.morale <= 48
-            ? 'Ele sente que precisa de mais atenção e quer conversar sobre seu momento no elenco.'
-            : 'Ele acredita que pode render mais e quer entender como recuperar seu espaço e sua melhor forma.'
+          const reason = lowUsage
+            ? 'Ele sente que perdeu espaço no elenco e quer entender o que precisa fazer para voltar a ser uma opção importante.'
+            : concerned.morale <= 48
+              ? 'Ele sente que precisa de mais atenção e quer conversar sobre seu momento no elenco.'
+              : 'Ele acredita que pode render mais e quer entender como recuperar seu espaço e sua melhor forma.'
           return {
             type: 'player_message',
             date,
