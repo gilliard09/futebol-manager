@@ -619,6 +619,44 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     return nextBalance
   }
 
+  function saveManagement(nextBoard: BoardState, nextFans: FanState) {
+    setBoardState(nextBoard)
+    setFanState(nextFans)
+    localStorage.setItem(BOARD_KEY + ':' + career.season, JSON.stringify(nextBoard))
+    localStorage.setItem(FANS_KEY + ':' + career.season, JSON.stringify(nextFans))
+  }
+
+  function applyMatchManagement(result: MatchResult, fixture: Fixture) {
+    const userIsHome = fixture.home_club_id === career.club.id
+    const userGoals = userIsHome ? result.homeScore : result.awayScore
+    const opponentGoals = userIsHome ? result.awayScore : result.homeScore
+    const outcome: 'W' | 'D' | 'L' = userGoals > opponentGoals ? 'W' : userGoals < opponentGoals ? 'L' : 'D'
+    const expectationPressure = boardState.expectation >= 75 && outcome === 'L' ? 2 : 0
+    const nextFans = applyFanResult(fanState, outcome, expectationPressure)
+    const currentPosition = table.findIndex(team => team.id === career.club.id) + 1 || 16
+    const nextBoard = evaluateBoard(
+      boardState,
+      {
+        position: currentPosition,
+        played: Math.max(1, table.find(team => team.id === career.club.id)?.played ?? 0) + 1,
+        recentPoints: nextFans.recentResults.reduce((sum, item) => sum + (item === 'W' ? 3 : item === 'D' ? 1 : 0), 0),
+        points: table.find(team => team.id === career.club.id)?.points ?? 0,
+      },
+      { balance: financeBalance, monthlyPayroll: salaryTotal },
+      toDateKey(fixture.scheduled_at),
+    )
+    saveManagement(nextBoard, nextFans)
+    if (nextBoard.managerStatus === 'dismissed') {
+      setPendingEvent({
+        type: 'board_message',
+        date: toDateKey(fixture.scheduled_at),
+        title: 'A diretoria encerrou seu trabalho',
+        message: 'A sequência de resultados e o nível de confiança chegaram a um ponto em que a diretoria decidiu encerrar o vínculo com o treinador.',
+        tone: 'warning',
+      })
+    }
+  }
+
 
   useEffect(() => {
     let active = true
