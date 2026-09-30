@@ -494,11 +494,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
   async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
     const state = await loadWorldState()
-    if (!state) return { date: startDate, event: null as { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number } | null }
+    if (!state) return { date: startDate, event: null as ImportantEvent | null }
 
     const results: WorldSimulationResult[] = []
     let currentDate = startDate
-    let event: { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number } | null = null
+    let event: ImportantEvent | null = null
 
     while (currentDate < targetDate) {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
@@ -509,13 +509,85 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         event = { type: 'player_offer', date: result.date, ...offer }
         break
       }
+      const importantEvent = maybeCreateImportantEvent(result.date)
+      if (importantEvent) {
+        event = importantEvent
+        break
+      }
     }
 
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, results)
     return { date: event?.date ?? targetDate, event }
   }
 
+  type ImportantEvent =
+    | { type: 'player_offer'; date: string; playerId: string; fromClubId: string; toClubId: string; fee: number }
+    | { type: 'board_message'; date: string; title: string; message: string; tone: 'positive' | 'warning' }
+    | { type: 'player_message'; date: string; playerId: string; title: string; message: string }
+    | { type: 'manager_offer'; date: string; fromClubId: string; message: string }
+
   const [advancingDays, setAdvancingDays] = useState(false)
+  const [pendingEvent, setPendingEvent] = useState<ImportantEvent | null>(null)
+
+  function eventHash(input: string) {
+    let value = 2166136261
+    for (const char of input) {
+      value ^= char.charCodeAt(0)
+      value = Math.imul(value, 16777619)
+    }
+    return value >>> 0
+  }
+
+  function maybeCreateImportantEvent(date: string): ImportantEvent | null {
+    const day = Number(date.slice(8, 10))
+    const month = Number(date.slice(5, 7))
+
+    if (day === 1 && financeBalance < Math.max(500000, career.club.budget * 0.22)) {
+      return {
+        type: 'board_message',
+        date,
+        title: 'A diretoria está preocupada com as finanças',
+        message: 'O caixa do clube entrou em uma faixa de atenção. A diretoria espera que você controle a folha e evite comprometer o orçamento nas próximas semanas.',
+        tone: 'warning',
+      }
+    }
+
+    if ((day === 5 || day === 20) && players.length) {
+      const concerned = [...players]
+        .filter(player => player.morale <= 48 || player.form <= 45)
+        .sort((a, b) => a.morale - b.morale || a.form - b.form)[0]
+      if (concerned && eventHash(date + ':player:' + concerned.id) % 100 < 28) {
+        const reason = concerned.morale <= 48
+          ? 'Ele sente que precisa de mais atenção e quer conversar sobre seu momento no elenco.'
+          : 'Ele acredita que pode render mais e quer entender como recuperar seu espaço e sua melhor forma.'
+        return {
+          type: 'player_message',
+          date,
+          playerId: concerned.id,
+          title: concerned.first_name + ' ' + concerned.last_name + ' quer falar com você',
+          message: reason,
+        }
+      }
+    }
+
+    if ([3, 6, 9].includes(month) && day === 15 && eventHash(date + ':manager:' + career.club.id) % 100 < 22) {
+      const candidates = clubs
+        .filter(club => club.id !== career.club.id)
+        .filter(club => Number(club.reputation ?? 0) <= Number(career.club.reputation ?? 0) + 8)
+        .sort((a, b) => Number(b.reputation ?? 0) - Number(a.reputation ?? 0))
+      const target = candidates[eventHash(date + ':manager-target') % Math.max(1, candidates.length)]
+      if (target) {
+        return {
+          type: 'manager_offer',
+          date,
+          fromClubId: target.id,
+          message: target.name + ' entrou em contato e gostaria de contar com você para comandar o clube.',
+        }
+      }
+    }
+
+    return null
+  }
 
   async function advanceOneDay(fromClock = clock) {
     if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
@@ -634,6 +706,23 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           setPendingEvent(null)
           return
         }
+      }
+    }
+
+    setPendingEvent(null)
+  }
+
+  async function respondToImportantEvent(action: 'accept' | 'continue') {
+    if (!pendingEvent) return
+
+    if (pendingEvent.type === 'manager_offer' && action === 'accept') {
+      const targetClub = clubs.find(club => club.id === pendingEvent.fromClubId)
+      if (targetClub) {
+        const nextCareer = { ...career, club: { ...targetClub, budget: Number(targetClub.budget ?? 0) } }
+        localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+        onCareerUpdate(nextCareer)
+        setPendingEvent(null)
+        return
       }
     }
 
@@ -836,18 +925,56 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
     <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional do Brasil</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
     {pendingEvent && (() => {
-      const offeredPlayer = players.find(item => item.id === pendingEvent.playerId)
-      const buyerClub = clubs.find(item => item.id === pendingEvent.toClubId)
-      if (!offeredPlayer || !buyerClub) return null
-      return <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Decisão importante</p>
-        <h2 className="mt-2 text-2xl font-bold">Recebemos uma proposta por um jogador</h2>
-        <p className="mt-3 text-sm leading-6 text-white/45">{buyerClub.name} fez uma proposta de {money(pendingEvent.fee)} por <span className="font-semibold text-white/80">{offeredPlayer.first_name} {offeredPlayer.last_name}</span>.</p>
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <button onClick={() => respondToPlayerOffer(false)} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar proposta</button>
-          <button onClick={() => respondToPlayerOffer(true)} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(pendingEvent.fee)}</button>
-        </div>
-      </section>
+      const offeredPlayer = pendingEvent.type === 'player_offer' ? players.find(item => item.id === pendingEvent.playerId) : null
+      const buyerClub = pendingEvent.type === 'player_offer' ? clubs.find(item => item.id === pendingEvent.toClubId) : null
+      const messagePlayer = pendingEvent.type === 'player_message' ? players.find(item => item.id === pendingEvent.playerId) : null
+      const managerClub = pendingEvent.type === 'manager_offer' ? clubs.find(item => item.id === pendingEvent.fromClubId) : null
+
+      if (pendingEvent.type === 'player_offer' && offeredPlayer && buyerClub) {
+        return <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Decisão importante</p>
+          <h2 className="mt-2 text-2xl font-bold">Recebemos uma proposta por um jogador</h2>
+          <p className="mt-3 text-sm leading-6 text-white/45">{buyerClub.name} fez uma proposta de {money(pendingEvent.fee)} por <span className="font-semibold text-white/80">{offeredPlayer.first_name} {offeredPlayer.last_name}</span>.</p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button onClick={() => respondToPlayerOffer(false)} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar proposta</button>
+            <button onClick={() => respondToPlayerOffer(true)} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(pendingEvent.fee)}</button>
+          </div>
+        </section>
+      }
+
+      if (pendingEvent.type === 'board_message') {
+        return <section className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300/70">Mensagem da diretoria</p>
+          <h2 className="mt-2 text-2xl font-bold">{pendingEvent.title}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
+          <button onClick={() => respondToImportantEvent('continue')} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Entendido</button>
+        </section>
+      }
+
+      if (pendingEvent.type === 'player_message' && messagePlayer) {
+        return <section className="mt-6 rounded-2xl border border-sky-400/20 bg-sky-400/[0.05] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300/70">Mensagem de jogador</p>
+          <h2 className="mt-2 text-2xl font-bold">{pendingEvent.title}</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
+          <p className="mt-4 text-xs text-white/25">{messagePlayer.position} · {messagePlayer.age} anos · Moral {messagePlayer.morale}</p>
+          <button onClick={() => respondToImportantEvent('continue')} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Conversar com o jogador</button>
+        </section>
+      }
+
+      if (pendingEvent.type === 'manager_offer' && managerClub) {
+        return <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-400/[0.05] p-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300/70">Proposta para o treinador</p>
+          <h2 className="mt-2 text-2xl font-bold">{managerClub.name} quer contratar você</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button onClick={() => respondToImportantEvent('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar</button>
+            <button onClick={() => respondToImportantEvent('accept')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Aceitar proposta</button>
+          </div>
+        </section>
+      }
+
+      return null
+    })()}
     })()}
     {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">Temporada 2026 concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada 2026 não pode mais ser considerada em andamento.</p></section>}
     {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
