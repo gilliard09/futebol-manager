@@ -17,7 +17,7 @@ import { getCurrentClubId as getLoanClubId, type LoanState } from './engine/loan
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
-import { simulateWorldDay, type WorldClub, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
+import { simulateWorldDay, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -375,7 +375,60 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       }
     }) as WorldPlayer[]
 
-    return { seasonId: season.id as string, worldClubs, playersForWorld }
+    const { data: leagueFixtures } = await supabase
+      .from('fixtures')
+      .select('home_club_id,away_club_id,scheduled_at,status,home_score,away_score,competitions!inner(name)')
+      .eq('season_id', season.id)
+      .eq('competitions.name', 'Liga Nacional do Brasil')
+      .eq('status', 'completed')
+      .not('home_score', 'is', null)
+      .not('away_score', 'is', null)
+      .order('scheduled_at')
+
+    const stats = new Map<string, { points: number; wins: number; draws: number; losses: number; gf: number; ga: number; recentResults: Array<'W' | 'D' | 'L'> }>()
+    for (const club of worldClubs) stats.set(club.id, { points: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, recentResults: [] })
+
+    for (const fixture of leagueFixtures ?? []) {
+      const home = stats.get(fixture.home_club_id)
+      const away = stats.get(fixture.away_club_id)
+      if (!home || !away || fixture.home_score == null || fixture.away_score == null) continue
+      const homeScore = Number(fixture.home_score)
+      const awayScore = Number(fixture.away_score)
+      home.gf += homeScore; home.ga += awayScore
+      away.gf += awayScore; away.ga += homeScore
+      if (homeScore > awayScore) {
+        home.wins++; home.points += 3; away.losses++
+        home.recentResults.push('W'); away.recentResults.push('L')
+      } else if (homeScore < awayScore) {
+        away.wins++; away.points += 3; home.losses++
+        home.recentResults.push('L'); away.recentResults.push('W')
+      } else {
+        home.draws++; away.draws++; home.points++; away.points++
+        home.recentResults.push('D'); away.recentResults.push('D')
+      }
+    }
+
+    const table = [...stats.entries()].sort((a, b) =>
+      b[1].points - a[1].points ||
+      b[1].wins - a[1].wins ||
+      (b[1].gf - b[1].ga) - (a[1].gf - a[1].ga) ||
+      b[1].gf - a[1].gf
+    )
+    const performanceByClub: Record<string, WorldClubPerformance> = {}
+    for (const [index, [clubId, value]] of table.entries()) {
+      const recentResults = value.recentResults.slice(-5)
+      const recentPoints = recentResults.reduce((sum, result) => sum + (result === 'W' ? 3 : result === 'D' ? 1 : 0), 0)
+      performanceByClub[clubId] = {
+        position: index + 1,
+        points: value.points,
+        goalDifference: value.gf - value.ga,
+        played: value.wins + value.draws + value.losses,
+        recentPoints,
+        recentResults,
+      }
+    }
+
+    return { seasonId: season.id as string, worldClubs, playersForWorld, performanceByClub }
   }
 
   async function persistWorldState(
@@ -491,7 +544,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   async function simulateOtherClubs(nextDate: string) {
     const state = await loadWorldState()
     if (!state) return
-    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id)
+    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
   }
 
@@ -505,14 +558,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     while (currentDate < targetDate) {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
-      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id)
+      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
       results.push(result)
       const offer = result.offers[0]
       if (offer) {
         event = { type: 'player_offer', date: result.date, ...offer }
         break
       }
-      const importantEvent = maybeCreateImportantEvent(result.date)
+      const importantEvent = maybeCreateImportantEvent(result.date, state.performanceByClub)
       if (importantEvent) {
         event = importantEvent
         break
@@ -541,7 +594,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     return value >>> 0
   }
 
-  function maybeCreateImportantEvent(date: string): ImportantEvent | null {
+  function maybeCreateImportantEvent(date: string, performanceByClub: Record<string, WorldClubPerformance> = {}): ImportantEvent | null {
     const day = Number(date.slice(8, 10))
     const month = Number(date.slice(5, 7))
 
@@ -552,6 +605,28 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         title: 'A diretoria está preocupada com as finanças',
         message: 'O caixa do clube entrou em uma faixa de atenção. A diretoria espera que você controle a folha e evite comprometer o orçamento nas próximas semanas.',
         tone: 'warning',
+      }
+    }
+
+    const sporting = performanceByClub[career.club.id]
+    if (day === 1 && sporting && sporting.played >= 3 && eventHash(date + ':sporting:' + career.club.id) % 100 < 45) {
+      if (sporting.position <= 4 && sporting.recentPoints >= 8) {
+        return {
+          type: 'board_message',
+          date,
+          title: 'A diretoria está satisfeita com o momento',
+          message: `O clube ocupa a ${sporting.position}ª posição e somou ${sporting.recentPoints} pontos nas últimas cinco partidas. A diretoria entende que o trabalho está colocando o time na disputa pelas primeiras posições.`,
+          tone: 'positive',
+        }
+      }
+      if (sporting.position >= 13 && sporting.recentPoints <= 4) {
+        return {
+          type: 'board_message',
+          date,
+          title: 'A diretoria quer uma reação no campeonato',
+          message: `O clube está na ${sporting.position}ª posição e conquistou apenas ${sporting.recentPoints} pontos nas últimas cinco partidas. A diretoria espera uma reação esportiva e avalia que o mercado pode ser necessário para corrigir o elenco.`,
+          tone: 'warning',
+        }
       }
     }
 
