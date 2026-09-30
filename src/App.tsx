@@ -601,7 +601,19 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         })
         try {
           const saved = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
-          const restored = loaded.map((player: Player) => saved.players?.[player.id] ? { ...player, ...saved.players[player.id] } : player)
+          const restored = loaded.map((player: Player) => {
+            const savedPlayer = saved.players?.[player.id]
+            if (!savedPlayer) return player
+            return {
+              ...player,
+              ...savedPlayer,
+              // Disponibilidade disciplinar/médica vem do banco; o cache local não pode sobrescrevê-la.
+              injuredUntil: player.injuredUntil,
+              suspendedUntil: player.suspendedUntil,
+              yellowCards: player.yellowCards,
+              redCards: player.redCards,
+            }
+          })
           setPlayers(restored)
         } catch {
           setPlayers(loaded)
