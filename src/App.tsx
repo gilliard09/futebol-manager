@@ -667,6 +667,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       },
       { balance: financeBalance, monthlyPayroll: salaryTotal },
       toDateKey(fixture.scheduled_at),
+      nextFans.pressure,
     )
     saveManagement(nextBoard, nextFans)
     if (nextBoard.managerStatus === 'dismissed') {
