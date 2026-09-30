@@ -40,6 +40,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
   const [position, setPosition] = useState('ALL')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<MarketPlayer | null>(null)
+  const [scoutingLevel, setScoutingLevel] = useState<'basic' | 'detailed' | 'elite'>('detailed')
   const [mode, setMode] = useState<'buy' | 'sell'>('buy')
   const [buyerId, setBuyerId] = useState('')
   const [offer, setOffer] = useState(0)
@@ -230,13 +231,14 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
           <button onClick={() => setSelected(null)} className="rounded-lg p-2 text-white/35 hover:bg-white/5 hover:text-white"><X size={20} /></button>
         </div>
         <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
-          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Relatório de scouting</p><p className="mt-1 text-xs text-white/30">Estimativa inicial · confiabilidade 68%</p></div><span className="text-xs font-bold text-emerald-300">{buildScoutingReport(selected.player, 'basic').risk}</span></div>
+          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Relatório de scouting</p><p className="mt-1 text-xs text-white/30">Estimativa inicial · confiabilidade {buildScoutingReport(selected.player, scoutingLevel).reliability}%</p></div><span className="text-xs font-bold text-emerald-300">{buildScoutingReport(selected.player, scoutingLevel).risk}</span></div>
+          <div className="mt-4 flex gap-2">{(['basic','detailed','elite'] as const).map(level => <button key={level} onClick={() => setScoutingLevel(level)} className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold uppercase ${scoutingLevel === level ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/35'}`}>{level === 'basic' ? 'Básico' : level === 'detailed' ? 'Detalhado' : 'Elite'}</button>)}</div>
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div><p className="text-xs text-white/25">GER estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, 'basic').overallEstimate}</p></div>
-            <div><p className="text-xs text-white/25">Potencial estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, 'basic').potentialEstimate}</p></div>
+            <div><p className="text-xs text-white/25">GER estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, scoutingLevel).overallEstimate}</p></div>
+            <div><p className="text-xs text-white/25">Potencial estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, scoutingLevel).potentialEstimate}</p></div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">{buildScoutingReport(selected.player, 'basic').keyAttributes.map(([name, value]) => <span key={name} className="rounded-lg border border-white/6 px-2.5 py-1.5 text-xs text-white/45">{name}: {value}</span>)}</div>
-          <p className="mt-3 text-xs text-white/30">Risco de custo/adaptação: {buildScoutingReport(selected.player, 'basic').costRisk}%</p>
+          <div className="mt-4 flex flex-wrap gap-2">{buildScoutingReport(selected.player, scoutingLevel).keyAttributes.map(([name, value]) => <span key={name} className="rounded-lg border border-white/6 px-2.5 py-1.5 text-xs text-white/45">{name}: {value}</span>)}</div>
+          <p className="mt-3 text-xs text-white/30">Risco de custo/adaptação: {buildScoutingReport(selected.player, scoutingLevel).costRisk}%</p>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">Valor de mercado</p><p className="mt-1 font-semibold">{money(selected.marketValue)}</p></div>
