@@ -317,5 +317,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, renewals, retirements, youth, evolvedPlayers, changedClubs: [...changedClubs] }
+  return { date, transfers, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
 }
