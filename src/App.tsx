@@ -592,7 +592,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       if (userEffect.budgetBonus > 0) {
         addFinanceTransaction(createTransaction(
           toDateKey(new Date().toISOString()),
-          'other',
+          'prize',
           'Premiação por desempenho da temporada',
           userEffect.budgetBonus,
           undefined,
