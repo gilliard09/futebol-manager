@@ -270,8 +270,6 @@ function GameApp() {
     await supabase.from('competition_history').delete().eq('season_id', season.id)
     await supabase.from('world_transfers').delete().eq('season_id', season.id)
     await supabase.from('player_season_stats').delete().eq('season_id', season.id)
-    await supabase.from('club_management_seasons').delete().eq('season_id', season.id)
-    await supabase.from('club_commercial_seasons').delete().eq('season_id', season.id)
     await supabase.rpc('reset_world_state')
     await supabase.from('season_club_movements').delete().eq('season_id', season.id)
     await supabase.from('seasons').update({ status: 'active', end_date: null, start_date: SEASON_START }).eq('id', season.id).eq('status', 'completed')
@@ -659,6 +657,8 @@ function GameApp() {
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(TRAINING_KEY)
     localStorage.removeItem(COMMERCIAL_KEY + ':' + career.season)
+    localStorage.removeItem(BOARD_KEY + ':' + career.season)
+    localStorage.removeItem(FANS_KEY + ':' + career.season)
     Object.keys(localStorage).filter(key => (key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':')) && key !== marketInterestStorageKey(nextSeasonName) && key !== marketNegotiationStorageKey(nextSeasonName)).forEach(key => localStorage.removeItem(key))
     window.location.reload()
   }
@@ -674,7 +674,9 @@ function GameApp() {
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(WORLD_NEWS_KEY)
-    Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':')).forEach(key => localStorage.removeItem(key))
+    Object.keys(localStorage)
+      .filter(key => key.startsWith(BOARD_KEY + ':') || key.startsWith(FANS_KEY + ':') || key.startsWith(COMMERCIAL_KEY + ':') || key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':'))
+      .forEach(key => localStorage.removeItem(key))
     setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); navigate('/manager')
   }
 
