@@ -603,9 +603,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
     if (!season?.id) return null
 
-    const [{ data: clubRows }, { data: playerRows }] = await Promise.all([
+    const [{ data: clubRows }, { data: playerRows }, { data: seasonStatRows }] = await Promise.all([
       supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url,strength').order('name'),
       supabase.from('club_players').select('id,club_id,squad_number,contract_until,salary,market_value,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale)'),
+      supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,avg_rating').eq('season_id', season.id),
     ])
 
     if (!clubRows?.length || !playerRows?.length) return null
@@ -616,8 +617,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       strength: Number(club.strength ?? club.reputation ?? 60),
     })) as WorldClub[]
 
+    const seasonStats = new Map((seasonStatRows ?? []).map((row: any) => [row.player_id, row]))
     const playersForWorld = (playerRows as any[]).map(row => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players
+      const stats = seasonStats.get(player.id)
       return {
         ...player,
         clubId: row.club_id ?? '',
@@ -625,6 +628,10 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         salary: Number(row.salary ?? 0),
         contractUntil: row.contract_until ?? null,
         clubPlayerId: row.id,
+        seasonAppearances: Number(stats?.appearances ?? 0),
+        seasonStarts: Number(stats?.starts ?? 0),
+        seasonMinutes: Number(stats?.minutes ?? 0),
+        seasonAverageRating: Number(stats?.avg_rating ?? 0),
       }
     }) as WorldPlayer[]
 
@@ -1308,6 +1315,82 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
           const values = playerStateUpdates.get(player.id)
           return values ? { ...player, ...values } : player
         }))
+      }
+
+      // Cada partida agora deixa um registro permanente da carreira esportiva.
+      // Os 11 jogadores avaliados pelo motor são considerados titulares e recebem 90 minutos.
+      if (seasonId) {
+        const playerIds = [...new Set(Object.values(matchesToPersist).flatMap(match => (match.playerRatings ?? []).map(rating => rating.playerId)))]
+        if (playerIds.length) {
+          const { data: existingStats } = await supabase
+            .from('player_season_stats')
+            .select('player_id,club_id,appearances,starts,minutes,goals,assists,avg_rating')
+            .eq('season_id', seasonId)
+            .in('player_id', playerIds)
+
+          const existing = new Map((existingStats ?? []).map((row: any) => [row.player_id, row]))
+          const aggregates = new Map<string, { clubId: string; appearances: number; starts: number; minutes: number; goals: number; assists: number; ratingTotal: number; ratingCount: number }>()
+
+          for (const match of Object.values(matchesToPersist)) {
+            for (const rating of match.playerRatings ?? []) {
+              const clubId = rating.team === 'home' ? match.home_club_id : match.away_club_id
+              const current = aggregates.get(rating.playerId) ?? {
+                clubId,
+                appearances: 0,
+                starts: 0,
+                minutes: 0,
+                goals: 0,
+                assists: 0,
+                ratingTotal: 0,
+                ratingCount: 0,
+              }
+              current.clubId = clubId
+              current.appearances += 1
+              current.starts += 1
+              current.minutes += 90
+              current.goals += rating.goals
+              current.assists += rating.assists
+              current.ratingTotal += rating.rating
+              current.ratingCount += 1
+              aggregates.set(rating.playerId, current)
+            }
+          }
+
+          const rows = [...aggregates.entries()].map(([playerId, current]) => {
+            const previous = existing.get(playerId)
+            const previousAppearances = Number(previous?.appearances ?? 0)
+            const previousStarts = Number(previous?.starts ?? 0)
+            const previousMinutes = Number(previous?.minutes ?? 0)
+            const previousGoals = Number(previous?.goals ?? 0)
+            const previousAssists = Number(previous?.assists ?? 0)
+            const previousRating = Number(previous?.avg_rating ?? 0)
+            const previousCount = previousAppearances
+            const totalAppearances = previousAppearances + current.appearances
+            const weightedRating = previousCount > 0
+              ? ((previousRating * previousCount) + current.ratingTotal) / Math.max(1, totalAppearances)
+              : current.ratingTotal / Math.max(1, current.ratingCount)
+
+            return {
+              season_id: seasonId,
+              player_id: playerId,
+              club_id: current.clubId,
+              appearances: totalAppearances,
+              starts: previousStarts + current.starts,
+              minutes: previousMinutes + current.minutes,
+              goals: previousGoals + current.goals,
+              assists: previousAssists + current.assists,
+              avg_rating: Number(weightedRating.toFixed(2)),
+              updated_at: new Date().toISOString(),
+            }
+          })
+
+          if (rows.length) {
+            const { error: statsError } = await supabase
+              .from('player_season_stats')
+              .upsert(rows, { onConflict: 'season_id,player_id' })
+            if (statsError) console.error('Não foi possível salvar as estatísticas dos jogadores', statsError)
+          }
+        }
       }
 
       if (activeMatchFixture.competition_id && activeMatchFixture.round > 0) {
