@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Newspaper, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
-import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player, Screen } from './types/game'
+import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player } from './types/game'
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
@@ -115,7 +116,11 @@ function normalizePlayer(row: any): Player {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('home')
+  return <BrowserRouter><GameApp /></BrowserRouter>
+}
+
+function GameApp() {
+  const navigate = useNavigate()
   const [clubs, setClubs] = useState<Club[]>([])
   const [managerName, setManagerName] = useState('')
   const [nationality, setNationality] = useState('Brasil')
@@ -151,7 +156,7 @@ export default function App() {
     const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: SEASON_NAME }
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
     localStorage.setItem(FINANCE_KEY, JSON.stringify([createTransaction(SEASON_START, 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget')]))
-    setCareer(next); setScreen('dashboard')
+    setCareer(next); navigate('/dashboard')
   }
 
   async function resetSeasonForNewCareer() {
@@ -266,16 +271,18 @@ export default function App() {
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(WORLD_NEWS_KEY)
     Object.keys(localStorage).filter(key => key.startsWith(MARKET_INTEREST_KEY + ':')).forEach(key => localStorage.removeItem(key))
-    setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); setScreen('manager')
+    setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); navigate('/manager')
   }
 
-  return <div className="min-h-screen bg-[#090b0f] text-white"><div className="mx-auto min-h-screen max-w-6xl border-x border-white/5 bg-[#0d1015]">
-    {screen === 'home' && <Home career={career} start={() => setScreen('manager')} continueCareer={() => setScreen('dashboard')} newCareer={newCareer} />}
-    {screen === 'manager' && <Manager name={managerName} nationality={nationality} birthDate={birthDate} style={managerStyle} personality={managerPersonality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} onBirthDate={setBirthDate} onStyle={setManagerStyle} onPersonality={setManagerPersonality} back={() => setScreen('home')} next={() => setScreen('club')} />}
-    {screen === 'club' && <ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => setScreen('manager')} confirm={confirmCareer} />}
-    {screen === 'dashboard' && career && <Dashboard career={career} clubs={clubs} newCareer={newCareer} onNextSeason={startNextSeason} onCareerUpdate={setCareer} />}
+  return <div className="min-h-screen bg-[#0a0f1a] text-white"><div className="mx-auto min-h-screen max-w-7xl border-x border-white/5 bg-[#0a0f1a]">
+    <Routes>
+      <Route path="/" element={<Home career={career} start={() => navigate('/manager')} continueCareer={() => navigate('/dashboard')} newCareer={newCareer} />} />
+      <Route path="/manager" element={<Manager name={managerName} nationality={nationality} birthDate={birthDate} style={managerStyle} personality={managerPersonality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} onBirthDate={setBirthDate} onStyle={setManagerStyle} onPersonality={setManagerPersonality} back={() => navigate('/')} next={() => navigate('/club')} />} />
+      <Route path="/club" element={<ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => navigate('/manager')} confirm={confirmCareer} />} />
+      <Route path="/dashboard" element={career ? <Dashboard career={career} clubs={clubs} newCareer={newCareer} onNextSeason={startNextSeason} onCareerUpdate={setCareer} /> : <Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to={career ? '/dashboard' : '/'} replace />} />
+    </Routes>
   </div></div>
-}
 
 function Top({ label, back }: { label?: string; back?: () => void }) {
   return <header className="flex h-20 items-center justify-between border-b border-white/6 px-6 md:px-10"><button onClick={back} className={back ? 'flex items-center gap-3 text-sm font-semibold text-white/60 hover:text-white' : 'pointer-events-none text-sm font-semibold'}>{back && <ArrowLeft size={18} />} FUTEBOL MANAGER</button>{label && <span className="text-xs uppercase tracking-[0.18em] text-white/30">{label}</span>}</header>
