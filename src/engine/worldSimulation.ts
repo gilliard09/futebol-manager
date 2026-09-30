@@ -30,6 +30,7 @@ export type WorldSimulationResult = {
   date: string
   transfers: Array<{ playerId: string; fromClubId: string | null; toClubId: string; fee: number }>
   offers: Array<{ playerId: string; fromClubId: string; toClubId: string; fee: number }>
+  marketInterest: Array<{ playerId: string; clubIds: string[] }>
   expiredContracts: Array<{ playerId: string; clubId: string }>
   renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
   retirements: Array<{ playerId: string; clubId: string }>
@@ -177,6 +178,7 @@ export function simulateWorldDay(
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
+  const marketInterest: WorldSimulationResult['marketInterest'] = []
   const expiredContracts: WorldSimulationResult['expiredContracts'] = []
   const renewals: WorldSimulationResult['renewals'] = []
   const retirements: WorldSimulationResult['retirements'] = []
@@ -274,6 +276,61 @@ export function simulateWorldDay(
     expiredContracts.push({ playerId: player.id, clubId: previousClubId })
     changedClubs.add(previousClubId)
   }
+  // Jogadores em grande fase passam a ser acompanhados por vários clubes.
+  if ([10, 20].includes(day)) {
+    const standoutPlayers = players
+      .filter(player => player.clubId && player.age <= 31)
+      .filter(player => (player.seasonAppearances ?? 0) >= 4)
+      .filter(player =>
+        (player.seasonGoals ?? 0) >= 5 ||
+        (player.seasonAssists ?? 0) >= 4 ||
+        (player.seasonAverageRating ?? 0) >= 7.25,
+      )
+      .sort((a, b) => {
+        const score = (player: WorldPlayer) =>
+          (player.seasonGoals ?? 0) * 1.2 +
+          (player.seasonAssists ?? 0) * 0.7 +
+          Math.max(0, (player.seasonAverageRating ?? 0) - 6.5) * 4 +
+          playerOverall(player) * 0.04
+        return score(b) - score(a)
+      })
+
+    for (const player of standoutPlayers.slice(0, 8)) {
+      const interested = aiClubs
+        .filter(club => club.id !== player.clubId)
+        .filter(club => {
+          const squad = byClub.get(club.id) ?? []
+          if (club.budget < 750000 || squad.length >= 25) return false
+          const need = transferNeed(player, club, squad.length, performanceByClub[club.id])
+          const price = Math.max(
+            250000,
+            Math.round(
+              player.marketValue *
+              (player.age <= 23 ? 1.18 : 1.08) *
+              playerMarketPerformanceFactor(player) /
+              50000,
+            ) * 50000,
+          )
+          const strengthGap = playerOverall(player) - club.strength
+          return need >= 62 && price <= club.budget * 0.82 && (strengthGap <= 8 || clubBehavior(club) === 'ambitious')
+        })
+        .sort((a, b) => {
+          const score = (club: WorldClub) => {
+            const performance = performanceByClub[club.id]
+            const urgency = performance && (performance.position >= 13 || performance.recentPoints <= 4) ? 8 : 0
+            const ambition = clubBehavior(club) === 'ambitious' ? 5 : 0
+            return club.budget / 1000000 + urgency + ambition
+          }
+          return score(b) - score(a)
+        })
+        .slice(0, 4)
+
+      if (interested.length >= 2) {
+        marketInterest.push({ playerId: player.id, clubIds: interested.map(club => club.id) })
+      }
+    }
+  }
+
   // Mercado: cada clube pode contratar uma vez por janela mensal.
   // Propostas pelo mesmo jogador são acumuladas antes de definir o preço final,
   // permitindo que uma temporada de destaque gere concorrência real.
@@ -363,7 +420,13 @@ export function simulateWorldDay(
         if (!seller || seller.id === buyer.id || seller.id === userClubId) return false
         const sellerSquad = byClub.get(seller.id) ?? []
         if (sellerSquad.length <= 16) return false
-        const price = Math.max(150000, Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) / 50000) * 50000)
+        const interest = marketInterest.find(item => item.playerId === player.id)
+        const competitionFactor = interest ? playerMarketCompetitionFactor(interest.clubIds.length) : 1
+        const performanceFactor = playerMarketPerformanceFactor(player)
+        const price = Math.max(
+          150000,
+          Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) * performanceFactor * competitionFactor / 50000) * 50000,
+        )
         return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7) && (player.contractUntil === null || player.contractUntil >= date)
       })
 
@@ -618,5 +681,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, offers, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
+  return { date, transfers, offers, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
 }
