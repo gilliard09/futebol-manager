@@ -174,7 +174,7 @@ function GameApp() {
     // Uma nova carreira nunca herda o estado esportivo da carreira anterior.
     // A temporada 2026 volta ao estado pré-rodada e a Copa é reduzida às
     // partidas-base; as fases seguintes serão recriadas pelo motor conforme o avanço.
-    const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+    const { data: season } = await supabase.from('seasons').select('id,status').eq('name', career.season).maybeSingle()
     if (!season?.id) return
 
     const { data: competitions } = await supabase
