@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, BarChart3, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, Home, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player } from './types/game'
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
@@ -1422,7 +1422,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const userScore = userHome ? match.homeScore : match.awayScore
       const opponentScore = userHome ? match.awayScore : match.homeScore
       return {
-        id: match.id,
+        id: `${match.home_club_id}-${match.away_club_id}-${match.date ?? match.scheduled_at ?? 'match'}`,
         competition: match.competition_name ?? 'Liga Nacional do Brasil',
         opponent: userHome ? (clubs.find(club => club.id === match.away_club_id)?.short_name ?? 'Adversário') : (clubs.find(club => club.id === match.home_club_id)?.short_name ?? 'Adversário'),
         score: `${userScore}–${opponentScore}`,
@@ -2649,7 +2649,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     activeView={view}
     onNavigate={goToView}
     onAdvanceDay={restOneDay}
-    canAdvance={!advancingDays && Boolean(clock) && canAdvanceDay(clock, nextMatchDate)}
+    canAdvance={!advancingDays && Boolean(clock) && Boolean(clock && canAdvanceDay(clock, nextMatchDate))}
   >
     <main className="min-h-screen">
       <section className="px-4 py-5 sm:px-6 lg:px-8">
@@ -2792,7 +2792,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   </GameShell>
 }
 
-function ClubMatchSide({ club, overall, align }: { club: Club | null | undefined; overall: number; align: 'left' | 'right' }) {
+function ClubMatchSide({ club, overall, align }: { club: { name: string; short_name?: string; logo_url?: string } | null | undefined; overall: number; align: 'left' | 'right' }) {
   const content = <div className={`flex items-center gap-3 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
     {align === 'right' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Seu clube'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
     <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/90 p-2 shadow-lg sm:h-16 sm:w-16">
@@ -2811,10 +2811,10 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
   canAdvance: boolean
   children: ReactNode
 }) {
-  const groups = [
+  const groups: Array<{ label: string; items: Array<{ key: DashboardView; label: string; icon: typeof Settings }> }> = [
     {
       label: 'Hoje',
-      items: [{ key: 'overview', label: 'Dashboard', icon: Home }],
+      items: [{ key: 'overview', label: 'Dashboard', icon: Settings }],
     },
     {
       label: 'Clube',
@@ -2838,6 +2838,8 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
       items: [{ key: 'stats', label: 'Estatísticas', icon: BarChart3 }],
     },
   ] as const
+
+  const activeLabel = activeLabel
 
   return <div className="min-h-screen bg-[#0a0f1a]">
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/5 bg-[#0d1421] lg:flex lg:flex-col">
@@ -2885,7 +2887,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
 
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0d1421]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
       <div className="grid grid-cols-5 gap-1">
-        {[['overview','Dashboard',Home],['calendar','Calendários',CalendarDays],['squad','Elencos',Users],['market','Mercado',ShoppingBag],['stats','Estatísticas',BarChart3]].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[9px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/35'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
+        {[['overview','Dashboard',Settings],['calendar','Calendários',CalendarDays],['squad','Elencos',Users],['market','Mercado',ShoppingBag],['stats','Estatísticas',BarChart3]].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[9px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/35'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
       </div>
     </nav>
   </div>
