@@ -2207,8 +2207,16 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
   if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'news') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
-  if (view === 'finance') return <GameSection title="Finanças" eyebrow="Clube" icon={<WalletCards size={22} />} description="Acompanhe caixa, receitas, despesas, folha salarial e movimentações da temporada." back={() => goToView('overview')} />
-  if (view === 'stadium') return <GameSection title="Estádio" eyebrow="Clube" icon={<Building2 size={22} />} description={`${commercial.stadium.name} · ${commercial.stadium.capacity.toLocaleString('pt-BR')} lugares · nível ${commercial.stadium.level}/6`} back={() => goToView('overview')} />
+  if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} back={() => goToView('overview')} />
+  if (view === 'stadium') return <StadiumScreen club={career.club} commercial={commercial} balance={financeBalance} fanSatisfaction={fanState.satisfaction} reputation={career.club.reputation ?? 50} onUpgrade={async (nextStadium, cost) => {
+    const transaction = createTransaction(toDateKey(new Date().toISOString()), 'other', 'Melhoria do estádio', -cost, undefined, 'stadium:' + career.season + ':' + nextStadium.level)
+    const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
+    const nextCommercial = { ...commercial, stadium: nextStadium }
+    await saveCommercial(nextCommercial)
+    const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    onCareerUpdate(nextCareer)
+  }} back={() => goToView('overview')} />
   if (view === 'trophies') return <GameSection title="Sala de Troféus" eyebrow="História" icon={<Trophy size={22} />} description="Os títulos e campanhas que constroem a história do clube aparecerão aqui." back={() => goToView('overview')} />
   if (view === 'legacy') return <GameSection title="Conquistas & Legado" eyebrow="História" icon={<Medal size={22} />} description="Registros de carreira, marcas, conquistas e legado do treinador." back={() => goToView('overview')} />
   if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
@@ -2847,9 +2855,9 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
       <div className="flex h-16 items-center border-b border-white/5 px-5">
         <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400 text-[11px] font-black text-[#06100c]">FM</div><div><p className="font-display text-sm font-bold tracking-wide">FUTEBOL MANAGER</p><p className="label-mono text-white/25">Carreira</p></div></div>
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {groups.map(group => <div key={group.label} className="mb-5">
-          <p className="px-3 pb-2 label-mono text-white/20">{group.label}</p>
+      <nav className="flex-1 overflow-hidden px-3 py-3">
+        {groups.map(group => <div key={group.label} className="mb-3">
+          <p className="px-3 pb-1.5 label-mono text-white/20">{group.label}</p>
           <div className="space-y-0.5">{group.items.map(item => {
             const Icon = item.icon
             const active = activeView === item.key
@@ -2892,6 +2900,55 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
       </div>
     </nav>
   </div>
+}
+
+function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, back }: { balance: number; transactions: FinanceTransaction[]; salaryTotal: number; initialCapital: number; back: () => void }) {
+  const recent = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12)
+  const income = transactions.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0)
+  const expense = transactions.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
+    <button onClick={back} className="mb-6 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
+    <div className="mb-6"><p className="label-mono text-white/30">Clube · Temporada</p><h1 className="mt-1 font-display text-3xl font-bold">Finanças</h1><p className="mt-2 text-sm text-white/40">O caixa do clube, a folha salarial e tudo o que movimenta sua temporada.</p></div>
+    <div className="grid gap-3 md:grid-cols-4">
+      <DashboardCard icon={<WalletCards size={18} />} label="Caixa" value={money(balance)} detail="disponível agora" />
+      <DashboardCard icon={<Banknote size={18} />} label="Capital inicial" value={money(initialCapital)} detail="início da carreira" />
+      <DashboardCard icon={<Users size={18} />} label="Folha mensal" value={money(salaryTotal)} detail="salários do elenco" />
+      <DashboardCard icon={<BarChart3 size={18} />} label="Movimentado" value={money(income + expense)} detail={"entradas " + money(income) + " · saídas " + money(expense)} />
+    </div>
+    <section className="game-panel mt-5"><div className="flex items-center justify-between"><div><p className="label-mono text-white/30">Livro-caixa</p><h2 className="mt-1 font-display text-xl font-bold">Movimentações recentes</h2></div><span className="text-xs text-white/25">{transactions.length} registros</span></div>
+      <div className="mt-4 space-y-1.5">{recent.length ? recent.map(item => <div key={item.eventId ?? item.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{item.description}</p><p className="mt-1 text-[10px] text-white/25">{formatSeasonDate(item.date)}</p></div><span className={item.amount >= 0 ? 'shrink-0 font-mono text-xs font-bold text-emerald-300' : 'shrink-0 font-mono text-xs font-bold text-red-300'}>{item.amount >= 0 ? '+' : ''}{money(item.amount)}</span></div>) : <p className="py-8 text-center text-sm text-white/30">Nenhuma movimentação registrada.</p>}</div>
+    </section>
+  </main>
+}
+
+function StadiumScreen({ club, commercial, balance, fanSatisfaction, reputation, onUpgrade, back }: {
+  club: Club
+  commercial: { sponsor: SponsorContract; stadium: StadiumState }
+  balance: number
+  fanSatisfaction: number
+  reputation: number
+  onUpgrade: (stadium: StadiumState, cost: number) => void | Promise<void>
+  back: () => void
+}) {
+  const stadium = commercial.stadium
+  const nextLevel = stadium.level + 1
+  const maxed = stadium.level >= 6
+  const cost = maxed ? 0 : stadiumUpgradeCost(nextLevel)
+  const canUpgrade = !maxed && canUpgradeStadium(stadium, balance)
+  const estimatedAttendance = estimateStadiumAttendance(stadium, fanSatisfaction, reputation)
+  return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
+    <button onClick={back} className="mb-6 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
+    <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="label-mono text-white/30">Clube · Infraestrutura</p><h1 className="mt-1 font-display text-3xl font-bold">Estádio</h1><p className="mt-2 text-sm text-white/40">{stadium.name} · casa de {club.short_name ?? club.name}</p></div><span className="rounded-full border border-emerald-400/20 bg-emerald-400/8 px-3 py-1.5 text-xs font-bold text-emerald-300">Nível {stadium.level}/6</span></div>
+    <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+      <section className="game-panel overflow-hidden p-0"><div className="relative min-h-[260px] overflow-hidden bg-[radial-gradient(circle_at_50%_20%,rgba(0,196,140,.18),transparent_42%),linear-gradient(180deg,#182638,#0d1623)] p-6"><div className="absolute inset-x-8 bottom-8 h-28 rounded-[50%] border border-emerald-300/15 bg-emerald-400/[0.03]" /><div className="absolute inset-x-14 bottom-12 h-16 rounded-[50%] border border-white/8" /><div className="absolute bottom-16 left-1/2 h-16 w-40 -translate-x-1/2 rounded-[50%] border border-white/10" /><div className="relative flex h-full min-h-[210px] items-start justify-between"><div><p className="label-mono text-white/25">Sua casa</p><p className="mt-2 font-display text-2xl font-bold">{stadium.name}</p><p className="mt-1 text-xs text-white/35">{stadium.capacity.toLocaleString('pt-BR')} lugares</p></div><Building2 size={30} className="text-emerald-300/50" /></div></div><div className="grid grid-cols-3 divide-x divide-white/5 border-t border-white/5 bg-black/10">
+        <Info label="Capacidade" value={stadium.capacity.toLocaleString('pt-BR')} /><Info label="Ingresso" value={money(stadium.baseTicketPrice)} /><Info label="Manutenção" value={money(stadium.maintenance) + '/mês'} /></div></section>
+      <section className="game-panel"><p className="label-mono text-white/30">Investimento</p><h2 className="mt-1 font-display text-2xl font-bold">Melhorar estádio</h2><p className="mt-3 text-sm leading-6 text-white/40">Cada nível aumenta a capacidade e melhora o potencial de receita da sua casa. O investimento sai diretamente do caixa do clube.</p>
+        <div className="mt-5 rounded-xl border border-white/5 bg-black/10 p-4"><div className="flex items-center justify-between"><span className="text-xs text-white/35">Próximo nível</span><span className="font-display text-lg font-bold">{maxed ? 'MAX' : 'Nível ' + nextLevel}</span></div><div className="mt-3 flex items-center justify-between"><span className="text-xs text-white/35">Custo</span><span className="font-mono text-sm font-bold text-amber-200">{maxed ? '—' : money(cost)}</span></div><div className="mt-3 flex items-center justify-between"><span className="text-xs text-white/35">Caixa disponível</span><span className="font-mono text-sm font-bold">{money(balance)}</span></div></div>
+        <button disabled={!canUpgrade} onClick={() => onUpgrade(upgradeStadium(stadium), cost)} className="mt-5 w-full rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{maxed ? 'Estádio no nível máximo' : canUpgrade ? 'Investir ' + money(cost) : 'Caixa insuficiente'}</button>
+      </section>
+    </div>
+    <section className="mt-4 grid gap-4 md:grid-cols-3"><DashboardCard icon={<Users size={18} />} label="Público estimado" value={estimatedAttendance.toLocaleString('pt-BR')} detail="próximo jogo em casa" /><DashboardCard icon={<Medal size={18} />} label="Satisfação" value={String(fanSatisfaction)} detail="impacta a presença da torcida" /><DashboardCard icon={<Banknote size={18} />} label="Patrocínio" value={commercial.sponsor.name} detail={'+' + money(commercial.sponsor.monthly) + ' / mês'} /></section>
+  </main>
 }
 
 function GameSection({ title, eyebrow, icon, description, back }: { title: string; eyebrow: string; icon: ReactNode; description: string; back: () => void }) {
