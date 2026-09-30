@@ -22,6 +22,8 @@ export type WorldPlayer = Player & {
   seasonStarts?: number
   seasonMinutes?: number
   seasonAverageRating?: number
+  seasonGoals?: number
+  seasonAssists?: number
 }
 
 export type WorldSimulationResult = {
