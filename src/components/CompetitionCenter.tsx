@@ -245,7 +245,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/30">Histórico</p>
-          <h2 className="mt-2 text-2xl font-bold">Temporada 2026</h2>
+          <h2 className="mt-2 text-2xl font-bold">{seasonName}</h2>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <Info label="Campeão" value={history.champion?.short_name ?? 'Em aberto'} />
             <Info label="Vice-campeão" value={history.runnerUp?.short_name ?? 'Em aberto'} />
