@@ -1,5 +1,6 @@
 import type { CoachPersonality, CoachStyle, Fixture, Formation, LineupPlayer, Player } from '../types/game'
 import { FORMATIONS } from '../types/game'
+import { isPlayerAvailable } from './discipline'
 
 export type MatchEvent = {
   minute: number
@@ -454,7 +455,7 @@ export function simulateMatch(
   const competition = (fixture.competition_name ?? '').toLowerCase()
   const matchImportance = competition.includes('copa') ? (fixture.round >= 5 ? 1.2 : 1.08) : (fixture.round >= 25 ? 1.12 : 1)
   const matchDate = fixture.scheduled_at.slice(0, 10)
-  const available = (player: Player) => (!player.injuredUntil || player.injuredUntil <= matchDate) && (!player.suspendedUntil || player.suspendedUntil <= matchDate)
+  const available = (player: Player) => isPlayerAvailable(player, matchDate)
   const availableHomePlayers = homePlayers.filter(available)
   const availableAwayPlayers = awayPlayers.filter(available)
   const preferredHome = Object.fromEntries((homeLineup ?? []).map(item => [item.slot, item.player.id])) as Record<number, string>
