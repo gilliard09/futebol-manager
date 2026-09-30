@@ -370,7 +370,7 @@ export function simulateMatch(
       ? 0.94
       : 1
 
-  const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away', own: TeamMetrics, opponent: TeamMetrics) => {
+  const makeSubstitutions = (minute: number, active: LineupPlayer[], bench: Player[], team: 'home' | 'away') => {
     if (![55, 70, 80].includes(minute) || substitutionWindows[team].has(minute) || substitutionCount[team] >= 5) return
     substitutionWindows[team].add(minute)
 
@@ -430,8 +430,8 @@ export function simulateMatch(
   }
 
   for (let minute = 1; minute <= 90; minute++) {
-    makeSubstitutions(minute, homeActive, homeBench, 'home', homeMetrics, awayMetrics)
-    makeSubstitutions(minute, awayActive, awayBench, 'away', awayMetrics, homeMetrics)
+    makeSubstitutions(minute, homeActive, homeBench, 'home')
+    makeSubstitutions(minute, awayActive, awayBench, 'away')
     const homeBefore = events.length
     simulateSide(minute, 'home', homeActive, homeMetrics, awayMetrics, tactic, homeStats, events, random, homeName, modifiers)
     if (events.slice(homeBefore).some(event => event.type === 'goal')) homeScore++
