@@ -594,7 +594,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     let active = true
     async function loadDashboard() {
       setLoading(true)
-      const { data: currentSeasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+      const { data: currentSeasonRow } = await supabase.from('seasons').select('id,status').eq('name', career.season).maybeSingle()
       const currentSeasonId = currentSeasonRow?.id ?? null
       if (currentSeasonId && currentSeasonRow?.status === 'completed') {
         const { data: completedHistory } = await supabase
