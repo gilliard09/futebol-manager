@@ -430,7 +430,7 @@ export function simulateWorldDay(
         ? (userTarget.seasonGoals ?? 0) * 0.8 + (userTarget.seasonAssists ?? 0) * 0.5 + ((userTarget.seasonAverageRating ?? 0) >= 7.4 ? 3 : 0)
         : 0
       const offerChance = userTarget
-        ? Math.min(0.7, 0.35 + Math.max(0, userPerformance - 3) * 0.035)
+        ? Math.min(0.9, 0.72 + Math.max(0, userPerformance - 3) * 0.035)
         : 0
 
       if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < offerChance) {
