@@ -1126,8 +1126,55 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     }
 
     if (action === 'transfer') {
-      const nextPlayer = { ...player, morale: Math.min(100, player.morale + 5) }
-      setPlayers(players.map(item => item.id === player.id ? nextPlayer : item))
+      const { data: buyers } = await supabase
+        .from('clubs')
+        .select('id,budget')
+        .neq('id', career.club.id)
+        .order('budget', { ascending: false })
+        .limit(8)
+
+      const fee = Math.max(250000, Math.round(player.marketValue / 50000) * 50000)
+      const buyer = (buyers ?? []).find(item => Number(item.budget ?? 0) >= fee)
+
+      if (buyer) {
+        const row = await supabase.from('club_players').select('id').eq('player_id', player.id).eq('club_id', career.club.id).maybeSingle()
+        if (row.data?.id) {
+          const { error: updateError } = await supabase.from('club_players').update({ club_id: buyer.id }).eq('id', row.data.id)
+          if (!updateError) {
+            const seasonId = (await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()).data?.id
+            await Promise.all([
+              supabase.from('clubs').update({ budget: Number(buyer.budget) - fee }).eq('id', buyer.id),
+              supabase.from('world_transfers').upsert({
+                season_id: seasonId,
+                transfer_date: pendingEvent.date,
+                player_id: player.id,
+                from_club_id: career.club.id,
+                to_club_id: buyer.id,
+                fee,
+                reason: 'player_request',
+              }, { onConflict: 'season_id,player_id,transfer_date' }),
+            ])
+
+            const transaction = createTransaction(
+              pendingEvent.date,
+              'transfer_in',
+              'Venda · ' + player.first_name + ' ' + player.last_name,
+              fee,
+              undefined,
+              'player_request:' + player.id + ':' + pendingEvent.date,
+            )
+            const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
+            const nextPlayers = players.filter(item => item.id !== player.id)
+            setPlayers(nextPlayers)
+            const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
+            localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+            onCareerUpdate(nextCareer)
+          }
+        }
+      } else {
+        const nextPlayer = { ...player, morale: Math.min(100, player.morale + 2) }
+        setPlayers(players.map(item => item.id === player.id ? nextPlayer : item))
+      }
     }
 
     if (action === 'continue') {
@@ -1431,7 +1478,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
               <button onClick={() => respondToPlayerRequest('renew')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Abrir negociação</button>
               <button onClick={() => respondToPlayerRequest('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Ainda não</button>
             </> : <>
-              <button onClick={() => respondToPlayerRequest('transfer')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Colocar no mercado</button>
+              <button onClick={() => respondToPlayerRequest('transfer')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Aceitar saída</button>
               <button onClick={() => respondToPlayerRequest('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Conversar e manter</button>
             </>}
           </div>
