@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, BarChart3, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3, House, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player } from './types/game'
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
@@ -1423,7 +1423,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       const userScore = userHome ? match.homeScore : match.awayScore
       const opponentScore = userHome ? match.awayScore : match.homeScore
       return {
-        id: `${match.home_club_id}-${match.away_club_id}-${match.date ?? match.scheduled_at ?? 'match'}`,
+        id: `${match.home_club_id}-${match.away_club_id}-${userScore}-${opponentScore}`,
         competition: match.competition_name ?? 'Liga Nacional do Brasil',
         opponent: userHome ? (clubs.find(club => club.id === match.away_club_id)?.short_name ?? 'Adversário') : (clubs.find(club => club.id === match.home_club_id)?.short_name ?? 'Adversário'),
         score: `${userScore}–${opponentScore}`,
@@ -2815,7 +2815,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
   const groups: Array<{ label: string; items: Array<{ key: DashboardView; label: string; icon: typeof Settings }> }> = [
     {
       label: 'Hoje',
-      items: [{ key: 'overview', label: 'Dashboard', icon: Settings }],
+      items: [{ key: 'overview', label: 'Dashboard', icon: House }],
     },
     {
       label: 'Clube',
@@ -2840,7 +2840,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     },
   ] as const
 
-  const activeLabel = activeLabel
+  const activeLabel = groups.flatMap(group => group.items).find(item => item.key === activeView)?.label ?? 'Futebol Manager'
 
   return <div className="min-h-screen bg-[#0a0f1a]">
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/5 bg-[#0d1421] lg:flex lg:flex-col">
