@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Banknote, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Newspaper, Shield, ShoppingBag, Trophy, Users, Handshake } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, Home, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player } from './types/game'
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup, type MatchResult } from './engine/match'
@@ -780,8 +780,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   })
   const location = useLocation()
   const navigate = useNavigate()
-  type DashboardView = 'overview' | 'squad' | 'tactics' | 'match' | 'training' | 'market' | 'loans' | 'competitions' | 'press'
-  const dashboardViews: DashboardView[] = ['overview', 'squad', 'tactics', 'match', 'training', 'market', 'loans', 'competitions', 'press']
+  type DashboardView = 'overview' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
+  const dashboardViews: DashboardView[] = ['overview', 'calendar', 'news', 'squad', 'tactics', 'finance', 'stadium', 'trophies', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
   const pathView = location.pathname.split('/')[2] as DashboardView | undefined
   const initialView = pathView && dashboardViews.includes(pathView) ? pathView : 'overview'
   const [view, setView] = useState<DashboardView>(initialView)
@@ -1413,6 +1413,22 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   const rosterAlerts = getSquadAlerts(players, contractAlerts.length, financeBalance, salaryTotal)
   const initialCapital = financeTransactions.find(transaction => transaction.eventId === 'career:initial-budget')?.amount ?? career.club.budget
   const avg = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
+  const recentUserResults = Object.values(playedMatches)
+    .filter(match => match.home_club_id === career.club.id || match.away_club_id === career.club.id)
+    .sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')))
+    .slice(0, 5)
+    .map(match => {
+      const userHome = match.home_club_id === career.club.id
+      const userScore = userHome ? match.homeScore : match.awayScore
+      const opponentScore = userHome ? match.awayScore : match.homeScore
+      return {
+        id: match.id,
+        competition: 'Liga Nacional do Brasil',
+        opponent: userHome ? (clubs.find(club => club.id === match.away_club_id)?.short_name ?? 'Adversário') : (clubs.find(club => club.id === match.home_club_id)?.short_name ?? 'Adversário'),
+        score: `${userScore}–${opponentScore}`,
+        result: userScore > opponentScore ? 'W' : userScore < opponentScore ? 'L' : 'D',
+      } as const
+    })
   const nextMatchDate = nextFixture ? toDateKey(nextFixture.scheduled_at) : null
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
 
@@ -2188,6 +2204,15 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     setPendingEvent(null)
   }
 
+  if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
+  if (view === 'news') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
+  if (view === 'finance') return <GameSection title="Finanças" eyebrow="Clube" icon={<WalletCards size={22} />} description="Acompanhe caixa, receitas, despesas, folha salarial e movimentações da temporada." back={() => goToView('overview')} />
+  if (view === 'stadium') return <GameSection title="Estádio" eyebrow="Clube" icon={<Building2 size={22} />} description={`${commercial.stadium.name} · ${commercial.stadium.capacity.toLocaleString('pt-BR')} lugares · nível ${commercial.stadium.level}/6`} back={() => goToView('overview')} />
+  if (view === 'trophies') return <GameSection title="Sala de Troféus" eyebrow="História" icon={<Trophy size={22} />} description="Os títulos e campanhas que constroem a história do clube aparecerão aqui." back={() => goToView('overview')} />
+  if (view === 'legacy') return <GameSection title="Conquistas & Legado" eyebrow="História" icon={<Medal size={22} />} description="Registros de carreira, marcas, conquistas e legado do treinador." back={() => goToView('overview')} />
+  if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
+  if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
+
   if (view === 'press') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
   if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'loans') return <LoanMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} transferOverrides={transferState.playerClubOverrides} state={loanState} currentSquadSize={players.length} onLoan={(record, nextState) => { const transaction = createTransaction(record.date, record.loanClubId === career.club.id ? 'transfer_out' : 'transfer_in', `${record.loanClubId === career.club.id ? 'Empréstimo recebido' : 'Empréstimo cedido'} · ${record.playerName}`, record.loanClubId === career.club.id ? -record.fee : record.fee, undefined, `loan:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setLoanState(nextState); localStorage.setItem(LOANS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); goToView('overview') }} back={() => goToView('overview')} />
@@ -2619,192 +2644,249 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} cancel={() => { setActiveMatchFixture(null); goToView('overview') }} />
   }
 
-  return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
-    <div className="flex flex-col justify-between gap-6 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">Bom trabalho, {career.name}.</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">{career.club.name}</h1><div className="mt-3 flex items-center gap-2 text-sm text-white/35"><MapPin size={15} />{career.club.city} · Liga Nacional do Brasil</div></div><button onClick={newCareer} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55 hover:border-white/15 hover:text-white">Nova carreira</button></div>
-    {pendingEvent && (() => {
-      const offeredPlayer = pendingEvent.type === 'player_offer' ? players.find(item => item.id === pendingEvent.playerId) : null
-      const offerOptions = pendingEvent.type === 'player_offer'
-        ? (pendingEvent.offers.length ? pendingEvent.offers : [{
-            playerId: pendingEvent.playerId,
-            fromClubId: pendingEvent.fromClubId,
-            toClubId: pendingEvent.toClubId,
-            fee: pendingEvent.fee,
-          }])
-        : []
-      const messagePlayer = (pendingEvent.type === 'player_message' || pendingEvent.type === 'player_request') ? players.find(item => item.id === pendingEvent.playerId) : null
-      const managerClub = pendingEvent.type === 'manager_offer' ? clubs.find(item => item.id === pendingEvent.fromClubId) : null
+  return <GameShell
+    career={career}
+    activeView={view}
+    onNavigate={goToView}
+    onAdvanceDay={restOneDay}
+    canAdvance={!advancingDays && Boolean(clock) && canAdvanceDay(clock, nextMatchDate)}
+  >
+    <main className="min-h-screen">
+      <section className="px-4 py-5 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="label-mono text-white/45">Visão geral · {career.season.replace('Temporada ', '')}</p>
+            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">Visão geral</h1>
+          </div>
+          <button onClick={newCareer} className="hidden rounded-lg border border-white/8 px-3 py-2 text-xs font-semibold text-white/45 transition hover:border-white/15 hover:text-white lg:block">Nova carreira</button>
+        </div>
 
-      if (pendingEvent.type === 'player_offer' && offeredPlayer) {
-        return <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Decisão importante</p>
-          <h2 className="mt-2 text-2xl font-bold">
-            {offerOptions.length > 1 ? 'Clubes estão disputando seu jogador' : 'Recebemos uma proposta por um jogador'}
-          </h2>
-          <p className="mt-3 text-sm leading-6 text-white/45">
-            {offeredPlayer.first_name} {offeredPlayer.last_name} chamou atenção de {offerOptions.length} clube(s). {offerOptions.length > 1 ? 'As propostas abaixo refletem a concorrência pelo jogador.' : 'Você pode aceitar, recusar ou tentar melhorar o valor.'} {pendingEvent.negotiationStatus === 'counter_response' ? 'O clube voltou a responder à sua contraproposta.' : ''}
-          </p>
-          <div className="mt-5 space-y-3">
-            {offerOptions.map(offer => {
+        {pendingEvent && (() => {
+          const offeredPlayer = pendingEvent.type === 'player_offer' ? players.find(item => item.id === pendingEvent.playerId) : null
+          const offerOptions = pendingEvent.type === 'player_offer'
+            ? (pendingEvent.offers.length ? pendingEvent.offers : [{
+                playerId: pendingEvent.playerId,
+                fromClubId: pendingEvent.fromClubId,
+                toClubId: pendingEvent.toClubId,
+                fee: pendingEvent.fee,
+              }])
+            : []
+          const messagePlayer = (pendingEvent.type === 'player_message' || pendingEvent.type === 'player_request') ? players.find(item => item.id === pendingEvent.playerId) : null
+          const managerClub = pendingEvent.type === 'manager_offer' ? clubs.find(item => item.id === pendingEvent.fromClubId) : null
+
+          if (pendingEvent.type === 'player_offer' && offeredPlayer) return <section className="mb-6 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-5">
+            <p className="label-mono text-emerald-300/65">Decisão importante</p>
+            <h2 className="mt-2 text-xl font-bold">{offerOptions.length > 1 ? 'Clubes estão disputando seu jogador' : 'Recebemos uma proposta por um jogador'}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">{offeredPlayer.first_name} {offeredPlayer.last_name} chamou atenção de {offerOptions.length} clube(s). {offerOptions.length > 1 ? 'As propostas abaixo refletem a concorrência pelo jogador.' : 'Você pode aceitar, recusar ou tentar melhorar o valor.'}</p>
+            <div className="mt-4 space-y-2">{offerOptions.map(offer => {
               const buyer = clubs.find(item => item.id === offer.toClubId)
               if (!buyer) return null
-              return <div key={offer.toClubId} className="flex flex-col gap-3 rounded-xl border border-white/8 bg-black/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="font-semibold text-white/85">{buyer.name}</p>
-                  <p className="mt-1 text-xs text-white/35">Proposta de {money(offer.fee)}</p>
+              return <div key={offer.toClubId} className="flex flex-col gap-3 rounded-lg border border-white/6 bg-black/15 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="font-semibold">{buyer.name}</p><p className="mt-1 text-xs text-white/40">Proposta de {money(offer.fee)}</p></div>
+                <div className="flex gap-2"><button onClick={() => respondToPlayerOffer(true, offer)} className="rounded-lg bg-emerald-400 px-4 py-2 text-xs font-bold text-[#06100c]">Aceitar</button><button onClick={() => counterPlayerOffer(offer)} className="rounded-lg border border-amber-400/25 px-4 py-2 text-xs font-semibold text-amber-200">Contraproposta</button></div>
+              </div>
+            })}</div>
+            <button onClick={() => respondToPlayerOffer(false)} className="mt-3 text-xs font-semibold text-white/45 hover:text-white">Recusar todas</button>
+          </section>
+
+          if (pendingEvent.type === 'board_message') return <section className="mb-6 rounded-xl border border-amber-400/15 bg-amber-400/[0.04] p-5">
+            <p className="label-mono text-amber-200/70">Mensagem da diretoria</p><h2 className="mt-2 text-xl font-bold">{pendingEvent.title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">{pendingEvent.message}</p><button onClick={() => respondToImportantEvent('continue')} className="mt-4 rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">Entendido</button>
+          </section>
+
+          if (pendingEvent.type === 'player_message' && messagePlayer) return <section className="mb-6 rounded-xl border border-sky-400/15 bg-sky-400/[0.04] p-5">
+            <p className="label-mono text-sky-300/70">Mensagem de jogador</p><h2 className="mt-2 text-xl font-bold">{pendingEvent.title}</h2><p className="mt-2 text-sm leading-6 text-white/55">{pendingEvent.message}</p><button onClick={() => respondToImportantEvent('continue')} className="mt-4 rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">Conversar</button>
+          </section>
+
+          if (pendingEvent.type === 'player_request' && messagePlayer) return <section className="mb-6 rounded-xl border border-amber-400/15 bg-amber-400/[0.04] p-5">
+            <p className="label-mono text-amber-200/70">Decisão sobre o elenco</p><h2 className="mt-2 text-xl font-bold">{pendingEvent.title}</h2><p className="mt-2 text-sm leading-6 text-white/55">{pendingEvent.message}</p><div className="mt-4 flex gap-2"><button onClick={() => respondToPlayerRequest(pendingEvent.request === 'renewal' ? 'renew' : 'transfer')} className="rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">{pendingEvent.request === 'renewal' ? 'Abrir negociação' : 'Aceitar saída'}</button><button onClick={() => respondToPlayerRequest('continue')} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55">Ainda não</button></div>
+          </section>
+
+          if (pendingEvent.type === 'manager_offer' && managerClub) return <section className="mb-6 rounded-xl border border-violet-400/15 bg-violet-400/[0.04] p-5">
+            <p className="label-mono text-violet-300/70">Proposta para o treinador</p><h2 className="mt-2 text-xl font-bold">{managerClub.name} quer contratar você</h2><p className="mt-2 text-sm leading-6 text-white/55">{pendingEvent.message}</p><div className="mt-4 flex gap-2"><button onClick={() => respondToImportantEvent('continue')} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55">Recusar</button><button onClick={() => respondToImportantEvent('accept')} className="rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">Aceitar proposta</button></div>
+          </section>
+
+          return null
+        })()}
+
+        <div className="grid gap-5 lg:grid-cols-[1.7fr_1fr]">
+          <div className="min-w-0 space-y-5">
+            <section className="overflow-hidden rounded-2xl border border-white/5 bg-[#131b2a]">
+              <div className="relative overflow-hidden px-5 py-5 sm:px-7 sm:py-6">
+                <div className="absolute inset-0 opacity-90" style={{ background: 'var(--gradient-match)' }} />
+                <div className="relative">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-black/20 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/85">{nextFixture?.competition_name ?? 'Liga Nacional do Brasil'}</span>
+                    {nextFixture && <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Rodada {nextFixture.round}</span>}
+                    <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{home ? 'Em casa' : 'Fora'}</span>
+                  </div>
+                  <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
+                    <ClubMatchSide club={career.club} overall={avg} align="right" />
+                    <div className="text-center">
+                      <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-white/70">VS</p>
+                      <p className="mt-2 text-[10px] font-medium text-white/65">{nextMatchDate ? formatSeasonDate(nextMatchDate) : 'Sem partida'}</p>
+                    </div>
+                    <ClubMatchSide club={opponent} overall={opponent ? Math.round(Number(opponent.strength ?? opponent.reputation ?? 60)) : 0} align="left" />
+                  </div>
                 </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 bg-[#101827] px-5 py-4 sm:px-7">
+                <div><p className="label-mono text-white/35">Dificuldade</p><p className="mt-1 text-sm font-bold">{opponent ? (Math.abs((opponent.strength ?? opponent.reputation ?? 60) - avg) < 5 ? 'Equilibrado' : (opponent.strength ?? opponent.reputation ?? 60) > avg ? 'Difícil' : 'Favorável') : '—'}</p></div>
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={() => respondToPlayerOffer(true, offer)} className="rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Aceitar {money(offer.fee)}</button>
-                  <button onClick={() => counterPlayerOffer(offer)} className="rounded-xl border border-amber-400/30 px-4 py-2.5 text-sm font-semibold text-amber-200 hover:border-amber-300">Contraproposta</button>
+                  <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
+                  <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
+                  <button onClick={() => opponent && goToView('squad')} className="game-button game-button-secondary">Ver adversário</button>
+                  <button disabled={!matchReady || boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended'} onClick={() => { if (nextFixture && matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } }} className="game-button game-button-primary">{matchReady ? 'Jogar partida' : 'Aguardar dia de jogo'}</button>
                 </div>
               </div>
-            })}
-          </div>
-          <button onClick={() => respondToPlayerOffer(false)} className="mt-4 rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar todas as propostas</button>
-        </section>
-      }
+            </section>
 
-      if (pendingEvent.type === 'board_message') {
-        return <section className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300/70">Mensagem da diretoria</p>
-          <h2 className="mt-2 text-2xl font-bold">{pendingEvent.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
-          <button onClick={() => respondToImportantEvent('continue')} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Entendido</button>
-        </section>
-      }
-
-      if (pendingEvent.type === 'player_message' && messagePlayer) {
-        return <section className="mt-6 rounded-2xl border border-sky-400/20 bg-sky-400/[0.05] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300/70">Mensagem de jogador</p>
-          <h2 className="mt-2 text-2xl font-bold">{pendingEvent.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
-          <p className="mt-4 text-xs text-white/25">{messagePlayer.position} · {messagePlayer.age} anos · Moral {messagePlayer.morale}</p>
-          <button onClick={() => respondToImportantEvent('continue')} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Conversar com o jogador</button>
-        </section>
-      }
-
-      if (pendingEvent.type === 'player_request' && messagePlayer) {
-        const renewal = pendingEvent.request === 'renewal'
-        return <section className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/[0.05] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300/70">Decisão sobre o elenco</p>
-          <h2 className="mt-2 text-2xl font-bold">{pendingEvent.title}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
-          <p className="mt-4 text-xs text-white/25">{messagePlayer.position} · {messagePlayer.age} anos · Moral {messagePlayer.morale} · {messagePlayer.contractUntil ? 'Contrato até ' + messagePlayer.contractUntil : 'Sem contrato'}</p>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            {renewal ? <>
-              <button onClick={() => respondToPlayerRequest('renew')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Abrir negociação</button>
-              <button onClick={() => respondToPlayerRequest('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Ainda não</button>
-            </> : <>
-              <button onClick={() => respondToPlayerRequest('transfer')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Aceitar saída</button>
-              <button onClick={() => respondToPlayerRequest('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Conversar e manter</button>
-            </>}
-          </div>
-        </section>
-      }
-      if (pendingEvent.type === 'manager_offer' && managerClub) {
-        return <section className="mt-6 rounded-2xl border border-violet-400/20 bg-violet-400/[0.05] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300/70">Proposta para o treinador</p>
-          <h2 className="mt-2 text-2xl font-bold">{managerClub.name} quer contratar você</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">{pendingEvent.message}</p>
-          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-            <button onClick={() => respondToImportantEvent('continue')} className="rounded-xl border border-white/8 px-5 py-3 text-sm font-semibold text-white/60 hover:text-white">Recusar</button>
-            <button onClick={() => respondToImportantEvent('accept')} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Aceitar proposta</button>
-          </div>
-        </section>
-      }
-
-      return null
-    })()}
-    {worldNews.length > 0 && <section className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Imprensa do futebol</p>
-          <h2 className="mt-2 text-2xl font-bold">O mundo continua jogando</h2>
-          <p className="mt-2 text-sm text-white/35">As principais histórias da temporada, com mais destaque para o que envolve o seu clube.</p>
-        </div>
-        <button onClick={() => goToView('press')} className="flex shrink-0 items-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-emerald-300 hover:border-emerald-300/20 hover:text-emerald-200">
-          Abrir central <ArrowRight size={16} />
-        </button>
-      </div>
-      <div className="mt-5 space-y-2">
-        {worldNews.slice(0, 3).map(item => {
-          const toneClass = item.tone === 'positive'
-            ? 'border-emerald-400/10 bg-emerald-400/[0.025]'
-            : item.tone === 'warning'
-              ? 'border-amber-400/10 bg-amber-400/[0.025]'
-              : 'border-white/5 bg-black/10'
-          return <div key={item.id} className={`rounded-xl border px-4 py-3 ${toneClass}`}>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold">{item.title}</p>
-                <div className="mt-1 flex items-center gap-2"><span className="text-[9px] font-semibold uppercase tracking-wider text-white/20">{item.category === 'market' ? 'Mercado' : item.category === 'academy' ? 'Base' : item.category === 'career' ? 'Carreira' : item.category === 'club' ? 'Clube' : item.category === 'match' ? 'Resultados' : 'Elenco'}</span><p className="text-xs leading-5 text-white/40">{item.message}</p></div>
+            <section className="game-panel">
+              <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Últimos resultados</p><h2 className="mt-1 font-display text-2xl font-bold">Forma recente</h2></div><button onClick={() => goToView('calendar')} className="text-xs font-bold text-emerald-300">Calendários <ChevronRight size={14} className="inline" /></button></div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-5">
+                {recentUserResults.length ? recentUserResults.map(item => <div key={item.id} className="rounded-lg border border-white/5 bg-black/10 p-3">
+                  <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold uppercase text-white/30">{item.competition}</span><span className={item.result === 'W' ? 'text-emerald-300' : item.result === 'D' ? 'text-amber-200' : 'text-red-300'}>{item.result}</span></div>
+                  <div className="mt-3 text-center font-display text-xl font-bold tabular-nums">{item.score}</div>
+                  <p className="mt-1 truncate text-center text-[10px] text-white/35">{item.opponent}</p>
+                </div>) : <p className="text-sm text-white/35">Ainda não há resultados disputados.</p>}
               </div>
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-white/20">{formatSeasonDate(item.date)}</span>
-            </div>
-          </div>
-        })}
-      </div>
-    </section>}
-    {seasonClosed && seasonCompletion && <section className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.05] p-6"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Temporada encerrada</p><h2 className="mt-2 text-2xl font-bold">{career.season} concluída oficialmente</h2><div className="mt-4 grid gap-3 md:grid-cols-4"><DashboardCard icon={<Trophy size={18} />} label="Liga" value={clubs.find(club => club.id === seasonCompletion.league.championClubId)?.short_name ?? seasonCompletion.league.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Copa" value={clubs.find(club => club.id === seasonCompletion.cup.championClubId)?.short_name ?? seasonCompletion.cup.championClubId} detail="campeão" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Liga" value={clubs.find(club => club.id === seasonCompletion.league.runnerUpClubId)?.short_name ?? seasonCompletion.league.runnerUpClubId ?? '—'} detail="classificação final" /><DashboardCard icon={<Trophy size={18} />} label="Vice da Copa" value={clubs.find(club => club.id === seasonCompletion.cup.runnerUpClubId)?.short_name ?? seasonCompletion.cup.runnerUpClubId ?? '—'} detail="final" /></div><p className="mt-4 text-xs text-white/35">O resultado foi consolidado no histórico da temporada e a temporada atual não pode mais ser considerada em andamento.</p><button onClick={onNextSeason} className="mt-5 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">Começar a próxima temporada</button></section>}
-    {loading ? <div className="py-20 text-center text-sm text-white/35">Preparando seu clube...</div> : <>
-      <div className="mt-8 grid gap-4 md:grid-cols-4"><DashboardCard icon={<Users size={18} />} label="Elenco" value={String(players.length)} detail={`média geral ${avg}`} /><DashboardCard icon={<Banknote size={18} />} label="Orçamento" value={money(financeBalance)} detail="caixa disponível" /><DashboardCard icon={<Banknote size={18} />} label="Folha salarial" value={money(salaryTotal)} detail="salários do elenco / mês" /><DashboardCard icon={<Trophy size={18} />} label="Posição" value={table.findIndex(t => t.id === career.club.id) >= 0 ? `#${table.findIndex(t => t.id === career.club.id) + 1}` : '—'} detail="Liga Nacional do Brasil" /></div>
-      <section className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Patrocínio</p>
-          <div className="mt-3 flex items-end justify-between"><div><p className="text-2xl font-bold">{commercial.sponsor.name}</p><p className="mt-1 text-xs text-white/30">+{money(commercial.sponsor.monthly)} / mês</p></div><span className="text-xs font-bold text-emerald-300">Meta {commercial.sponsor.objective}</span></div>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Info label="Bônus inicial" value={money(commercial.sponsor.upfront)} /><Info label="Reputação exigida" value={String(commercial.sponsor.reputationRequired)} /></div>
-          <p className="mt-3 text-xs text-white/30">Progresso do contrato: {commercial.sponsor.progress}/{commercial.sponsor.objectiveTarget}</p>
-        </div>
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estádio</p><p className="mt-2 text-2xl font-bold">{commercial.stadium.name}</p></div><span className="text-xs font-bold text-white/40">Nível {commercial.stadium.level}/6</span></div>
-          <div className="mt-4 grid grid-cols-3 gap-2 text-xs"><Info label="Capacidade" value={commercial.stadium.capacity.toLocaleString('pt-BR')} /><Info label="Ingresso" value={money(commercial.stadium.baseTicketPrice)} /><Info label="Manutenção" value={money(commercial.stadium.maintenance) + '/mês'} /></div>
-          <p className="mt-3 text-xs text-white/30">Público estimado atual: {estimateStadiumAttendance(commercial.stadium, fanState.satisfaction, career.club.reputation).toLocaleString('pt-BR')}</p>
-          <button disabled={!canUpgradeStadium(commercial.stadium, financeBalance)} onClick={async () => {
-            const cost = stadiumUpgradeCost(commercial.stadium.level + 1)
-            if (!canUpgradeStadium(commercial.stadium, financeBalance)) return
-            const nextStadium = upgradeStadium(commercial.stadium)
-            const nextBalance = addFinanceTransaction(createTransaction(toDateKey(new Date().toISOString()), 'other', 'Melhoria do estádio', -cost, undefined, 'stadium:' + career.season + ':' + nextStadium.level)) ?? financeBalance
-            const next = { ...commercial, stadium: nextStadium }
-            await saveCommercial(next)
-            onCareerUpdate({ ...career, club: { ...career.club, budget: nextBalance } })
-          }} className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-xs font-bold text-white/60 disabled:cursor-not-allowed disabled:opacity-30">{commercial.stadium.level >= 6 ? 'Estádio no nível máximo' : 'Melhorar estádio · ' + money(stadiumUpgradeCost(commercial.stadium.level + 1))}</button>
-        </div>
-      </section>
+            </section>
 
-      <section className="mt-4 grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Diretoria</p>
-          <div className="mt-3 flex items-end justify-between gap-4">
-            <div><p className="text-2xl font-bold">{boardState.confidence}%</p><p className="mt-1 text-xs text-white/30">confiança no treinador</p></div>
-            <span className="rounded-lg border border-emerald-400/15 bg-emerald-400/5 px-2.5 py-1.5 text-xs font-bold text-emerald-300">{boardState.objectiveLabel}</span>
+            <section className="game-panel">
+              <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Campeonato</p><h2 className="mt-1 font-display text-2xl font-bold">Classificação</h2></div><span className="text-xs font-bold text-white/35">Liga Nacional do Brasil</span></div>
+              <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
+                <div className="grid grid-cols-[34px_1fr_44px_44px_44px] bg-white/[0.025] px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-white/30"><span>#</span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">SG</span></div>
+                {table.slice(0, 8).map((team, i) => <div key={team.id} className={`grid grid-cols-[34px_1fr_44px_44px_44px] items-center border-t border-white/5 px-3 py-2.5 text-xs ${team.id === career.club.id ? 'bg-emerald-400/[0.06]' : ''}`}>
+                  <span className={`font-bold ${i === 0 ? 'text-amber-300' : i < 4 ? 'text-emerald-300/75' : i >= 6 ? 'text-red-300/65' : 'text-white/30'}`}>{i + 1}</span><span className="truncate font-medium">{team.name}</span><span className="text-center font-bold tabular-nums">{team.points}</span><span className="text-center text-white/40 tabular-nums">{team.played}</span><span className="text-center text-white/40 tabular-nums">{team.gf - team.ga}</span>
+                </div>)}
+              </div>
+            </section>
           </div>
-          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-emerald-400" style={{ width: boardState.confidence + '%' }} /></div>
-          <p className="mt-3 text-xs leading-5 text-white/35">{boardState.lastEvaluation}</p>
-          <p className="mt-2 text-xs text-white/25">Contrato: {boardState.managerStatus === 'active' ? 'em vigor' : boardState.managerStatus === 'renewed' ? 'renovado' : boardState.managerStatus === 'dismissed' ? 'encerrado por demissão' : 'encerrado'}</p>
-        </div>
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Torcida</p>
-          <div className="mt-3 flex items-end justify-between"><div><p className="text-2xl font-bold">{fanState.satisfaction}%</p><p className="mt-1 text-xs text-white/30">satisfação</p></div><span className="text-xs font-bold text-white/40">pressão {fanState.pressure}%</span></div>
-          <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-amber-300" style={{ width: fanState.satisfaction + '%' }} /></div>
-          <div className="mt-4 flex items-center justify-between text-xs"><span className="text-white/30">Expectativa {fanState.expectation}%</span><span className="font-semibold text-white/55">{fanState.recentResults.length ? fanState.recentResults.join(' · ') : 'Sem jogos'}</span></div>
-        </div>
-        <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Saúde financeira</p>
-          <div className="mt-3 flex items-end justify-between"><div><p className="text-2xl font-bold">{money(financeBalance)}</p><p className="mt-1 text-xs text-white/30">caixa atual</p></div><span className="rounded-lg border border-white/8 px-2.5 py-1.5 text-xs font-bold text-white/55">{getEconomicStatus(financeBalance, salaryTotal)}</span></div>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-xs"><Info label="Receitas" value={money(summarizeFinance(financeTransactions, financeBalance, salaryTotal).revenue)} /><Info label="Despesas" value={money(summarizeFinance(financeTransactions, financeBalance, salaryTotal).expenses)} /></div>
+
+          <aside className="space-y-5">
+            <section className="game-panel">
+              <div className="flex items-start justify-between gap-3"><div><p className="label-mono text-white/35">Diretoria</p><h2 className="mt-1 font-display text-xl font-bold">Confiança</h2></div><span className="display-number text-2xl font-bold text-emerald-300">{boardState.confidence}</span></div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-emerald-400" style={{ width: Math.max(0, Math.min(100, boardState.confidence)) + '%' }} /></div>
+              <div className="mt-3 flex items-center justify-between gap-3 text-xs"><span className="text-white/45">Meta</span><span className="font-bold text-white/75">{boardState.objectiveLabel}</span></div>
+            </section>
+
+            <section className="game-panel">
+              <div className="flex items-start justify-between"><div><p className="label-mono text-white/35">Torcida</p><h2 className="mt-1 font-display text-xl font-bold">Satisfação</h2></div><span className="display-number text-2xl font-bold text-amber-200">{fanState.satisfaction}</span></div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-amber-300" style={{ width: Math.max(0, Math.min(100, fanState.satisfaction)) + '%' }} /></div>
+              <div className="mt-3 flex items-center justify-between text-xs"><span className="text-white/40">Pressão</span><span className="font-bold text-white/65">{fanState.pressure}%</span></div>
+              <div className="mt-3 flex gap-1.5">{fanState.recentResults.length ? fanState.recentResults.slice(-5).map((result, index) => <span key={index} className={`flex h-6 w-6 items-center justify-center rounded-md text-[9px] font-bold ${result === 'W' ? 'bg-emerald-400/15 text-emerald-300' : result === 'D' ? 'bg-amber-400/15 text-amber-200' : 'bg-red-400/15 text-red-300'}`}>{result}</span>) : <span className="text-xs text-white/30">Sem jogos</span>}</div>
+            </section>
+
+            <section className="game-panel">
+              <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Elenco</p><h2 className="mt-1 font-display text-xl font-bold">Pontos de atenção</h2></div><button onClick={() => goToView('squad')} className="text-xs font-bold text-emerald-300">Ver elenco</button></div>
+              <div className="mt-4 space-y-2">{rosterAlerts.slice(0, 4).map(alert => <div key={alert.kind} className="border-l-2 border-amber-300/60 bg-white/[0.02] px-3 py-2.5"><p className="text-xs font-semibold">{alert.title}</p><p className="mt-1 text-[10px] leading-4 text-white/40">{alert.description}</p></div>)}{!rosterAlerts.length && <p className="text-xs text-white/35">Nenhum ponto de atenção no momento.</p>}</div>
+            </section>
+
+            <section className="game-panel">
+              <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Mundo</p><h2 className="mt-1 font-display text-xl font-bold">Notícias recentes</h2></div><button onClick={() => goToView('news')} className="text-xs font-bold text-emerald-300">Todas</button></div>
+              <div className="mt-4 space-y-2">{worldNews.slice(0, 4).map(item => <div key={item.id} className="flex gap-3 border-b border-white/5 pb-3 last:border-0 last:pb-0"><div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${item.tone === 'positive' ? 'bg-emerald-400/10 text-emerald-300' : item.tone === 'warning' ? 'bg-amber-400/10 text-amber-200' : 'bg-white/5 text-white/45'}`}><Newspaper size={13} /></div><div className="min-w-0"><p className="line-clamp-2 text-xs font-semibold">{item.title}</p><p className="mt-1 line-clamp-2 text-[10px] leading-4 text-white/35">{item.message}</p></div></div>)}{!worldNews.length && <p className="text-xs text-white/35">As notícias aparecerão conforme o mundo avançar.</p>}</div>
+            </section>
+          </aside>
         </div>
       </section>
-      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Calendário da temporada</p><h2 className="mt-2 text-2xl font-bold">{clock ? formatSeasonDate(clock.currentDate) : 'Preparando calendário'}</h2><p className="mt-2 text-sm text-white/35">{nextFixture && nextMatchDate ? (matchReady ? 'Dia de jogo.' : `${daysBetween(clock!.currentDate, nextMatchDate)} dias até a próxima partida.`) : 'Nenhuma partida pendente.'}</p></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-5 flex flex-col gap-3 sm:flex-row"><button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="flex items-center justify-center gap-2 rounded-xl border border-white/8 px-4 py-3 text-sm font-semibold text-white/70 hover:border-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-30">{advancingDays ? 'Avançando...' : 'Descansar 1 dia'} <ArrowRight size={16} /></button>{nextFixture && <button onClick={advanceToNextMatch} disabled={!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays} className="flex items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">{advancingDays ? 'Avançando...' : 'Avançar até a partida'} <CalendarDays size={16} /></button>}{nextFixture && <div className="rounded-xl border border-white/6 bg-black/10 px-4 py-3 text-sm"><span className="text-white/30">Próximo jogo</span><span className="ml-2 font-semibold">{opponent?.short_name ?? 'A definir'} · {formatSeasonDate(nextMatchDate!)}</span></div>}</div><div className="mt-5 space-y-2">{upcomingFixtures.slice(0, 5).map(item => { const itemDate = toDateKey(item.scheduled_at); const itemOpponent = item.home_club_id === career.club.id ? item.away_club : item.home_club; return <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.id === nextFixture?.id ? 'border-emerald-400/20 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10'}`}><div><p className="text-sm font-semibold">{itemOpponent?.short_name ?? 'Adversário'} {item.home_club_id === career.club.id ? '· Casa' : '· Fora'}</p><p className="mt-1 text-xs text-white/30">{item.competition_name ?? 'Competição'} · Rodada {item.round}</p></div><span className="text-xs font-semibold text-white/45">{formatSeasonDate(itemDate)}</span></div> })}</div></section>
-      {rosterAlerts.length > 0 && <section className="mt-4 rounded-2xl border border-amber-400/10 bg-amber-400/[0.025] p-6"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/50">Gestão do elenco</p><h2 className="mt-2 text-xl font-bold">{rosterAlerts.length} ponto{rosterAlerts.length === 1 ? '' : 's'} pedindo atenção</h2></div><div className="mt-5 grid gap-2 md:grid-cols-2">{rosterAlerts.map(alert => <div key={alert.kind} className="rounded-xl border border-white/5 bg-black/10 px-4 py-3"><p className="text-sm font-semibold">{alert.title}</p><p className="mt-1 text-xs leading-5 text-white/35">{alert.description}</p></div>)}</div></section>}
-      {contractAlerts.length > 0 && <section className="mt-4 rounded-2xl border border-amber-400/10 bg-amber-400/[0.025] p-6"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/50">Contratos</p><h2 className="mt-2 text-xl font-bold">{contractAlerts.length} contrato{contractAlerts.length === 1 ? '' : 's'} pedindo atenção</h2></div><button onClick={() => goToView('squad')} className="text-xs font-semibold text-emerald-300">Ver elenco</button></div><div className="mt-5 space-y-2">{contractAlerts.slice(0, 5).map(item => <div key={item.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{item.name}</p><p className="text-xs text-white/30">{item.status === 'expired' ? 'Contrato vencido' : `Vence em ${item.days} dias`}</p></div><span className="text-xs font-bold text-amber-200/70">Renovar</span></div>)}</div></section>}
-      <div className="mt-8 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Próximo jogo</p><h2 className="mt-2 text-2xl font-bold">{opponent ? (home ? `Seu time × ${opponent.short_name}` : `${opponent.short_name} × Seu time`) : 'Nenhum jogo agendado'}</h2></div><CalendarDays className="text-emerald-300/50" size={24} /></div><div className="mt-8 grid grid-cols-2 gap-3"><Info label="Competição" value={nextFixture?.competition_name ?? '—'} /><Info label="Rodada" value={nextFixture ? `Rodada ${nextFixture.round}` : '—'} /><Info label="Data" value={nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'} /><Info label="Status" value={matchReady ? 'Dia de jogo' : 'Em preparação'} /></div><button disabled={!matchReady || boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended'} onClick={() => { if (nextFixture && matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } }} className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-30">{boardState.managerStatus === 'dismissed' ? 'Vínculo encerrado pela diretoria' : boardState.managerStatus === 'contract_ended' ? 'Contrato encerrado' : matchReady ? 'Preparar partida' : 'Avance os dias até a partida'} <ArrowRight size={16} /></button></section>
-        <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Elenco</p><h2 className="mt-2 text-2xl font-bold">{players.length} jogadores</h2></div><Users className="text-emerald-300/50" size={24} /></div><div className="mt-6 space-y-2">{players.slice(0, 5).map(player => <div key={player.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-xs text-white/30">{player.position} · {player.age} anos</p></div><span className="text-xs font-semibold text-white/40">#{player.squad_number}</span></div>)}</div><button onClick={() => goToView('squad')} className="mt-5 flex items-center gap-2 text-sm font-semibold text-emerald-300 hover:text-emerald-200">Ver elenco completo <ChevronRight size={16} /></button></section>
+    </main>
+  </GameShell>
+}
+
+function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, children }: {
+  career: ManagerProfile
+  activeView: string
+  onNavigate: (view: DashboardView) => void
+  onAdvanceDay: () => void
+  canAdvance: boolean
+  children: ReactNode
+}) {
+  const groups = [
+    {
+      label: 'Hoje',
+      items: [{ key: 'overview', label: 'Dashboard', icon: Home }],
+    },
+    {
+      label: 'Clube',
+      items: [
+        { key: 'calendar', label: 'Calendários', icon: CalendarDays },
+        { key: 'news', label: 'Notícias', icon: Newspaper },
+        { key: 'squad', label: 'Elencos', icon: Users },
+        { key: 'tactics', label: 'Táticas', icon: Shield },
+        { key: 'finance', label: 'Finanças', icon: WalletCards },
+        { key: 'stadium', label: 'Estádio', icon: Building2 },
+        { key: 'trophies', label: 'Sala de Troféus', icon: Trophy },
+        { key: 'legacy', label: 'Conquistas & Legado', icon: Medal },
+      ],
+    },
+    {
+      label: 'Mercado',
+      items: [{ key: 'market', label: 'Mercado', icon: ShoppingBag }],
+    },
+    {
+      label: 'Mundo',
+      items: [{ key: 'stats', label: 'Estatísticas', icon: BarChart3 }],
+    },
+  ] as const
+
+  return <div className="min-h-screen bg-[#0a0f1a]">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/5 bg-[#0d1421] lg:flex lg:flex-col">
+      <div className="flex h-16 items-center border-b border-white/5 px-5">
+        <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400 text-[11px] font-black text-[#06100c]">FM</div><div><p className="font-display text-sm font-bold tracking-wide">FUTEBOL MANAGER</p><p className="label-mono text-white/25">Carreira</p></div></div>
       </div>
-      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Finanças</p><h2 className="mt-2 text-2xl font-bold">Movimentação da carreira</h2></div><Banknote className="text-emerald-300/50" size={24} /></div><div className="mt-6 grid gap-3 md:grid-cols-4"><Info label="Capital inicial" value={money(initialCapital)} /><Info label="Saldo" value={money(financeBalance)} /><Info label="Receitas" value={money(financeTransactions.filter(t => t.amount > 0).reduce((sum,t) => sum + t.amount, 0))} /><Info label="Despesas" value={money(financeTransactions.filter(t => t.amount < 0).reduce((sum,t) => sum + Math.abs(t.amount), 0))} /></div><div className="mt-5 space-y-2">{financeTransactions.slice(-5).reverse().map(t => <div key={t.id} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{t.description}</p><p className="text-xs text-white/30">{t.date}</p></div><span className={`text-sm font-bold ${t.amount >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>{t.amount >= 0 ? '+' : ''}{money(t.amount)}</span></div>)}</div></section>
-      <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional do Brasil</h2></div><Trophy className="text-emerald-300/50" size={24} /></div><div className="mt-6 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-white/[0.03] text-xs uppercase tracking-wider text-white/25"><tr><th className="px-4 py-3">#</th><th className="px-4 py-3">Clube</th><th className="px-4 py-3 text-center">P</th><th className="px-4 py-3 text-center">J</th><th className="px-4 py-3 text-center">V</th><th className="px-4 py-3 text-center">E</th><th className="px-4 py-3 text-center">D</th><th className="px-4 py-3 text-center">GP</th><th className="px-4 py-3 text-center">GC</th><th className="px-4 py-3 text-center">SG</th></tr></thead><tbody>{table.slice(0, 8).map((team, i) => <tr key={team.id} className={team.id === career.club.id ? 'bg-emerald-400/5' : 'border-t border-white/5'}><td className="px-4 py-3 text-white/35">{i + 1}</td><td className="px-4 py-3 font-medium">{team.name}</td><td className="px-4 py-3 text-center font-bold">{team.points}</td><td className="px-4 py-3 text-center text-white/40">{team.played}</td><td className="px-4 py-3 text-center text-white/40">{team.wins}</td><td className="px-4 py-3 text-center text-white/40">{team.draws}</td><td className="px-4 py-3 text-center text-white/40">{team.losses}</td><td className="px-4 py-3 text-center text-white/40">{team.gf}</td><td className="px-4 py-3 text-center text-white/40">{team.ga}</td><td className="px-4 py-3 text-center text-white/40">{team.gf - team.ga}</td></tr>)}</tbody></table></div></section>
-      <div className="mt-4 grid gap-4 md:grid-cols-3"><button onClick={() => goToView('competitions')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Trophy size={20} /></div><div><p className="font-semibold">Competições</p><p className="mt-1 text-xs text-white/30">Classificação, rodadas e resultados.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => goToView('press')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Newspaper size={20} /></div><div><p className="font-semibold">Imprensa</p><p className="mt-1 text-xs text-white/30">Acompanhe as notícias e acontecimentos da temporada.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => goToView('market')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><ShoppingBag size={20} /></div><div><p className="font-semibold">Mercado de transferências</p><p className="mt-1 text-xs text-white/30">Busque jogadores e faça propostas.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => goToView('loans')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Handshake size={20} /></div><div><p className="font-semibold">Empréstimos</p><p className="mt-1 text-xs text-white/30">Receba ou empreste jogadores.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => goToView('training')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Dumbbell size={20} /></div><div><p className="font-semibold">Treinamento</p><p className="mt-1 text-xs text-white/30">Prepare o elenco para o próximo jogo.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button><button onClick={() => goToView('tactics')} className="flex items-center gap-4 rounded-2xl border border-white/6 bg-white/[0.025] p-5 text-left hover:border-white/12"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-400/8 text-emerald-300"><Shield size={20} /></div><div><p className="font-semibold">Escalação e Táticas</p><p className="mt-1 text-xs text-white/30">Escolha a formação e os 11 titulares.</p></div><ChevronRight className="ml-auto text-white/20" size={18} /></button></div>
-    </>}
-  </section></main>
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {groups.map(group => <div key={group.label} className="mb-5">
+          <p className="px-3 pb-2 label-mono text-white/20">{group.label}</p>
+          <div className="space-y-0.5">{group.items.map(item => {
+            const Icon = item.icon
+            const active = activeView === item.key
+            return <button key={item.key} onClick={() => onNavigate(item.key)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold transition ${active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Icon size={16} strokeWidth={active ? 2.2 : 1.8} /><span>{item.label}</span></button>
+          })}</div>
+        </div>)}
+        <div className="mb-5">
+          <p className="px-3 pb-2 label-mono text-white/20">Extras</p>
+          <div className="space-y-0.5">
+            <button onClick={() => onNavigate('loans')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${activeView === 'loans' ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Handshake size={16} /><span>Empréstimos</span></button>
+            <button onClick={() => onNavigate('training')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${activeView === 'training' ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Dumbbell size={16} /><span>Treinamento</span></button>
+          </div>
+        </div>
+      </nav>
+      <div className="border-t border-white/5 p-3">
+        <div className="rounded-xl bg-white/[0.025] p-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5">
+              {career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <Shield size={16} className="text-white/35" />}
+            </div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold">{career.club.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">{career.name}</p></div>
+          </div>
+          <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/25">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">{money(career.club.budget * 0.01)}</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
+        </div>
+        <button onClick={() => onNavigate('settings')} className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold text-white/35 hover:bg-white/[0.035] hover:text-white/75"><Settings size={16} /><span>Configurações</span></button>
+      </div>
+    </aside>
+
+    <div className="min-h-screen lg:pl-[248px]">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/90 px-4 backdrop-blur sm:px-6">
+        <div className="min-w-0"><p className="label-mono text-white/25">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p><p className="truncate text-sm font-semibold text-white/75">{groups.flatMap(group => group.items).find(item => item.key === activeView)?.label ?? 'Futebol Manager'}</p></div>
+        <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30"><CalendarDays size={14} /> Avançar dia</button>
+      </header>
+      <div className="pb-24 lg:pb-0">{children}</div>
+    </div>
+
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0d1421]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
+      <div className="grid grid-cols-5 gap-1">
+        {[['overview','Dashboard',Home],['calendar','Calendários',CalendarDays],['squad','Elencos',Users],['market','Mercado',ShoppingBag],['stats','Estatísticas',BarChart3]].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[9px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/35'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
+      </div>
+    </nav>
+  </div>
+}
+
+function GameSection({ title, eyebrow, icon, description, back }: { title: string; eyebrow: string; icon: ReactNode; description: string; back: () => void }) {
+  return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
+    <button onClick={back} className="mb-8 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
+    <section className="game-panel max-w-3xl">
+      <div className="flex items-start gap-4"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">{icon}</div><div><p className="label-mono text-white/30">{eyebrow}</p><h1 className="mt-1 font-display text-3xl font-bold">{title}</h1><p className="mt-3 text-sm leading-6 text-white/45">{description}</p></div></div>
+    </section>
+  </main>
 }
 
 function Squad({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (oldSalary: number, newSalary: number) => void; back: () => void }) {
