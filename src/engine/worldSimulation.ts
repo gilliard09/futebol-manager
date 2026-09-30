@@ -1,5 +1,5 @@
 import type { Club, Player } from '../types/game'
-import { getSquadRole, playerOverall } from './match'
+import { getSquadRole, playerOverall } from './matchCore'
 import { calculateTargetPriority, decideTransferNegotiation } from './marketNegotiation'
 import { normalizeSalaryShare, evaluateLoanTarget, shouldOfferLoan, type LoanRecord } from './loans'
 
