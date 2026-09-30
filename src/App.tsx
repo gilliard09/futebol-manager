@@ -845,7 +845,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     const state = await loadWorldState()
     if (!state) return []
     const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub)
-    const news = buildWorldNews(result, state.worldClubs, state.playersForWorld)
+    const news = buildWorldNews(result, state.worldClubs, state.playersForWorld, state.performanceByClub, career.club.id)
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
     appendWorldNews(news)
     return news
