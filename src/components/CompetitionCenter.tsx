@@ -31,6 +31,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [fixtures, setFixtures] = useState<Fixture[]>([])
   const [loading, setLoading] = useState(true)
   const [round, setRound] = useState(1)
+  const [statsMetric, setStatsMetric] = useState<'goals' | 'assists' | 'averageRating' | 'appearances'>('goals')
+  const [statsScope, setStatsScope] = useState<'all' | 'club'>('all')
 
   useEffect(() => {
     let active = true
@@ -60,6 +62,13 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const rules = competition === 'Liga Nacional do Brasil' ? BRAZIL_LEAGUE_RULES : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
   const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId), [playedMatches, competitionId])
+  const filteredStats = useMemo(() => {
+    const scoped = statsScope === 'club' ? stats.filter(player => player.clubId === currentClubId) : stats
+    return [...scoped].sort((a, b) => {
+      const value = (player: typeof a) => player[statsMetric]
+      return (value(b) as number) - (value(a) as number) || b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name)
+    }).slice(0, 10)
+  }, [stats, statsScope, statsMetric, currentClubId])
   const currentStage = competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(round, rounds.length, true) : `Rodada ${round}`
   const stageRounds = competition === 'Copa Nacional do Brasil'
     ? [
@@ -187,9 +196,39 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         </section>}
 
         {stats.length > 0 && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <p className="text-xs uppercase tracking-[0.18em] text-white/30">Estatísticas</p><h2 className="mt-2 text-2xl font-bold">Destaques da competição</h2>
-          <div className="mt-5 grid gap-2 md:grid-cols-2">
-            {stats.slice(0, 8).map((player, index) => <div key={player.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div><p className="text-sm font-semibold">{index + 1}. {player.name}</p><p className="text-xs text-white/30">{player.appearances} jogos · média {player.averageRating.toFixed(1)} · {player.assists} assistências</p></div><span className="text-sm font-bold">{player.goals} gols</span></div>)}
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div><p className="text-xs uppercase tracking-[0.18em] text-white/30">Estatísticas</p><h2 className="mt-2 text-2xl font-bold">Jogadores da competição</h2><p className="mt-2 text-sm text-white/30">Acompanhe quem está produzindo mais nesta temporada.</p></div>
+            <div className="flex rounded-xl border border-white/6 p-1">
+              {[
+                ['all', 'Todos'],
+                ['club', 'Meu clube'],
+              ].map(([value, label]) => <button key={value} onClick={() => setStatsScope(value as 'all' | 'club')} className={`rounded-lg px-3 py-2 text-xs font-bold ${statsScope === value ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>{label}</button>)}
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {[
+              ['goals', 'Gols'],
+              ['assists', 'Assistências'],
+              ['averageRating', 'Média'],
+              ['appearances', 'Jogos'],
+            ].map(([value, label]) => <button key={value} onClick={() => setStatsMetric(value as typeof statsMetric)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${statsMetric === value ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/35'}`}>{label}</button>)}
+          </div>
+          <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
+            <div className="grid grid-cols-[40px_minmax(180px,1fr)_90px_90px_90px_90px] gap-3 bg-white/[0.03] px-4 py-3 text-[11px] uppercase tracking-wider text-white/25">
+              <span>#</span><span>Jogador</span><span className="text-right">Gols</span><span className="text-right">Assist.</span><span className="text-right">Jogos</span><span className="text-right">Média</span>
+            </div>
+            {filteredStats.map((player, index) => {
+              const club = clubs.find(item => item.id === player.clubId)
+              return <div key={player.playerId} className="grid grid-cols-[40px_minmax(180px,1fr)_90px_90px_90px_90px] gap-3 border-t border-white/5 px-4 py-3 text-sm">
+                <span className="text-white/30">{index + 1}</span>
+                <div className="min-w-0"><p className="truncate font-semibold">{player.name}</p><p className="truncate text-xs text-white/25">{club?.short_name ?? 'Clube'}</p></div>
+                <span className={`text-right font-semibold ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
+                <span className={`text-right font-semibold ${statsMetric === 'assists' ? 'text-emerald-300' : ''}`}>{player.assists}</span>
+                <span className={`text-right font-semibold ${statsMetric === 'appearances' ? 'text-emerald-300' : ''}`}>{player.appearances}</span>
+                <span className={`text-right font-semibold ${statsMetric === 'averageRating' ? 'text-emerald-300' : ''}`}>{player.averageRating.toFixed(1)}</span>
+              </div>
+            })}
+            {filteredStats.length === 0 && <div className="px-4 py-8 text-center text-sm text-white/30">Nenhum jogador com estatísticas nesta competição.</div>}
           </div>
         </section>}
       </>}
