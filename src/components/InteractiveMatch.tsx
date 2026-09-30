@@ -27,7 +27,13 @@ type Props = {
   back: (result: MatchResult) => void
 }
 
-function addDaysLocal(date: string, days: number) {\n  const value = new Date(date + 'T00:00:00Z')\n  value.setUTCDate(value.getUTCDate() + days)\n  return value.toISOString().slice(0, 10)\n}\n\nfunction playerName(player: Player) {
+function addDaysLocal(date: string, days: number) {
+  const value = new Date(date + 'T00:00:00Z')
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
+function playerName(player: Player) {
   return player.first_name + ' ' + player.last_name
 }
 
