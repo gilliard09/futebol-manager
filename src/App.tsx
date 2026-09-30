@@ -673,7 +673,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   }
 
   async function respondToPlayerOffer(accept: boolean) {
-    if (!pendingEvent) return
+    if (!pendingEvent || pendingEvent.type !== 'player_offer') return
     const player = players.find(item => item.id === pendingEvent.playerId)
     if (!player) { setPendingEvent(null); return }
 
