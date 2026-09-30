@@ -87,17 +87,36 @@ export default function App() {
     return () => { active = false }
   }, [clubs.length])
 
-  const canContinue = managerName.trim().length >= 2
+  const canContinue = managerName.trim().length >= 2 && Boolean(birthDate)
 
   function confirmCareer() {
     if (!selectedClub || !canContinue) return
-    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate: birthDate || '1990-01-01', style: managerStyle, personality: managerPersonality, club: selectedClub, season: 'Temporada 2026' }
+    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: selectedClub, season: 'Temporada 2026' }
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
-    localStorage.setItem(FINANCE_KEY, JSON.stringify([createTransaction('2026-01-11', 'bonus', 'Orçamento inicial da carreira', selectedClub.budget, undefined, 'career:initial-budget')]))
+    localStorage.setItem(FINANCE_KEY, JSON.stringify([createTransaction('2026-01-11', 'other', 'Orçamento inicial da carreira', selectedClub.budget, undefined, 'career:initial-budget')]))
     setCareer(next); setScreen('dashboard')
   }
 
-  function newCareer() {
+  async function resetSeasonForNewCareer() {
+    const { data: season } = await supabase.from('seasons').select('id').eq('name', 'Temporada 2026').maybeSingle()
+    if (!season) return
+    const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+    if (cupId) {
+      await supabase.from('fixtures').delete().eq('season_id', season.id).eq('competition_id', cupId).gt('round', 2)
+    }
+    await supabase.from('fixtures').update({
+      status: 'scheduled',
+      home_score: null,
+      away_score: null,
+      winner_club_id: null,
+    }).eq('season_id', season.id)
+    await supabase.from('competition_history').delete().eq('season_id', season.id)
+    await supabase.from('season_club_movements').delete().eq('season_id', season.id)
+  }
+
+  async function newCareer() {
+    await resetSeasonForNewCareer()
     localStorage.removeItem(CAREER_KEY)
     localStorage.removeItem(FINANCE_KEY)
     localStorage.removeItem(TRANSFERS_KEY)
@@ -491,7 +510,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} back={finishMatch} />
+    return <Match key={activeMatchFixture.id} formation={formation} fixture={activeMatchFixture} homePlayers={matchHome ? (selectedStarters.length ? selectedStarters : players) : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : (selectedStarters.length ? selectedStarters : players)} tactic={tactic} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
@@ -731,7 +750,7 @@ function TrainingReportView({ report, close }: { report: TrainingReport; close: 
 
 function Info({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div> }
 
-function Match({ fixture, homePlayers, awayPlayers, tactic, formation, back }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; back: (result: MatchResult) => void }) {
+function Match({ fixture, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back }: { fixture: Fixture; homePlayers: Player[]; awayPlayers: Player[]; tactic: string; formation: string; coachStyle: ManagerProfile['style']; coachPersonality: ManagerProfile['personality']; back: (result: MatchResult) => void }) {
   const [phase, setPhase] = useState<'pregame' | 'live' | 'postgame'>('pregame')
   const [result, setResult] = useState<MatchResult | null>(null)
   const [currentMinute, setCurrentMinute] = useState(0)
