@@ -1880,7 +1880,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
       setActiveMatchFixture(null)
       setView('overview')
     }
-    return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} />
+    return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} cancel={() => { setActiveMatchFixture(null); setView('overview') }} />
   }
 
   return <main className="min-h-screen"><Top label={career.season} /><section className="px-6 py-8 md:px-10">
