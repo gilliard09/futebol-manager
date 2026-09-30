@@ -607,6 +607,8 @@ export function simulateWorldDay(
         byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), target])
         completedPurchase = true
       }
+    }
+  }
 
   for (const playerId of [...new Set(pendingUserOffers.map(offer => offer.playerId))]) {
     const playerOffers = pendingUserOffers.filter(offer => offer.playerId === playerId)
