@@ -13,13 +13,13 @@ alter table public.club_management_seasons
 alter table public.club_commercial_seasons
   drop constraint if exists club_commercial_seasons_season_id_club_id_key;
 
-create unique index if not exists club_management_seasons_owner_unique
-  on public.club_management_seasons(season_id, club_id, owner_id)
-  where owner_id is not null;
+alter table public.club_management_seasons
+  add constraint club_management_seasons_owner_unique
+  unique (season_id, club_id, owner_id);
 
-create unique index if not exists club_commercial_seasons_owner_unique
-  on public.club_commercial_seasons(season_id, club_id, owner_id)
-  where owner_id is not null;
+alter table public.club_commercial_seasons
+  add constraint club_commercial_seasons_owner_unique
+  unique (season_id, club_id, owner_id);
 
 drop policy if exists "club management is public" on public.club_management_seasons;
 drop policy if exists "club management public insert" on public.club_management_seasons;
