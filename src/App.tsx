@@ -1319,6 +1319,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
 
       // Cada partida agora deixa um registro permanente da carreira esportiva.
       // Os 11 jogadores avaliados pelo motor são considerados titulares e recebem 90 minutos.
+      const seasonId = activeMatchFixture.season_id
       if (seasonId) {
         const playerIds = [...new Set(Object.values(matchesToPersist).flatMap(match => (match.playerRatings ?? []).map(rating => rating.playerId)))]
         if (playerIds.length) {
@@ -1446,7 +1447,6 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         }
       }
 
-      const seasonId = activeMatchFixture.season_id
       if (seasonId && activeMatchFixture.competition_id) {
         const { data: historyFixtures } = await supabase
           .from('fixtures')
