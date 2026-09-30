@@ -175,6 +175,20 @@ export function simulateWorldDay(
   const day = Number(date.slice(8, 10))
   const month = Number(date.slice(5, 7))
 
+  // A virada do ano envelhece todos os jogadores, inclusive os do clube do treinador.
+  // O envelhecimento acontece aqui para que todas as carreiras atravessem as temporadas
+  // pelo mesmo relógio do mundo.
+  if (month === 1 && day === 1) {
+    for (const player of players) {
+      player.age += 1
+      const overall = playerOverall(player)
+      const ageMultiplier = player.age <= 23 ? 1.08 : player.age <= 28 ? 1 : player.age <= 31 ? 0.88 : 0.7
+      const potentialMultiplier = 0.85 + Math.min(0.15, Math.max(0, player.potential - overall) / 100)
+      player.marketValue = Math.max(100000, Math.round((player.marketValue * ageMultiplier * potentialMultiplier) / 50000) * 50000)
+      evolvedPlayerIds.add(player.id)
+    }
+  }
+
   // Desenvolvimento: jovens crescem mais, veteranos declinam gradualmente.
   if (day === 1 || day === 15) {
     for (const player of players) {
