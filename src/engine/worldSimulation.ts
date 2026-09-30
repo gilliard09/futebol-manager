@@ -111,6 +111,10 @@ export function playerMarketPerformanceFactor(player: WorldPlayer) {
   )
 }
 
+export function playerMarketCompetitionFactor(interestCount: number) {
+  return 1 + Math.min(0.24, Math.max(0, interestCount - 1) * 0.08)
+}
+
 function transferNeed(player: WorldPlayer, club: WorldClub, squadSize: number, performance?: WorldClubPerformance) {
   const overall = playerOverall(player)
   const budgetPressure = club.budget > 5000000 ? 1 : club.budget > 3000000 ? 0.5 : 0
@@ -271,6 +275,15 @@ export function simulateWorldDay(
     changedClubs.add(previousClubId)
   }
   // Mercado: cada clube pode contratar uma vez por janela mensal.
+  // Propostas pelo mesmo jogador são acumuladas antes de definir o preço final,
+  // permitindo que uma temporada de destaque gere concorrência real.
+  const pendingUserOffers: Array<{
+    playerId: string
+    fromClubId: string
+    toClubId: string
+    baseFee: number
+  }> = []
+
   if ([10, 20].includes(day)) {
     for (const buyer of aiClubs) {
       const squad = byClub.get(buyer.id) ?? []
@@ -303,12 +316,17 @@ export function simulateWorldDay(
         ? (userTarget.seasonGoals ?? 0) * 0.8 + (userTarget.seasonAssists ?? 0) * 0.5 + ((userTarget.seasonAverageRating ?? 0) >= 7.4 ? 3 : 0)
         : 0
       const offerChance = userTarget
-        ? Math.min(0.42, 0.18 + Math.max(0, userPerformance - 4) * 0.025)
+        ? Math.min(0.48, 0.16 + Math.max(0, userPerformance - 3) * 0.035)
         : 0
 
       if (userTarget && random01(`${date}:offer:${buyer.id}:${userTarget.id}`) < offerChance) {
-        const fee = Math.max(250000, Math.round(userTarget.marketValue * (userTarget.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
-        offers.push({ playerId: userTarget.id, fromClubId: userClubId, toClubId: buyer.id, fee })
+        const baseFee = Math.max(250000, Math.round(userTarget.marketValue * (userTarget.age <= 23 ? 1.18 : 1.08) / 50000) * 50000)
+        pendingUserOffers.push({
+          playerId: userTarget.id,
+          fromClubId: userClubId,
+          toClubId: buyer.id,
+          baseFee,
+        })
         continue
       }
 
@@ -363,6 +381,29 @@ export function simulateWorldDay(
       transfers.push({ playerId: target.id, fromClubId: seller.id, toClubId: buyer.id, fee })
       byClub.set(seller.id, (byClub.get(seller.id) ?? []).filter(player => player.id !== target.id))
       byClub.set(buyer.id, [...(byClub.get(buyer.id) ?? []), target])
+    }
+  }
+
+  for (const playerId of [...new Set(pendingUserOffers.map(offer => offer.playerId))]) {
+    const playerOffers = pendingUserOffers.filter(offer => offer.playerId === playerId)
+    const competitionFactor = playerMarketCompetitionFactor(playerOffers.length)
+
+    for (const offer of playerOffers) {
+      const buyer = aiClubs.find(club => club.id === offer.toClubId)
+      if (!buyer) continue
+      const buyerPremium = Math.min(0.08, Math.max(0, buyer.reputation - 65) * 0.001)
+      const fee = Math.max(
+        250000,
+        Math.round((offer.baseFee * competitionFactor * (1 + buyerPremium)) / 50000) * 50000,
+      )
+      if (fee <= buyer.budget) {
+        offers.push({
+          playerId: offer.playerId,
+          fromClubId: offer.fromClubId,
+          toClubId: offer.toClubId,
+          fee,
+        })
+      }
     }
   }
 
