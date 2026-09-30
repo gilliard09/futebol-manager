@@ -4,7 +4,7 @@ import { isPlayerAvailable } from './discipline'
 
 export type MatchEvent = {
   minute: number
-  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'red_card' | 'corner' | 'foul' | 'tackle' | 'substitution' | 'tactical_change' | 'injury' | 'offside'
+  type: 'goal' | 'chance' | 'shot' | 'save' | 'card' | 'red_card' | 'corner' | 'foul' | 'tackle' | 'substitution' | 'tactical_change' | 'injury' | 'offside' | 'penalty'
   team: 'home' | 'away'
   player: string
   playerId?: string
