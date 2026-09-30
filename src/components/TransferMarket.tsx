@@ -238,6 +238,10 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
             <div><p className="text-xs text-white/25">Potencial estimado</p><p className="mt-1 font-bold">{buildScoutingReport(selected.player, scoutingLevel).potentialEstimate}</p></div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">{buildScoutingReport(selected.player, scoutingLevel).keyAttributes.map(([name, value]) => <span key={name} className="rounded-lg border border-white/6 px-2.5 py-1.5 text-xs text-white/45">{name}: {value}</span>)}</div>
+          {scoutingLevel !== 'basic' && <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="text-[10px] uppercase tracking-wider text-white/25">Pontos de atenção</p><div className="mt-2 flex flex-wrap gap-1.5">{buildScoutingReport(selected.player, scoutingLevel).weakAttributes.map(([name, value]) => <span key={name} className="text-xs text-amber-200/70">{name}: {value}</span>)}</div></div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="text-[10px] uppercase tracking-wider text-white/25">Perfil</p><p className="mt-2 text-xs text-white/55">{buildScoutingReport(selected.player, scoutingLevel).roleFit} · {buildScoutingReport(selected.player, scoutingLevel).recommendation}</p><p className="mt-1 text-xs text-white/30">Margem de evolução: +{buildScoutingReport(selected.player, scoutingLevel).developmentGap}</p></div>
+          </div>}
           <p className="mt-3 text-xs text-white/30">Risco de custo/adaptação: {buildScoutingReport(selected.player, scoutingLevel).costRisk}%</p>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-3">
