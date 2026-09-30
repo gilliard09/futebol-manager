@@ -218,6 +218,20 @@ export function buildScoutingReport(player: Player | WorldPlayer, scoutingLevel:
       ['dribbling', player.dribbling], ['defending', player.defending], ['physical', player.physical],
       ['mental', player.mental],
     ].sort((a, b) => Number(b[1]) - Number(a[1])).slice(0, 3),
+    weakAttributes: [
+      ['pace', player.pace], ['shooting', player.shooting], ['passing', player.passing],
+      ['dribbling', player.dribbling], ['defending', player.defending], ['physical', player.physical],
+      ['mental', player.mental],
+    ].sort((a, b) => Number(a[1]) - Number(b[1])).slice(0, 2),
+    developmentGap: Math.max(0, player.potential - overall),
+    roleFit: getSquadRole(player),
+    recommendation: player.age <= 21 && player.potential - overall >= 10
+      ? 'investir'
+      : overall >= 75
+        ? 'titular'
+        : player.age >= 30
+          ? 'curto prazo'
+          : 'rotação',
     risk,
     costRisk: marketValue > 0 ? Math.round(Math.min(100, (marketValue / 5_000_000) * 30 + (100 - player.morale) * 0.2)) : 0,
   }
