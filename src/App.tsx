@@ -1320,6 +1320,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   }
 
   async function advanceOneDay(fromClock = clock) {
+    if (boardState.managerStatus !== 'active' && boardState.managerStatus !== 'renewed') return false
     if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
     const nextClock = advanceSeasonDay(fromClock)
     const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
@@ -1351,6 +1352,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   }
 
   async function advanceToNextMatch() {
+    if (boardState.managerStatus !== 'active' && boardState.managerStatus !== 'renewed') return
     if (!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays) return
     setAdvancingDays(true)
     try {
