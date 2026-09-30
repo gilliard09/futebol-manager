@@ -96,11 +96,37 @@ function random01(seed: string) {
   return (hash(seed) % 10000) / 10000
 }
 
-type ClubBehavior = 'ambitious' | 'youth' | 'conservative' | 'seller' | 'balanced'
+export type ClubBehavior = 'ambitious' | 'youth' | 'conservative' | 'seller' | 'balanced'
+
+export type ClubEconomicProfile = {
+  behavior: ClubBehavior
+  transferBudgetRatio: number
+  wageMultiplier: number
+  youthPriority: number
+  salePressure: number
+  reserveLimit: number
+}
+
+export function getClubEconomicProfile(club: WorldClub): ClubEconomicProfile {
+  const profile = hash('behavior:' + club.id) % 5
+  const behavior = ['ambitious', 'youth', 'conservative', 'seller', 'balanced'][profile] as ClubBehavior
+  if (behavior === 'ambitious') {
+    return { behavior, transferBudgetRatio: 0.84, wageMultiplier: 1.16, youthPriority: 0.35, salePressure: 0.1, reserveLimit: 24 }
+  }
+  if (behavior === 'youth') {
+    return { behavior, transferBudgetRatio: 0.68, wageMultiplier: 1.04, youthPriority: 1, salePressure: 0.35, reserveLimit: 23 }
+  }
+  if (behavior === 'conservative') {
+    return { behavior, transferBudgetRatio: 0.58, wageMultiplier: 1.05, youthPriority: 0.5, salePressure: 0.5, reserveLimit: 22 }
+  }
+  if (behavior === 'seller') {
+    return { behavior, transferBudgetRatio: 0.62, wageMultiplier: 1.02, youthPriority: 0.8, salePressure: 0.9, reserveLimit: 21 }
+  }
+  return { behavior, transferBudgetRatio: 0.72, wageMultiplier: 1.1, youthPriority: 0.6, salePressure: 0.25, reserveLimit: 23 }
+}
 
 function clubBehavior(club: WorldClub): ClubBehavior {
-  const profile = hash('behavior:' + club.id) % 5
-  return ['ambitious', 'youth', 'conservative', 'seller', 'balanced'][profile] as ClubBehavior
+  return getClubEconomicProfile(club).behavior
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -415,7 +441,8 @@ export function simulateWorldDay(
       const performance = performanceByClub[buyer.id]
       const urgentMarket = Boolean(performance && (performance.position >= 13 || performance.recentPoints <= 4))
       const ambitiousMarket = Boolean(performance && performance.position <= 4 && performance.recentPoints >= 8)
-      if (squad.length >= 22 && random01(date + buyer.id) < 0.65) continue
+      const buyerProfile = getClubEconomicProfile(buyer)
+      if (squad.length >= buyerProfile.reserveLimit && random01(date + buyer.id) < (buyerProfile.behavior === 'ambitious' ? 0.35 : 0.65)) continue
       if (buyer.budget < 750000) continue
 
       const weakestPosition = positions
@@ -472,7 +499,8 @@ export function simulateWorldDay(
         .filter(player => playerOverall(player) >= Math.max(56, buyer.strength - (urgentMarket ? 10 : ambitiousMarket ? 5 : 7)))
         .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))[0]
 
-      if (freeAgent && random01(`${date}:free-agent:${buyer.id}:${freeAgent.id}`) < 0.35) {
+      const freeAgentChance = buyerProfile.behavior === 'conservative' ? 0.52 : buyerProfile.behavior === 'seller' ? 0.44 : buyerProfile.behavior === 'ambitious' ? 0.22 : 0.35
+      if (freeAgent && random01(`${date}:free-agent:${buyer.id}:${freeAgent.id}`) < freeAgentChance) {
         const salary = Math.round(Math.max(8000, freeAgent.salary || playerOverall(freeAgent) * 120) / 500) * 500
         freeAgent.clubId = buyer.id
         freeAgent.salary = salary
@@ -514,7 +542,7 @@ export function simulateWorldDay(
             150000,
             Math.round(player.marketValue * (player.age <= 23 ? 1.08 : 1) * performanceFactor * competitionFactor / 50000) * 50000,
           )
-          return price <= buyer.budget * (urgentMarket || ambitiousMarket ? 0.8 : 0.7) &&
+          return price <= buyer.budget * Math.min(0.88, buyerProfile.transferBudgetRatio + (urgentMarket || ambitiousMarket ? 0.06 : 0)) &&
             (player.contractUntil === null || player.contractUntil >= date)
         })
         .slice(0, 5)
@@ -780,11 +808,12 @@ export function simulateWorldDay(
         ),
       )
       if (random01(`${date}:renew:${player.id}`) > renewalChance) continue
+      const profile = getClubEconomicProfile(club)
       const salaryMultiplier = role === 'starter'
-        ? behavior === 'ambitious' ? 1.17 : behavior === 'conservative' ? 1.08 : 1.13
+        ? profile.wageMultiplier
         : role === 'rotation'
-          ? behavior === 'seller' ? 1.04 : 1.1
-          : behavior === 'youth' ? 1.03 : 1.06
+          ? Math.max(1.02, profile.wageMultiplier - 0.03)
+          : Math.max(1.01, profile.wageMultiplier - 0.06)
       const salary = Math.round(Math.max(player.salary * salaryMultiplier, overall * 1200) / 500) * 500
       player.salary = salary
       player.contractUntil = addYears(date, 2)
@@ -866,11 +895,25 @@ export function simulateWorldDay(
       const squad = byClub.get(club.id) ?? []
       const payroll = squad.reduce((sum, player) => sum + player.salary, 0)
       club.budget = Math.max(0, club.budget - payroll)
-      if (club.budget < 500000 && squad.length > 18) {
+      const profile = getClubEconomicProfile(club)
+      const needsSale = club.budget < 500000 || squad.length > profile.reserveLimit
+      if (needsSale && squad.length > 18) {
         const sale = [...squad]
           .filter(player => playerOverall(player) < club.strength + 2 && player.age < 32)
-          .sort((a, b) => playerOverall(a) - playerOverall(b))[0]
-        if (sale && random01(date + ':forced-sale:' + sale.id) < 0.45) {
+          .filter(player => profile.behavior === 'seller' || profile.behavior === 'conservative' || playerOverall(player) < club.strength - 2)
+          .sort((a, b) => {
+            const aScore = playerOverall(a) + (getSquadRole(a) === 'starter' ? 20 : 0) + (profile.behavior === 'seller' && a.age <= 24 ? 8 : 0)
+            const bScore = playerOverall(b) + (getSquadRole(b) === 'starter' ? 20 : 0) + (profile.behavior === 'seller' && b.age <= 24 ? 8 : 0)
+            return aScore - bScore
+          })[0]
+        const saleChance = profile.behavior === 'seller'
+          ? 0.72
+          : profile.behavior === 'conservative'
+            ? 0.55
+            : club.budget < 500000
+              ? 0.45
+              : 0.28
+        if (sale && random01(date + ':forced-sale:' + sale.id) < saleChance) {
           const buyer = aiClubs
             .filter(other => other.id !== club.id && other.budget > sale.marketValue)
             .sort((a, b) => b.budget - a.budget)[0]
