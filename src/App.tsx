@@ -1207,6 +1207,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       return
     }
 
+    // O banco é a fonte de verdade da nova temporada; sincronizamos o estado
+    // local antes de reconstruir calendário, IA e telas do universo.
+    setClubs(nextClubs)
+
     const { data: existingFixtures } = await supabase
       .from('fixtures')
       .select('id')
