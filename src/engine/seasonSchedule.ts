@@ -45,7 +45,7 @@ function roundRobin(clubs: Club[]) {
   return rounds
 }
 
-export function buildLeagueFixtures(seasonId: string, startDate: string, clubs: Club[], competitionId: string): SeasonFixtureInsert[] {
+export function buildLeagueFixtures(seasonId: string, startDate: string, clubs: Club[], competitionId: string, daysPerRound = 7): SeasonFixtureInsert[] {
   const firstHalf = roundRobin(clubs)
   const rows: SeasonFixtureInsert[] = []
 
@@ -55,7 +55,7 @@ export function buildLeagueFixtures(seasonId: string, startDate: string, clubs: 
         season_id: seasonId,
         competition_id: competitionId,
         round: roundIndex + 1,
-        scheduled_at: dateAt(startDate, 9 + roundIndex * 7, 19 + (matchIndex % 3)),
+        scheduled_at: dateAt(startDate, 9 + roundIndex * daysPerRound, 19 + (matchIndex % 3)),
         status: 'scheduled',
         home_club_id: home.id,
         away_club_id: away.id,
@@ -73,7 +73,7 @@ export function buildLeagueFixtures(seasonId: string, startDate: string, clubs: 
         season_id: seasonId,
         competition_id: competitionId,
         round: secondHalfStartRound + roundIndex,
-        scheduled_at: dateAt(startDate, 9 + (roundIndex + firstHalf.length) * 7, 19 + (matchIndex % 3)),
+        scheduled_at: dateAt(startDate, 9 + (roundIndex + firstHalf.length) * daysPerRound, 19 + (matchIndex % 3)),
         status: 'scheduled',
         home_club_id: away.id,
         away_club_id: home.id,
