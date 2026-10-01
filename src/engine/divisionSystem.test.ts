@@ -28,7 +28,7 @@ describe('division system', () => {
     }))
     const fixtures = buildLeagueFixtures('season', '2026-03-21', clubs, 'serie-b')
     expect(fixtures).toHaveLength(380)
-    expect(new Set(fixtures.map(item => item.round))).toHaveSize(38)
+    expect(new Set(fixtures.map(item => item.round)).size).toBe(38)
     expect(fixtures.filter(item => item.round === 1)).toHaveLength(10)
     expect(fixtures.filter(item => item.round === 38)).toHaveLength(10)
   })
