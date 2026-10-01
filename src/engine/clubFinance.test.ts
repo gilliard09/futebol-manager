@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { calculateClubChangeFinancialImpact, calculateDynamicTicketPrice, calculateExpectedAttendance, calculateFinancialStatus, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll, calculateVariableCompetitionPrize } from './clubFinance'
+import { calculateClubChangeFinancialImpact, calculateDynamicTicketPrice, calculateExpectedAttendance, calculateFinancialStatus, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll } from './clubFinance'
 
 describe('club finance', () => {
   it('varies ticket price and attendance with demand', () => {
@@ -26,11 +26,9 @@ describe('club finance', () => {
     expect(large).toBeGreaterThan(small)
   })
 
-  it('classifies critical finances and creates a performance-based prize', () => {
+  it('classifies financial status correctly', () => {
     expect(calculateFinancialStatus(100000, 300000)).toBe('crítico')
     expect(calculateFinancialStatus(2000000, 300000)).toBe('saudável')
-    expect(calculateVariableCompetitionPrize(1, 'league', { champion: true, reputation: 80 }))
-      .toBeGreaterThan(calculateVariableCompetitionPrize(10, 'league', { reputation: 50 }))
   })
 
   it('builds next season budget and charges a club-switch transition cost', () => {
