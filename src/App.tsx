@@ -1034,7 +1034,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       undefined,
       `sponsor:upfront:${nextSeasonName}`,
     )
-    let nextBalance = financeBalance
+    let nextBalance = nextSeasonBudget > 0 ? nextSeasonBudget : financeBalance
     if (!financeTransactions.some(item => item.eventId === sponsorTransaction.eventId)) {
       nextBalance = addFinanceTransaction(sponsorTransaction) ?? financeBalance
       setFinanceBalance(nextBalance)
@@ -1069,6 +1069,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setSeasonClosed(false)
     setSeasonCompletion(null)
     setSeasonAwards([])
+    setNextSeasonBudget(0)
+    localStorage.removeItem(NEXT_BUDGET_KEY)
     setBoardState(nextBoard)
     setClock(createSeasonClock(nextStartDate, nextStartDate, 3))
     setPlayedMatches({})
