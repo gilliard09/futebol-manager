@@ -1150,17 +1150,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         clubs,
         career.club.id,
       )
-      if (candidateClubs.length) {
-        void (async () => {
-          const { data: authUser } = await supabase.auth.getUser()
-          if (!authUser.user) return
-          const offeredAt = toDateKey(fixture.scheduled_at)
-          const expiresAt = addDays(offeredAt, 14)
-          await supabase
-            .from('manager_offers')
-            .update({ status: 'expired', responded_at: new Date().toISOString() })
-            .eq('owner_id', authUser.user.id)
-            .eq('status', 'pending')
+      void (async () => {
+        const { data: authUser } = await supabase.auth.getUser()
+        if (!authUser.user) return
+        const offeredAt = toDateKey(fixture.scheduled_at)
+        const expiresAt = addDays(offeredAt, 14)
+        await supabase
+          .from('manager_offers')
+          .update({ status: 'expired', responded_at: new Date().toISOString() })
+          .eq('owner_id', authUser.user.id)
+          .eq('status', 'pending')
+        if (candidateClubs.length) {
           await supabase.from('manager_offers').insert(candidateClubs.map(club => ({
             owner_id: authUser.user.id,
             offered_at: offeredAt,
@@ -1172,10 +1172,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
             message: club.name + ' está disposto a avaliar seu trabalho. O objetivo inicial seria ' + chooseBoardObjective(Number(club.reputation ?? 50), Number(club.budget ?? 0), Number(club.strength ?? club.reputation ?? 50)).label.toLowerCase() + '. A proposta ficará disponível por 14 dias.',
             status: 'pending',
           })))
-          await markManagerUnemployed('dismissed')
-          await loadManagerCareer()
-        })()
-      }
+        }
+        await markManagerUnemployed('dismissed')
+        await loadManagerCareer()
+      })()
 
       setPendingEvent({
         type: 'board_message',
