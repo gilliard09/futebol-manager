@@ -19,7 +19,7 @@ import ManagerCareerScreen from './components/ManagerCareerScreen'
 import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
-import { buildSeasonFinancialHistory, calculateClubChangeFinancialImpact, calculateDynamicTicketPrice, calculateFinancialStatus, calculateFineAndOperationalCost, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll, calculateVariableCompetitionPrize, type SeasonFinancialHistory } from './engine/clubFinance'
+import { buildSeasonFinancialHistory, calculateClubChangeFinancialImpact, calculateDynamicTicketPrice, calculateFinancialStatus, calculateFineAndOperationalCost, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll, type SeasonFinancialHistory } from './engine/clubFinance'
 import { applyTransaction, calculateMonthlySalaryExpense, createTransaction, summarizeFinance, type FinanceTransaction } from './engine/finance'
 import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, evaluateBoard, getEconomicStatus, managerContractYears, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
@@ -28,6 +28,7 @@ import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } fr
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
+import { buildCupPrizePayments, buildLeaguePrizePayments, type CompetitionPrizeConfig, type PrizePayment } from './engine/competitionPrizes'
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import type { AIClubManager } from './engine/aiClubManagement'
 import InteractiveMatch from './components/InteractiveMatch'
@@ -916,12 +917,37 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         onCareerUpdate(nextCareer)
       }
     }
-    // Na Copa, a semifinal é a fase anterior à final (rodada 6 no calendário atual).
-    const semifinalists = [...new Set(
-      cupFixtures
-        .filter(item => item.round === 6)
-        .flatMap(item => [item.home_club_id, item.away_club_id]),
-    )]
+    const { data: competitionPrizeRows, error: competitionPrizesError } = await supabase
+      .from('competition_prizes')
+      .select('id,competition_id,prize_type,position_from,position_to,stage,amount,description')
+      .in('competition_id', [leagueId, cupId, serieBCompetition?.id].filter(Boolean) as string[])
+
+    if (competitionPrizesError) {
+      console.error('Não foi possível carregar as premiações das competições', competitionPrizesError)
+      return
+    }
+
+    const competitionPrizes = (competitionPrizeRows ?? []) as CompetitionPrizeConfig[]
+    const leaguePrizePayments = buildLeaguePrizePayments(
+      competitionPrizes.filter(prize => prize.competition_id === leagueId),
+      leagueStandings.map(team => ({ id: team.id, name: team.name })),
+    )
+    const cupPrizePayments = buildCupPrizePayments(
+      competitionPrizes.filter(prize => prize.competition_id === cupId),
+      cupFixtures as any,
+    )
+    const serieBPrizePayments = serieBCompetition?.id
+      ? buildLeaguePrizePayments(
+          competitionPrizes.filter(prize => prize.competition_id === serieBCompetition.id),
+          serieBStandings.map(team => ({ id: team.id, name: team.name })),
+        )
+      : []
+
+    const prizePayments: PrizePayment[] = [
+      ...leaguePrizePayments,
+      ...cupPrizePayments,
+      ...serieBPrizePayments,
+    ]
 
     const achievementByClub = new Map<string, {
       budgetBonus: number
@@ -941,15 +967,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       return current
     }
 
-    // A premiação agora varia por toda a campanha, não apenas pelo G4.
+    // As premiações oficiais são acumuladas por competição.
+    for (const payment of prizePayments) {
+      achievement(payment.clubId).budgetBonus += payment.amount
+    }
+
     leagueStandings.forEach((team, index) => {
       const current = achievement(team.id)
       const position = index + 1
-      current.budgetBonus += calculateVariableCompetitionPrize(position, 'league', {
-        champion: position === 1,
-        runnerUp: position === 2,
-        reputation: Number(clubs.find(club => club.id === team.id)?.reputation ?? 50),
-      })
       if (position === 1) {
         current.reputationBonus += 5
         current.strengthBonus += 2
@@ -966,7 +991,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     if (completion.cup.championClubId) {
       const cupChampion = achievement(completion.cup.championClubId)
-      cupChampion.budgetBonus += calculateVariableCompetitionPrize(1, 'cup', { champion: true, reputation: Number(clubs.find(club => club.id === completion.cup.championClubId)?.reputation ?? 50) })
       cupChampion.reputationBonus += 3
       cupChampion.strengthBonus += 1
       cupChampion.marketMultiplier *= 1.03
@@ -974,18 +998,33 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     if (completion.cup.runnerUpClubId) {
       const cupRunner = achievement(completion.cup.runnerUpClubId)
-      cupRunner.budgetBonus += calculateVariableCompetitionPrize(2, 'cup', { runnerUp: true, reputation: Number(clubs.find(club => club.id === completion.cup.runnerUpClubId)?.reputation ?? 50) })
       cupRunner.reputationBonus += 1
       cupRunner.marketMultiplier *= 1.015
     }
 
-    semifinalists.forEach(clubId => {
-      if (clubId === completion.cup.championClubId || clubId === completion.cup.runnerUpClubId) return
-      const current = achievement(clubId)
-      current.budgetBonus += calculateVariableCompetitionPrize(3, 'cup', { semifinal: true, reputation: Number(clubs.find(club => club.id === clubId)?.reputation ?? 50) })
-      current.reputationBonus += 1
-      current.marketMultiplier *= 1.01
-    })
+    const { error: prizePaymentsError } = prizePayments.length
+      ? await supabase
+          .from('competition_prize_payments')
+          .upsert(
+            prizePayments.map(payment => ({
+              competition_id: payment.competitionId,
+              season_id: seasonId,
+              club_id: payment.clubId,
+              prize_id: payment.prizeId,
+              prize_type: payment.prizeType,
+              stage: payment.stage,
+              position: payment.position,
+              amount: payment.amount,
+              description: payment.description,
+            })),
+            { onConflict: 'competition_id,season_id,club_id,prize_id' },
+          )
+      : { error: null }
+
+    if (prizePaymentsError) {
+      console.error('Não foi possível registrar as premiações da temporada', prizePaymentsError)
+      return
+    }
 
     // Títulos anteriores começam a construir uma "era": um novo título de um
     // clube que já ganhou antes gera um bônus adicional, sem deixar a reputação
@@ -1132,9 +1171,16 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       .filter((row: any) => Number(row.minutes ?? 0) >= 900 && Number(row.avg_rating ?? 0) > 0)
       .sort((a: any, b: any) => Number(b.avg_rating ?? 0) - Number(a.avg_rating ?? 0) || Number(b.minutes ?? 0) - Number(a.minutes ?? 0))[0] ?? null
 
+    const leagueChampionPrize = prizePayments
+      .filter(payment => payment.competitionId === leagueId && payment.clubId === completion.league.championClubId)
+      .reduce((sum, payment) => sum + payment.amount, 0)
+    const cupChampionPrize = prizePayments
+      .filter(payment => payment.competitionId === cupId && payment.clubId === completion.cup.championClubId)
+      .reduce((sum, payment) => sum + payment.amount, 0)
+
     const awardRows = [
-      { season_id: seasonId, award_type: 'league_champion', club_id: completion.league.championClubId, player_id: null, value: calculateVariableCompetitionPrize(1, 'league', { champion: true, reputation: Number(clubs.find(club => club.id === completion.league.championClubId)?.reputation ?? 50) }) },
-      { season_id: seasonId, award_type: 'cup_champion', club_id: completion.cup.championClubId, player_id: null, value: calculateVariableCompetitionPrize(1, 'cup', { champion: true, reputation: Number(clubs.find(club => club.id === completion.cup.championClubId)?.reputation ?? 50) }) },
+      { season_id: seasonId, award_type: 'league_champion', club_id: completion.league.championClubId, player_id: null, value: leagueChampionPrize },
+      { season_id: seasonId, award_type: 'cup_champion', club_id: completion.cup.championClubId, player_id: null, value: cupChampionPrize },
       { season_id: seasonId, award_type: 'top_scorer', club_id: topScorer?.club_id ?? null, player_id: topScorer?.player_id ?? completion.league.topScorerPlayerId, value: Number(topScorer?.goals ?? completion.league.topScorerGoals ?? 0) },
       { season_id: seasonId, award_type: 'player_of_season', club_id: playerOfSeason?.club_id ?? null, player_id: playerOfSeason?.player_id ?? null, value: Number(playerOfSeason?.avg_rating ?? 0) },
     ]
