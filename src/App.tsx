@@ -2837,8 +2837,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       }
       const final = allFixtures.find(f=>f.competition_id===competitionId && f.round===15 && f.status==='completed' && f.home_score!=null && f.away_score!=null)
       if (final) {
-        const champion=resolveContinentalSingleMatch(final,choosePenaltyWinner(final.home_club_id,final.away_club_id,final.id))
-        const runner=champion===final.home_club_id?final.away_club_id:final.home_club_id
+        const champion = resolveContinentalSingleMatch(
+          final,
+          choosePenaltyWinner(final.home_club_id, final.away_club_id, final.id),
+        )
+        const runner = champion === final.home_club_id ? final.away_club_id : final.home_club_id
+
         await supabase.from('competition_history').upsert({
           season_id: databaseSeasonId,
           competition_id: competitionId,
@@ -2846,7 +2850,120 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           runner_up_club_id: runner,
           top_scorer_player_id: null,
           top_scorer_goals: 0,
-        }, {onConflict:'season_id,competition_id'})
+        }, { onConflict: 'season_id,competition_id' })
+
+        const { data: prize } = await supabase
+          .from('competition_prizes')
+          .select('id,prize_type,stage,amount,description')
+          .eq('competition_id', competitionId)
+          .eq('prize_type', 'champion')
+          .maybeSingle()
+
+        if (prize) {
+          const { data: existingPayment } = await supabase
+            .from('competition_prize_payments')
+            .select('id')
+            .eq('competition_id', competitionId)
+            .eq('season_id', databaseSeasonId)
+            .eq('club_id', champion)
+            .eq('prize_id', prize.id)
+            .maybeSingle()
+
+          if (!existingPayment) {
+            await supabase.from('competition_prize_payments').insert({
+              competition_id: competitionId,
+              season_id: databaseSeasonId,
+              club_id: champion,
+              prize_id: prize.id,
+              prize_type: prize.prize_type,
+              stage: prize.stage,
+              position: 1,
+              amount: Number(prize.amount),
+              description: prize.description ?? 'Premiação do campeão continental',
+            })
+
+            const { data: championClub } = await supabase
+              .from('clubs')
+              .select('budget,reputation,strength')
+              .eq('id', champion)
+              .maybeSingle()
+
+            if (championClub) {
+              const reputationBonus = 8
+              await supabase.from('clubs').update({
+                budget: Math.max(0, Number(championClub.budget ?? 0) + Number(prize.amount ?? 0)),
+                reputation: Math.min(95, Number(championClub.reputation ?? 50) + reputationBonus),
+                strength: Math.min(95, Number(championClub.strength ?? 50) + 2),
+              }).eq('id', champion)
+            }
+
+            const { data: runnerClub } = await supabase
+              .from('clubs')
+              .select('reputation,strength')
+              .eq('id', runner)
+              .maybeSingle()
+
+            if (runnerClub) {
+              await supabase.from('clubs').update({
+                reputation: Math.min(95, Number(runnerClub.reputation ?? 50) + 4),
+                strength: Math.min(95, Number(runnerClub.strength ?? 50) + 1),
+              }).eq('id', runner)
+            }
+
+            const { data: authUser } = await supabase.auth.getUser()
+            if (authUser.user && career.club.id === champion) {
+              const { data: profile } = await supabase
+                .from('manager_profiles')
+                .select('regional_popularity,national_popularity,international_popularity,career_points')
+                .eq('owner_id', authUser.user.id)
+                .maybeSingle()
+
+              if (profile) {
+                const nextPopularity = {
+                  regional: Math.min(100, Number(profile.regional_popularity ?? 0) + 3),
+                  national: Math.min(100, Number(profile.national_popularity ?? 0) + 5),
+                  international: Math.min(100, Number(profile.international_popularity ?? 0) + 10),
+                }
+                await supabase.from('manager_profiles').update({
+                  ...nextPopularity,
+                  career_points: Number(profile.career_points ?? 0) + 35,
+                  updated_at: new Date().toISOString(),
+                }).eq('owner_id', authUser.user.id)
+
+                await supabase.from('manager_trophies').upsert({
+                  owner_id: authUser.user.id,
+                  season_id: databaseSeasonId,
+                  club_id: champion,
+                  competition_id: competitionId,
+                  competition_name: competitionId === libId ? 'CONMEBOL Libertadores' : 'CONMEBOL Sudamericana',
+                  trophy_type: 'champion',
+                }, { onConflict: 'owner_id,season_id,competition_id' })
+
+                setManagerPopularity(nextPopularity)
+              }
+            } else if (authUser.user && career.club.id === runner) {
+              const { data: profile } = await supabase
+                .from('manager_profiles')
+                .select('regional_popularity,national_popularity,international_popularity,career_points')
+                .eq('owner_id', authUser.user.id)
+                .maybeSingle()
+
+              if (profile) {
+                const nextPopularity = {
+                  regional: Math.min(100, Number(profile.regional_popularity ?? 0) + 1),
+                  national: Math.min(100, Number(profile.national_popularity ?? 0) + 2),
+                  international: Math.min(100, Number(profile.international_popularity ?? 0) + 4),
+                }
+                await supabase.from('manager_profiles').update({
+                  ...nextPopularity,
+                  career_points: Number(profile.career_points ?? 0) + 15,
+                  updated_at: new Date().toISOString(),
+                }).eq('owner_id', authUser.user.id)
+                setManagerPopularity(nextPopularity)
+              }
+            }
+          }
+        }
       }
     }
   }
