@@ -99,6 +99,10 @@ export type ManagerProfile = {
   personality: CoachPersonality
   club: Club
   season: string
+  careerStatus?: 'active' | 'unemployed' | 'retired'
+  contractStartSeason?: string
+  contractEndSeason?: string
+  lastDepartureReason?: 'dismissed' | 'contract_ended' | 'resigned' | 'retired'
 }
 
 export type Screen = 'home' | 'manager' | 'club' | 'dashboard'
