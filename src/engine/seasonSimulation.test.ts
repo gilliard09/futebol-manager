@@ -252,6 +252,8 @@ function simulateContinentalKnockout(
 
   let active = pairs
 
+  let finalists: string[] = []
+
   for (const stage of ['round_of_16', 'quarterfinals', 'semifinals'] as const) {
     if (!active.length) break
     const firstDate = `2026-08-${String(1 + round * 3).padStart(2, '0')}`
@@ -267,6 +269,7 @@ function simulateContinentalKnockout(
       winnersNext.push(resolveContinentalTwoLegTie(first, second, first.home_club_id))
     }
 
+    finalists = winnersNext
     active = Array.from({ length: Math.floor(winnersNext.length / 2) }, (_, i) => ({
       homeClubId: winnersNext[i * 2],
       awayClubId: winnersNext[i * 2 + 1],
@@ -274,10 +277,10 @@ function simulateContinentalKnockout(
     round += 2
   }
 
-  if (active.length === 1) {
+  if (finalists.length === 2) {
     const final = buildSingleFinalFixture(
-      active[0].homeClubId,
-      active[0].awayClubId,
+      finalists[0],
+      finalists[1],
       9,
       '2026-11-28T20:00:00.000Z',
     )
@@ -287,7 +290,10 @@ function simulateContinentalKnockout(
   }
 }
 
-function simulateContinental(prefix: 'lib' | 'sul') {
+function simulateContinental(
+  prefix: 'lib' | 'sul',
+  libertadoresThirds: string[] = [],
+) {
   const competitionId = prefix === 'lib' ? 'libertadores' : 'sudamericana'
   const groups = buildGroups(prefix)
   const teams = groups.flatMap(group => group.teams)
@@ -306,10 +312,10 @@ function simulateContinental(prefix: 'lib' | 'sul') {
   if (prefix === 'lib') {
     simulateContinentalKnockout(competitionId, qualification.winners, qualification.runnersUp, 1, allFixtures)
   } else {
-    simulateContinentalKnockout(competitionId, qualification.runnersUp, qualification.thirds, 1, allFixtures)
+    simulateContinentalKnockout(competitionId, libertadoresThirds, qualification.runnersUp, 1, allFixtures)
   }
 
-  return { groups, teams, fixtures: allFixtures }
+  return { groups, teams, fixtures: allFixtures, qualification }
 }
 
 describe('season simulation', () => {
@@ -318,7 +324,7 @@ describe('season simulation', () => {
     const serieBRows = buildLeagueFixtures(seasonId, '2026-01-28', serieB, 'serie-b')
     const cupFixtures = simulateBrazilCup()
     const libertadores = simulateContinental('lib')
-    const sudamericana = simulateContinental('sul')
+    const sudamericana = simulateContinental('sul', libertadores.qualification.thirds)
 
     expect(leagueRows).toHaveLength(16 * 15)
     expect(serieBRows).toHaveLength(20 * 19)
