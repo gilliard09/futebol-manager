@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildManagerOfferCandidates,
   clubCanApproachManager,
+  managerContractEndSeason,
+  managerDeparturePopularity,
   initialManagerPopularity,
   managerPerformanceScore,
   offerLevelForPopularity,
@@ -55,6 +57,11 @@ describe('manager career', () => {
     })
     expect(clubCanApproachManager(popularity, 60, score)).toBe(true)
     expect(clubCanApproachManager({ regional: 5, national: 0, international: 0 }, 40, 20)).toBe(false)
+  })
+
+  it('calculates contract duration and departure consequences', () => {
+    expect(managerContractEndSeason('Temporada 2026', 3)).toBe('Temporada 2029')
+    expect(managerDeparturePopularity({ regional: 40, national: 20, international: 5 }, 'resigned')).toEqual({ regional: 38, national: 19, international: 5 })
   })
 
   it('selects the strongest eligible clubs for manager offers', () => {
