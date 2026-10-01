@@ -1948,6 +1948,58 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     return news
   }
 
+  async function simulateOtherDivisionMatches(targetDate: string) {
+    const { data: competition } = await supabase
+      .from('competitions')
+      .select('id')
+      .eq('name', SERIE_B_NAME)
+      .maybeSingle()
+    if (!competition?.id) return
+
+    const { data: bClubs } = await supabase
+      .from('clubs')
+      .select('id,strength,reputation')
+      .eq('division', 2)
+    const strengthByClub = Object.fromEntries((bClubs ?? []).map(club => [
+      club.id,
+      Number(club.strength ?? club.reputation ?? 50),
+    ]))
+
+    const { data: pending } = await supabase
+      .from('fixtures')
+      .select('id,round,home_club_id,away_club_id')
+      .eq('season_id', databaseSeasonId ?? '')
+      .eq('competition_id', competition.id)
+      .eq('status', 'scheduled')
+      .lte('scheduled_at', targetDate)
+      .order('scheduled_at')
+
+    const aiFixtures = (pending ?? []).filter(fixture =>
+      fixture.home_club_id !== career.club.id && fixture.away_club_id !== career.club.id,
+    )
+
+    await Promise.all(aiFixtures.map(async fixture => {
+      const home = Number(strengthByClub[fixture.home_club_id] ?? 50)
+      const away = Number(strengthByClub[fixture.away_club_id] ?? 50)
+      const seed = Math.abs(Math.sin(
+        Number(fixture.round ?? 1) * 97 +
+        fixture.home_club_id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) -
+        fixture.away_club_id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0),
+      ))
+      const homeScore = Math.max(0, Math.min(5, Math.round(seed * 3 + (home - away) / 22 + 0.55)))
+      const awayScore = Math.max(0, Math.min(5, Math.round((1 - seed) * 2.5 + (away - home) / 24)))
+      await supabase
+        .from('fixtures')
+        .update({
+          status: 'completed',
+          home_score: homeScore,
+          away_score: awayScore,
+          winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
+        })
+        .eq('id', fixture.id)
+    }))
+  }
+
   async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
     const state = await loadWorldState()
     if (!state) return { date: startDate, event: null as ImportantEvent | null }
@@ -2185,6 +2237,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
     const nextClock = advanceSeasonDay(fromClock)
     const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
+    await simulateOtherDivisionMatches(nextClock.currentDate)
     if (worldResult?.event) setPendingEvent(worldResult.event)
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
