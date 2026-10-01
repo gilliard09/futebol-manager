@@ -851,7 +851,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         if (divisionError) {
           console.error('Não foi possível atualizar a divisão do clube', divisionError)
         }
-        ])
       }
 
       const movementRows = [
