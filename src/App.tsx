@@ -507,9 +507,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const ownerId = authUser.user.id
     const current = managerPopularity
     const userStanding = leagueStandings.find(team => team.id === career.club.id)
-    const completedMatches = leagueStandings.length
-      ? leagueStandings.reduce((sum, team) => team.id === career.club.id ? sum + team.played : sum, 0)
-      : 0
     const performance = {
       position: Math.max(1, leagueStandings.findIndex(team => team.id === career.club.id) + 1),
       points: Number(userStanding?.points ?? 0),
@@ -527,6 +524,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const seasonWins = seasonMatches.filter(match => (match.home_club_id === career.club.id ? match.homeScore > match.awayScore : match.awayScore > match.homeScore)).length
     const seasonDraws = seasonMatches.filter(match => match.homeScore === match.awayScore).length
     const seasonLosses = Math.max(0, seasonMatches.length - seasonWins - seasonDraws)
+    const recordedWins = seasonMatches.length ? seasonWins : performance.wins
+    const recordedDraws = seasonMatches.length ? seasonDraws : performance.draws
+    const recordedLosses = seasonMatches.length ? seasonLosses : performance.losses
 
     await supabase.from('manager_season_history').upsert({
       owner_id: ownerId,
@@ -536,9 +536,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       season_name: career.season,
       final_position: performance.position,
       points: performance.points,
-      wins: seasonWins || performance.wins,
-      draws: seasonDraws || performance.draws,
-      losses: seasonLosses || performance.losses,
+      wins: recordedWins,
+      draws: recordedDraws,
+      losses: recordedLosses,
       league_title: leagueTitle,
       cup_title: cupTitle,
       regional_popularity: nextPopularity.regional,
@@ -568,10 +568,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       international_popularity: nextPopularity.international,
       career_points: managerPerformanceScore(performance) + Number((await supabase.from('manager_profiles').select('career_points').eq('owner_id', ownerId).maybeSingle()).data?.career_points ?? 0),
       seasons_completed: Number((await supabase.from('manager_profiles').select('seasons_completed').eq('owner_id', ownerId).maybeSingle()).data?.seasons_completed ?? 0) + 1,
-      matches_played: Number((await supabase.from('manager_profiles').select('matches_played').eq('owner_id', ownerId).maybeSingle()).data?.matches_played ?? 0) + seasonMatches.length + completedMatches,
-      wins: Number((await supabase.from('manager_profiles').select('wins').eq('owner_id', ownerId).maybeSingle()).data?.wins ?? 0) + seasonWins,
-      draws: Number((await supabase.from('manager_profiles').select('draws').eq('owner_id', ownerId).maybeSingle()).data?.draws ?? 0) + seasonDraws,
-      losses: Number((await supabase.from('manager_profiles').select('losses').eq('owner_id', ownerId).maybeSingle()).data?.losses ?? 0) + seasonLosses,
+      matches_played: Number((await supabase.from('manager_profiles').select('matches_played').eq('owner_id', ownerId).maybeSingle()).data?.matches_played ?? 0) + Math.max(seasonMatches.length, performance.played),
+      wins: Number((await supabase.from('manager_profiles').select('wins').eq('owner_id', ownerId).maybeSingle()).data?.wins ?? 0) + recordedWins,
+      draws: Number((await supabase.from('manager_profiles').select('draws').eq('owner_id', ownerId).maybeSingle()).data?.draws ?? 0) + recordedDraws,
+      losses: Number((await supabase.from('manager_profiles').select('losses').eq('owner_id', ownerId).maybeSingle()).data?.losses ?? 0) + recordedLosses,
       current_club_id: career.club.id,
       current_season_id: seasonId,
       updated_at: new Date().toISOString(),
