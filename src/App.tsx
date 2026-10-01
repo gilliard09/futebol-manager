@@ -1026,10 +1026,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     return nextBalance
   }
 
-  async function persistManagementToSupabase(seasonId: string, nextBoard: BoardState, nextFans: FanState) {
+  async function persistManagementToSupabase(seasonId: string, nextBoard: BoardState, nextFans: FanState, clubId = career.club.id) {
     const { error } = await supabase.from('club_management_seasons').upsert({
       season_id: seasonId,
-      club_id: career.club.id,
+      club_id: clubId,
       manager_status: nextBoard.managerStatus,
       objective: nextBoard.objective,
       objective_label: nextBoard.objectiveLabel,
@@ -1059,10 +1059,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (databaseSeasonId) await persistManagementToSupabase(databaseSeasonId, nextBoard, nextFans)
   }
 
-  async function persistCommercialToSupabase(seasonId: string, value: { sponsor: SponsorContract; stadium: StadiumState }) {
+  async function persistCommercialToSupabase(seasonId: string, value: { sponsor: SponsorContract; stadium: StadiumState }, clubId = career.club.id) {
     const { error } = await supabase.from('club_commercial_seasons').upsert({
       season_id: seasonId,
-      club_id: value.stadium.clubId || career.club.id,
+      club_id: value.stadium.clubId || clubId,
       sponsor_id: value.sponsor.sponsorId,
       sponsor_name: value.sponsor.name,
       sponsor_upfront: value.sponsor.upfront,
@@ -2126,8 +2126,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     if (seasonRow?.id) {
       await Promise.all([
-        persistManagementToSupabase(seasonRow.id, nextBoard, nextFans),
-        persistCommercialToSupabase(seasonRow.id, nextCommercial),
+        persistManagementToSupabase(seasonRow.id, nextBoard, nextFans, targetClub.id),
+        persistCommercialToSupabase(seasonRow.id, nextCommercial, targetClub.id),
       ])
     }
 
