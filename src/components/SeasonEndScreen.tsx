@@ -86,7 +86,7 @@ export default function SeasonEndScreen({
           <h2 className="mt-5 text-2xl font-bold">{clubName(completion.sudamericana.championClubId)}</h2>
           <p className="mt-2 text-sm text-white/40">Vice-campeão: {clubName(completion.sudamericana.runnerUpClubId)}</p>
         </article>}
-      </section>
+      </section>}
 
       <section className="mt-4 grid gap-4 md:grid-cols-3">
         <article className="game-panel">
