@@ -19,6 +19,12 @@ export type ManagerSeasonPerformance = {
 
 export type ManagerOfferLevel = 'regional' | 'national' | 'international'
 
+export type ManagerOfferClub = {
+  id: string
+  name: string
+  reputation?: number | null
+}
+
 export function clampPopularity(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)))
 }
@@ -82,6 +88,20 @@ export function clubCanApproachManager(
     level === 'national' ? 48 :
     28
   return clubReputation + performanceScore * 0.22 >= threshold
+}
+
+export function buildManagerOfferCandidates(
+  popularity: ManagerPopularity,
+  performanceScore: number,
+  clubs: ManagerOfferClub[],
+  currentClubId: string,
+  limit = 3,
+) {
+  return clubs
+    .filter(club => club.id !== currentClubId)
+    .filter(club => clubCanApproachManager(popularity, Number(club.reputation ?? 50), performanceScore))
+    .sort((a, b) => Number(b.reputation ?? 50) - Number(a.reputation ?? 50))
+    .slice(0, limit)
 }
 
 export function popularityLabel(value: number) {
