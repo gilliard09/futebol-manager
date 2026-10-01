@@ -16,6 +16,7 @@ import PressCenter from './components/PressCenter'
 import SeasonEndScreen, { type SeasonAward } from './components/SeasonEndScreen'
 import HistoryScreen from './components/HistoryScreen'
 import ManagerCareerScreen from './components/ManagerCareerScreen'
+import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
@@ -2136,7 +2137,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
     onCareerUpdate(nextCareer)
   }} back={() => goToView('overview')} />
-  if (view === 'trophies' || view === 'history') return <HistoryScreen rows={historyRows} clubs={clubs} players={[...players, ...historyPlayers]} back={() => goToView('overview')} />
+  if (view === 'trophies') return <TrophyRoomScreen trophies={managerTrophies} back={() => goToView('overview')} />
+  if (view === 'history') return <HistoryScreen rows={historyRows} clubs={clubs} players={[...players, ...historyPlayers]} back={() => goToView('overview')} />
   if (view === 'legacy') return <ManagerCareerScreen managerName={career.name} popularity={managerPopularity} history={managerHistory} trophies={managerTrophies} records={managerRecords} offers={managerOffers} clubs={clubs} back={() => goToView('overview')} onOffer={respondToManagerOffer} />
   if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
   if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
