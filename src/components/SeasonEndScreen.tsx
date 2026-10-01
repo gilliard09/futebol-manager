@@ -24,6 +24,7 @@ export default function SeasonEndScreen({
   onNextSeason,
   managerOffers = [],
   onManagerOffer,
+  board,
   onRenewManager,
   onEndManagerContract,
 }: {
