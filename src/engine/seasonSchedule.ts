@@ -92,18 +92,21 @@ export function buildCupFixtures(seasonId: string, startDate: string, clubs: Clu
     Number(b.strength ?? b.reputation ?? 50) - Number(a.strength ?? a.reputation ?? 50) ||
     a.name.localeCompare(b.name),
   )
-  const pairs: Array<[Club, Club]> = []
-  for (let i = 0; i < ordered.length / 2; i++) {
-    pairs.push([ordered[i], ordered[ordered.length - 1 - i]])
-  }
 
+  // Com 36 participantes, os 8 clubes de menor força disputam a fase
+  // preliminar em jogo único. Os 4 vencedores se juntam aos outros 28
+  // na segunda fase, totalizando 32 clubes.
+  const preliminary = ordered.slice(-8)
   const rows: SeasonFixtureInsert[] = []
-  pairs.forEach(([home, away], index) => {
+
+  for (let i = 0; i < preliminary.length / 2; i++) {
+    const home = preliminary[i * 2]
+    const away = preliminary[i * 2 + 1]
     rows.push({
       season_id: seasonId,
       competition_id: competitionId,
       round: 1,
-      scheduled_at: dateAt(startDate, 14 + index % 4, 19),
+      scheduled_at: dateAt(startDate, 14 + i % 4, 19),
       status: 'scheduled',
       home_club_id: home.id,
       away_club_id: away.id,
@@ -111,18 +114,7 @@ export function buildCupFixtures(seasonId: string, startDate: string, clubs: Clu
       away_score: null,
       winner_club_id: null,
     })
-    rows.push({
-      season_id: seasonId,
-      competition_id: competitionId,
-      round: 2,
-      scheduled_at: dateAt(startDate, 21 + index % 4, 19),
-      status: 'scheduled',
-      home_club_id: away.id,
-      away_club_id: home.id,
-      home_score: null,
-      away_score: null,
-      winner_club_id: null,
-    })
-  })
+  }
+
   return rows
 }
