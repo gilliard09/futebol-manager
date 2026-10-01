@@ -122,7 +122,7 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">{club.short_name} · #{player.squad_number}</p>
           <h2 className="mt-2 text-3xl font-bold">{player.first_name} {player.last_name}</h2>
-          <p className="mt-2 text-sm text-white/35">{player.position} · {player.age} anos · {player.nationality}</p>
+          <p className="mt-2 text-sm text-white/35">{playerPositionLabel(player.position)} · {player.age} anos · {player.nationality}</p>
         </div>
         <button onClick={close} className="rounded-lg p-2 text-white/35 hover:bg-white/5 hover:text-white"><X size={20} /></button>
       </div>
