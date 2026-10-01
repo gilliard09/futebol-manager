@@ -726,6 +726,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       nextSeasonId = createdSeason.id
     }
 
+    if (!nextSeasonId) {
+      console.error('A próxima temporada não possui um ID válido')
+      return
+    }
+
     const { data: competitions } = await supabase
       .from('competitions')
       .select('id,name')
