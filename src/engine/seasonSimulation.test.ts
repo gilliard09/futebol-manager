@@ -215,13 +215,14 @@ function simulateContinentalKnockout(
   runnersUp: string[],
   startRound: number,
   fixtures: SimFixture[],
+  libertadoresThirds: string[] = [],
 ) {
   let currentWinners = [...winners]
   let currentRunners = [...runnersUp]
   let round = startRound
 
   if (competitionId === 'sudamericana') {
-    const playoffPairs = pairSudamericanaPlayoffs(currentWinners, currentRunners)
+    const playoffPairs = pairSudamericanaPlayoffs(libertadoresThirds, currentRunners)
     const playoff = buildTwoLegFixtures(
       playoffPairs,
       round,
@@ -245,10 +246,15 @@ function simulateContinentalKnockout(
 
   const pairs = competitionId === 'libertadores'
     ? pairLibertadoresRoundOf16(currentWinners, currentRunners)
-    : Array.from({ length: Math.floor(currentWinners.length / 2) }, (_, i) => ({
-        homeClubId: currentWinners[i * 2],
-        awayClubId: currentWinners[i * 2 + 1],
-      }))
+    : competitionId === 'sudamericana'
+      ? currentWinners.map((winner, index) => ({
+          homeClubId: winner,
+          awayClubId: winners[index],
+        }))
+      : Array.from({ length: Math.floor(currentWinners.length / 2) }, (_, i) => ({
+          homeClubId: currentWinners[i * 2],
+          awayClubId: currentWinners[i * 2 + 1],
+        }))
 
   let active = pairs
 
@@ -312,7 +318,14 @@ function simulateContinental(
   if (prefix === 'lib') {
     simulateContinentalKnockout(competitionId, qualification.winners, qualification.runnersUp, 1, allFixtures)
   } else {
-    simulateContinentalKnockout(competitionId, libertadoresThirds, qualification.runnersUp, 1, allFixtures)
+    simulateContinentalKnockout(
+      competitionId,
+      qualification.winners,
+      qualification.runnersUp,
+      1,
+      allFixtures,
+      libertadoresThirds,
+    )
   }
 
   return { groups, teams, fixtures: allFixtures, qualification }
