@@ -790,6 +790,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       const promoted = new Set(movement.promotedClubIds)
       const relegated = new Set(movement.relegatedClubIds)
 
+      if (serieBStandings.length >= 20) {
+        await supabase.from('competition_history').upsert({
+          season_id: seasonId,
+          competition_id: serieBCompetition.id,
+          champion_club_id: serieBStandings[0]?.id ?? null,
+          runner_up_club_id: serieBStandings[1]?.id ?? null,
+          top_scorer_player_id: null,
+          top_scorer_goals: 0,
+        }, { onConflict: 'season_id,competition_id' })
+      }
+
       for (const clubId of [...promoted, ...relegated]) {
         await supabase
           .from('clubs')
