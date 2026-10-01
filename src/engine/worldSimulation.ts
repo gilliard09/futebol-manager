@@ -876,6 +876,7 @@ export function simulateWorldDay(
   // vencidos só retirariam atletas do mundo e a base acabaria sendo a única fonte
   // de reposição. Clubes com necessidade e caixa podem recuperar agentes livres.
   if ([5, 15, 25].includes(day)) {
+    const signedFreeAgents = new Set<string>()
     const freeAgents = players
       .filter(player => !player.clubId && player.age <= 31 && player.contractUntil === null)
       .filter(player => player.marketValue >= 100000)
