@@ -681,8 +681,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const leagueTeams = [...new Set(leagueFixtures.flatMap(item => [item.home_club_id, item.away_club_id]))]
       .map(id => ({ id, name: id }))
     const leagueStandings = buildStandings(leagueTeams, leagueFixtures as any)
-    const topFour = leagueStandings.slice(0, 4).map(team => team.id)
-
     // Na Copa, a semifinal é a fase anterior à final (rodada 6 no calendário atual).
     const semifinalists = [...new Set(
       cupFixtures
