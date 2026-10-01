@@ -219,7 +219,7 @@ function simulateSide(
     assistPlayer: assistName,
     assistPlayerId: assister?.player.id,
     text: 'Gol do ' + clubName + '!' + (assistName ? ' Assistência: ' + assistName + '.' : ''),
-  }
+  })
 }
 
 export function simulateMatch(
