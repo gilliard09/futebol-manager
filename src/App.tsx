@@ -28,7 +28,7 @@ import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } fr
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
-import { resolveBrazilianContinentalQualifications } from './engine/continentalQualification'
+import { buildContinentalGroupFixtures, buildContinentalGroups, resolveBrazilianContinentalQualifications, selectForeignContinentalClubs } from './engine/continentalQualification'
 import { buildCupPrizePayments, buildLeaguePrizePayments, type CompetitionPrizeConfig, type PrizePayment } from './engine/competitionPrizes'
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import type { AIClubManager } from './engine/aiClubManagement'
@@ -849,65 +849,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           .update({ division: promoted.has(clubId) ? 1 : 2 })
           .eq('id', clubId)
         if (divisionError) {
-          console.error('Não foi possível atualizar a divisão do clube', clubId, divisionError)
-        }
-      }
-
-      // Classificação continental brasileira: as vagas são definidas depois de
-      // resolver promoção/rebaixamento, para impedir que clubes da Série B ou rebaixados
-      // sejam enviados para a Libertadores ou Sul-Americana.
-      const continentalClubDivisions = Object.fromEntries(
-        clubs.map(club => [
-          club.id,
-          promoted.has(club.id) ? 1 : relegated.has(club.id) ? 2 : Number(club.division ?? 1),
-        ]),
-      ) as Record<string, number>
-
-      const continentalQualifications = resolveBrazilianContinentalQualifications({
-        leagueStandings,
-        cupChampionId: completion.cup.championClubId,
-        clubDivisions: continentalClubDivisions,
-        relegatedClubIds: [...relegated],
-      })
-
-      const libertadoresCompetitionId = competitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
-      const sudamericanaCompetitionId = competitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
-
-      if (libertadoresCompetitionId && sudamericanaCompetitionId) {
-        const targetCompetitionIds = [libertadoresCompetitionId, sudamericanaCompetitionId]
-        await supabase
-          .from('competition_qualifiers')
-          .delete()
-          .eq('season_id', seasonId)
-          .in('competition_id', targetCompetitionIds)
-
-        const qualifierRows = continentalQualifications.map(item => ({
-          season_id: seasonId,
-          competition_id: item.competition === 'libertadores' ? libertadoresCompetitionId : sudamericanaCompetitionId,
-          club_id: item.clubId,
-          source_competition_id: item.source === 'league' ? leagueId : item.source === 'cup' ? cupId : null,
-          source_position: item.sourcePosition,
-          qualification_type: item.source,
-          target_stage: item.targetStage,
-          slot_order: item.slotOrder,
-          status: 'qualified',
-          notes: item.notes,
-        }))
-
-        if (qualifierRows.length) {
-          const { error: qualifierError } = await supabase
-            .from('competition_qualifiers')
-            .insert(qualifierRows)
-          if (qualifierError) {
-            console.error('Não foi possível registrar as classificações continentais', qualifierError)
-          }
-        }
-
-        const brazilianContinentalIds = [...new Set(continentalQualifications.map(item => item.clubId))]
-        const continentalClubs = clubs.filter(club => brazilianContinentalIds.includes(club.id))
-        await Promise.all([
-          ensureCompetitionTeams(seasonId, libertadoresCompetitionId, continentalClubs.filter(club => continentalQualifications.some(item => item.clubId === club.id && item.competition === 'libertadores'))),
-          ensureCompetitionTeams(seasonId, sudamericanaCompetitionId, continentalClubs.filter(club => continentalQualifications.some(item => item.clubId === club.id && item.competition === 'sudamericana'))),
+          console.error('Não tem.clubId === club.id && item.competition === 'sudamericana'))),
         ])
       }
 
@@ -1344,6 +1286,144 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     if (activeClubs.length !== 16 || serieBClubs.length !== 20) {
       console.error('A próxima temporada precisa de 16 clubes na Série A e 20 na Série B', { serieA: activeClubs.length, serieB: serieBClubs.length })
       return
+    }
+
+    // Monta as competições continentais da nova temporada a partir dos resultados
+    // da temporada encerrada. O campo estrangeiro usa somente o pool sul-americano
+    // cadastrado no banco e é escolhido por força/reputação.
+    const { data: continentalCompetitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
+
+    const libertadoresId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
+    const sudamericanaId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
+
+    if (libertadoresId && sudamericanaId) {
+      const { data: previousContinentalHistory } = await supabase
+        .from('competition_history')
+        .select('competition_id,champion_club_id')
+        .eq('season_id', databaseSeasonId)
+        .in('competition_id', [libertadoresId, sudamericanaId])
+
+      const previousLibertadoresChampionId = previousContinentalHistory?.find(item => item.competition_id === libertadoresId)?.champion_club_id ?? null
+      const previousSudamericanaChampionId = previousContinentalHistory?.find(item => item.competition_id === sudamericanaId)?.champion_club_id ?? null
+
+      const continentalQualifications = resolveBrazilianContinentalQualifications({
+        leagueStandings,
+        clubs: nextClubs,
+        copaChampionId: seasonCompletion.cup.championClubId,
+        previousLibertadoresChampionId,
+        previousSudamericanaChampionId,
+      })
+
+      const libBrazil = continentalQualifications.filter(item => item.competition === 'libertadores')
+      const sulaBrazil = continentalQualifications.filter(item => item.competition === 'sudamericana')
+      const libBrazilIds = new Set(libBrazil.map(item => item.clubId))
+      const sulaBrazilIds = new Set(sulaBrazil.map(item => item.clubId))
+
+      const libForeign = selectForeignContinentalClubs(nextClubs, libBrazilIds, Math.max(0, 32 - libBrazil.length))
+      const usedForeign = new Set(libForeign.map(club => club.id))
+      const sulaForeign = selectForeignContinentalClubs(nextClubs, new Set([...sulaBrazilIds, ...usedForeign]), Math.max(0, 32 - sulaBrazil.length))
+
+      const libClubs = [
+        ...nextClubs.filter(club => libBrazilIds.has(club.id)),
+        ...libForeign,
+      ]
+      const sulaClubs = [
+        ...nextClubs.filter(club => sulaBrazilIds.has(club.id)),
+        ...sulaForeign,
+      ]
+
+      if (libClubs.length !== 32 || sulaClubs.length !== 32) {
+        console.error('Não foi possível completar os campos continentais', {
+          libertadores: libClubs.length,
+          sudamericana: sulaClubs.length,
+        })
+        return
+      }
+
+      const qualifierRows = continentalQualifications.map(item => ({
+        season_id: nextSeasonId,
+        competition_id: item.competition === 'libertadores' ? libertadoresId : sudamericanaId,
+        club_id: item.clubId,
+        source_competition_id: item.source === 'league' ? leagueId : item.source === 'copa' ? cupId : null,
+        source_position: item.sourcePosition ?? null,
+        qualification_type: item.source,
+        target_stage: item.targetStage,
+        slot_order: item.slot,
+        status: 'qualified',
+        notes: item.note,
+      }))
+
+      await supabase.from('competition_qualifiers').delete().eq('season_id', nextSeasonId).in('competition_id', [libertadoresId, sudamericanaId])
+      if (qualifierRows.length) {
+        const { error: qualifierError } = await supabase.from('competition_qualifiers').insert(qualifierRows)
+        if (qualifierError) console.error('Não foi possível registrar as vagas continentais brasileiras', qualifierError)
+      }
+
+      await ensureCompetitionTeams(nextSeasonId, libertadoresId, libClubs)
+      await ensureCompetitionTeams(nextSeasonId, sudamericanaId, sulaClubs)
+
+      const { data: existingContinentalFixtures } = await supabase
+        .from('fixtures')
+        .select('id')
+        .eq('season_id', nextSeasonId)
+        .in('competition_id', [libertadoresId, sudamericanaId])
+
+      if (!(existingContinentalFixtures?.length)) {
+        const libDraw = buildContinentalGroups('libertadores', libClubs)
+        const sulaDraw = buildContinentalGroups('sudamericana', sulaClubs)
+        const year = nextYear
+
+        const groupRows = [
+          ...libDraw.groups.map((_, index) => ({ season_id: nextSeasonId, competition_id: libertadoresId, stage: 'group_stage', group_code: String.fromCharCode(65 + index) })),
+          ...sulaDraw.groups.map((_, index) => ({ season_id: nextSeasonId, competition_id: sudamericanaId, stage: 'group_stage', group_code: String.fromCharCode(65 + index) })),
+        ]
+
+        await supabase.from('competition_groups').delete().eq('season_id', nextSeasonId).in('competition_id', [libertadoresId, sudamericanaId])
+        const { data: createdGroups, error: groupsError } = await supabase
+          .from('competition_groups')
+          .insert(groupRows)
+          .select('id,competition_id,group_code')
+        if (groupsError || !createdGroups || createdGroups.length !== 16) {
+          console.error('Não foi possível criar os grupos continentais', groupsError)
+          return
+        }
+
+        const groupTeamRows = [
+          ...libDraw.groups.flatMap((group, index) => {
+            const groupRow = createdGroups.find(row => row.competition_id === libertadoresId && row.group_code === String.fromCharCode(65 + index))
+            return group.map((club, seed) => ({ group_id: groupRow!.id, club_id: club.id, seed: seed + 1 }))
+          }),
+          ...sulaDraw.groups.flatMap((group, index) => {
+            const groupRow = createdGroups.find(row => row.competition_id === sudamericanaId && row.group_code === String.fromCharCode(65 + index))
+            return group.map((club, seed) => ({ group_id: groupRow!.id, club_id: club.id, seed: seed + 1 }))
+          }),
+        ]
+
+        await supabase.from('competition_group_teams').insert(groupTeamRows)
+
+        const fixtureRows = [
+          ...buildContinentalGroupFixtures(nextSeasonId, libertadoresId, libDraw.groups, year),
+          ...buildContinentalGroupFixtures(nextSeasonId, sudamericanaId, sulaDraw.groups, year),
+        ].map(fixture => ({
+          competition_id: fixture.competitionId,
+          season_id: fixture.seasonId,
+          round: fixture.round,
+          home_club_id: fixture.homeClubId,
+          away_club_id: fixture.awayClubId,
+          scheduled_at: fixture.scheduledAt,
+          status: 'scheduled',
+          stage: fixture.stage,
+        }))
+
+        const { error: continentalFixtureError } = await supabase.from('fixtures').insert(fixtureRows)
+        if (continentalFixtureError) {
+          console.error('Não foi possível criar o calendário continental', continentalFixtureError)
+          return
+        }
+      }
     }
 
     // O banco é a fonte de verdade da nova temporada; sincronizamos o estado
