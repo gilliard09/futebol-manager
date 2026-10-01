@@ -1674,6 +1674,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   }
 
   async function persistManagementToSupabase(seasonId: string, nextBoard: BoardState, nextFans: FanState, clubId = career.club.id) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (!sessionData.session) return
+
     const { error } = await supabase.from('club_management_seasons').upsert({
       season_id: seasonId,
       club_id: clubId,
@@ -1707,6 +1710,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   }
 
   async function persistCommercialToSupabase(seasonId: string, value: { sponsor: SponsorContract; stadium: StadiumState }, clubId = career.club.id) {
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (!sessionData.session) return
+
     const { error } = await supabase.from('club_commercial_seasons').upsert({
       season_id: seasonId,
       club_id: value.stadium.clubId || clubId,
@@ -1979,7 +1985,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           setOpponentPlayers([])
         }
       }
-      const leagueClubs = clubs.length > 0 ? clubs : (clubsResult.data ?? []) as Club[]
+      const leagueClubs = (clubs.length > 0 ? clubs : (clubsResult.data ?? []) as Club[])
+        .filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
       const persistedFixtures = (tableResult.data ?? []).map((match: any) => ({
         id: match.id, competition_id: match.competition_id ?? '', round: 0, scheduled_at: '', status: match.status,
         home_club_id: match.home_club_id, away_club_id: match.away_club_id, home_score: match.home_score, away_score: match.away_score,
@@ -2090,8 +2097,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       .not('away_score', 'is', null)
       .order('scheduled_at')
 
+    const nationalLeagueClubIds = new Set(
+      worldClubs
+        .filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
+        .map(club => club.id),
+    )
     const stats = new Map<string, { points: number; wins: number; draws: number; losses: number; gf: number; ga: number; recentResults: Array<'W' | 'D' | 'L'> }>()
-    for (const club of worldClubs) stats.set(club.id, { points: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, recentResults: [] })
+    for (const club of worldClubs) {
+      if (nationalLeagueClubIds.has(club.id)) {
+        stats.set(club.id, { points: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, recentResults: [] })
+      }
+    }
 
     for (const fixture of leagueFixtures ?? []) {
       const home = stats.get(fixture.home_club_id)
