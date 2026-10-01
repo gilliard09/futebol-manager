@@ -363,7 +363,7 @@ function GameApp() {
       <Route path="/" element={<Home career={career} start={() => navigate('/manager')} continueCareer={() => navigate('/dashboard')} newCareer={newCareer} />} />
       <Route path="/manager" element={<Manager name={managerName} nationality={nationality} birthDate={birthDate} style={managerStyle} personality={managerPersonality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} onBirthDate={setBirthDate} onStyle={setManagerStyle} onPersonality={setManagerPersonality} back={() => navigate('/')} next={() => navigate('/club')} />} />
       <Route path="/club" element={<ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => navigate('/manager')} confirm={confirmCareer} />} />
-      <Route path="/dashboard/*" element={career ? <Dashboard career={career} clubs={clubs} newCareer={newCareer} onCareerUpdate={setCareer} /> : <Navigate to="/" replace />} />
+      <Route path="/dashboard/*" element={career ? <Dashboard career={career} clubs={clubs} newCareer={newCareer} onCareerUpdate={setCareer} onClubsUpdate={setClubs} /> : <Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to={career ? '/dashboard' : '/'} replace />} />
     </Routes>
   </div></div>
@@ -396,7 +396,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
 
 type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'history' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
 
-function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
+function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void; onClubsUpdate: (clubs: Club[]) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
@@ -805,7 +805,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       // O estado local também precisa acompanhar o banco imediatamente: ele é usado
       // pela IA, pelo mercado e pela preparação da temporada seguinte.
       const nextWorldClubs = swapDivisions(clubs, [...promoted], [...relegated])
-      setClubs(nextWorldClubs)
+      onClubsUpdate(nextWorldClubs)
 
       for (const clubId of [...promoted, ...relegated]) {
         const { error: divisionError } = await supabase
@@ -1209,7 +1209,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     // O banco é a fonte de verdade da nova temporada; sincronizamos o estado
     // local antes de reconstruir calendário, IA e telas do universo.
-    setClubs(nextClubs)
+    onClubsUpdate(nextClubs)
 
     const { data: existingFixtures } = await supabase
       .from('fixtures')
