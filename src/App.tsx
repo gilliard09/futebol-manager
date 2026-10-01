@@ -359,7 +359,7 @@ function GameApp() {
     const uniqueSeasonName = displaySeasonName + ' · ' + authUser.user.id.slice(0, 8)
     const { data: careerSeason, error: careerSeasonError } = await supabase
       .from('seasons')
-      .insert({ name: uniqueSeasonName, year, status: 'active', start_date: year + '-01-01', end_date: null })
+      .insert({ owner_id: authUser.user.id, name: uniqueSeasonName, year, status: 'active', start_date: year + '-01-01', end_date: null })
       .select('id')
       .single()
     if (careerSeasonError || !careerSeason) {
@@ -1350,13 +1350,16 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     const currentYear = Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
     const nextYear = currentYear + 1
-    const nextSeasonName = seasonName(nextYear)
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) return
+    const nextSeasonName = seasonName(nextYear) + ' · ' + authUser.user.id.slice(0, 8)
     const nextStartDate = `${nextYear}-01-01`
 
     const { data: existingSeason } = await supabase
       .from('seasons')
       .select('id,status')
       .eq('name', nextSeasonName)
+      .eq('owner_id', authUser.user.id)
       .maybeSingle()
 
     let nextSeasonId = existingSeason?.id as string | undefined
@@ -1366,7 +1369,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     if (!nextSeasonId) {
       const { data: createdSeason, error: createSeasonError } = await supabase
         .from('seasons')
-        .insert({ name: nextSeasonName, status: 'active', start_date: nextStartDate, end_date: null })
+        .insert({ owner_id: authUser.user.id, name: nextSeasonName, year: nextYear, status: 'active', start_date: nextStartDate, end_date: null })
         .select('id')
         .single()
       if (createSeasonError || !createdSeason) {
