@@ -18,14 +18,7 @@ function registerServiceWorker() {
 }
 
 async function bootstrap() {
-  const { data: sessionData } = await supabase.auth.getSession()
-
-  if (!sessionData.session) {
-    await Promise.race([
-      supabase.auth.signInAnonymously(),
-      new Promise(resolve => setTimeout(resolve, 4000)),
-    ]).catch(() => undefined)
-  }
+  await supabase.auth.getSession()
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
