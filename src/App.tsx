@@ -1467,8 +1467,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         if (qualifierError) console.error('Não foi possível registrar as vagas continentais brasileiras', qualifierError)
       }
 
-      await ensureCompetitionTeams(nextSeasonId, libertadoresId, libClubs)
-      await ensureCompetitionTeams(nextSeasonId, sudamericanaId, sulaClubs)
+      const libParticipants = [...preliminaryPlan.libertadores.phase1, ...preliminaryPlan.libertadores.phase2Direct, ...preliminaryPlan.libertadores.phase2Winners, ...preliminaryPlan.libertadores.phase3Winners, ...preliminaryPlan.libertadores.phase3Losers, ...libClubs]
+      const sulaParticipants = [...preliminaryPlan.sudamericana.firstPhaseClubs, ...preliminaryPlan.sudamericana.firstPhaseWinners, ...preliminaryPlan.libertadores.phase3Losers, ...sulaClubs]
+      await ensureCompetitionTeams(nextSeasonId, libertadoresId, [...new Map(libParticipants.map(club => [club.id, club])).values()])
+      await ensureCompetitionTeams(nextSeasonId, sudamericanaId, [...new Map(sulaParticipants.map(club => [club.id, club])).values()])
 
       const { data: existingContinentalFixtures } = await supabase
         .from('fixtures')
