@@ -1,0 +1,101 @@
+import { ArrowRight, Award, CalendarDays, Crown, Medal, Trophy } from 'lucide-react'
+import type { Club, Player } from '../types/game'
+import type { SeasonCompletion } from '../engine/seasonHistory'
+
+export type SeasonAward = {
+  award_type: string
+  club_id: string | null
+  player_id: string | null
+  value: number
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
+}
+
+export default function SeasonEndScreen({
+  completion,
+  clubs,
+  players,
+  awards,
+  currentClubId,
+  nextSeasonName,
+  onNextSeason,
+}: {
+  completion: SeasonCompletion
+  clubs: Club[]
+  players: Player[]
+  awards: SeasonAward[]
+  currentClubId: string
+  nextSeasonName: string
+  onNextSeason: () => void
+}) {
+  const clubName = (id: string | null) => clubs.find(club => club.id === id)?.name ?? 'Clube'
+  const playerName = (id: string | null) => {
+    const player = players.find(item => item.id === id)
+    return player ? player.first_name + ' ' + player.last_name : 'Jogador'
+  }
+  const award = (type: string) => awards.find(item => item.award_type === type)
+  const leagueChampion = completion.league.championClubId
+  const cupChampion = completion.cup.championClubId
+  const userIsChampion = leagueChampion === currentClubId || cupChampion === currentClubId
+  const topScorer = award('top_scorer')
+
+  return <main className="min-h-screen bg-[#0a0f1a] px-5 py-8 text-white sm:px-8 lg:px-12">
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-8">
+        <p className="label-mono text-emerald-300/65">Temporada encerrada</p>
+        <h1 className="mt-2 font-display text-4xl font-bold tracking-tight sm:text-5xl">{completion.seasonName}</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">O calendário terminou. Os resultados foram registrados e a história da temporada agora faz parte do mundo do jogo.</p>
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-2">
+        <article className="game-panel">
+          <div className="flex items-center gap-3 text-amber-300"><Crown size={20} /><span className="label-mono">Campeão da Liga</span></div>
+          <h2 className="mt-5 text-2xl font-bold">{clubName(leagueChampion)}</h2>
+          <p className="mt-2 text-sm text-white/40">Vice-campeão: {clubName(completion.league.runnerUpClubId)}</p>
+        </article>
+        <article className="game-panel">
+          <div className="flex items-center gap-3 text-violet-300"><Trophy size={20} /><span className="label-mono">Campeão da Copa</span></div>
+          <h2 className="mt-5 text-2xl font-bold">{clubName(cupChampion)}</h2>
+          <p className="mt-2 text-sm text-white/40">Vice-campeão: {clubName(completion.cup.runnerUpClubId)}</p>
+        </article>
+      </section>
+
+      <section className="mt-4 grid gap-4 md:grid-cols-3">
+        <article className="game-panel">
+          <div className="flex items-center gap-3 text-emerald-300"><Award size={18} /><span className="label-mono">Artilheiro da Liga</span></div>
+          <p className="mt-5 text-lg font-bold">{playerName(completion.league.topScorerPlayerId)}</p>
+          <p className="mt-1 text-sm text-white/40">{completion.league.topScorerGoals} gols</p>
+        </article>
+        <article className="game-panel">
+          <div className="flex items-center gap-3 text-emerald-300"><Award size={18} /><span className="label-mono">Artilheiro da Copa</span></div>
+          <p className="mt-5 text-lg font-bold">{playerName(completion.cup.topScorerPlayerId)}</p>
+          <p className="mt-1 text-sm text-white/40">{completion.cup.topScorerGoals} gols</p>
+        </article>
+        <article className="game-panel">
+          <div className="flex items-center gap-3 text-sky-300"><Medal size={18} /><span className="label-mono">Prêmio individual</span></div>
+          <p className="mt-5 text-lg font-bold">{topScorer ? playerName(topScorer.player_id) : playerName(completion.league.topScorerPlayerId)}</p>
+          <p className="mt-1 text-sm text-white/40">{topScorer ? 'Artilheiro da temporada' : 'Destaque ofensivo'}</p>
+        </article>
+      </section>
+
+      <section className="mt-8 rounded-2xl border border-white/6 bg-[#111927] p-6 sm:p-8">
+        <div className="flex items-start gap-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300"><CalendarDays size={21} /></div>
+          <div>
+            <p className="label-mono text-white/35">Próxima temporada</p>
+            <h2 className="mt-2 text-2xl font-bold">{nextSeasonName}</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">A nova temporada mantém os clubes e o mundo evoluído. Estatísticas, calendário, finanças e histórico passam a pertencer ao novo ciclo.</p>
+            {userIsChampion && <p className="mt-3 text-sm font-semibold text-amber-200">Seu clube terminou a temporada com um título.</p>}
+          </div>
+        </div>
+        <button onClick={onNextSeason} className="mt-7 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">
+          Começar {nextSeasonName} <ArrowRight size={17} />
+        </button>
+      </section>
+
+      <p className="mt-6 text-xs text-white/25">Premiações financeiras já foram incorporadas ao caixa do clube quando aplicáveis.</p>
+    </div>
+  </main>
+}
