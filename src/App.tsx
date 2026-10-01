@@ -1164,10 +1164,23 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const { data: competitions } = await supabase
       .from('competitions')
       .select('id,name')
-      .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+      .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil', SERIE_B_NAME])
     const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
     const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
-    if (!leagueId || !cupId) return
+    const serieBId = competitions?.find(item => item.name === SERIE_B_NAME)?.id
+    if (!leagueId || !cupId || !serieBId) return
+
+    const { data: nextClubsData } = await supabase
+      .from('clubs')
+      .select('id,name,short_name,city,country,division,budget,reputation,stadium,stadium_capacity,founded_year,logo_url,strength')
+      .order('name')
+    const nextClubs = (nextClubsData ?? []) as Club[]
+    const activeClubs = nextClubs.filter(club => Number(club.division ?? 1) === 1)
+    const serieBClubs = nextClubs.filter(club => Number(club.division ?? 1) === 2)
+    if (activeClubs.length !== 16 || serieBClubs.length !== 20) {
+      console.error('A próxima temporada precisa de 16 clubes na Série A e 20 na Série B', { serieA: activeClubs.length, serieB: serieBClubs.length })
+      return
+    }
 
     const { data: existingFixtures } = await supabase
       .from('fixtures')
@@ -1175,13 +1188,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       .eq('season_id', nextSeasonId)
 
     if (!(existingFixtures?.length)) {
-      const activeClubs = clubs.filter(club => Number(club.division ?? 1) === 1).slice(0, 16)
-      if (activeClubs.length < 16) {
-        console.error('A próxima temporada precisa de 16 clubes da divisão principal')
-        return
-      }
       const fixtureRows = [
         ...buildLeagueFixtures(nextSeasonId, nextStartDate, activeClubs, leagueId),
+        ...buildLeagueFixtures(nextSeasonId, nextStartDate, serieBClubs, serieBId),
         ...buildCupFixtures(nextSeasonId, nextStartDate, activeClubs, cupId),
       ]
       const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
