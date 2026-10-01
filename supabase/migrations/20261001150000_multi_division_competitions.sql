@@ -78,3 +78,66 @@ create policy "season club standings are public" on public.season_club_standings
 alter table public.competition_records enable row level security;
 drop policy if exists "competition records are public" on public.competition_records;
 create policy "competition records are public" on public.competition_records for select to anon, authenticated using (true);
+
+-- Elencos iniciais da Série B. São atletas genéricos para que a divisão seja
+-- jogável desde a primeira temporada; o motor de ciclo de vida os substitui
+-- naturalmente por novos talentos, transferências e aposentadorias.
+with bclubs as (
+  select id, short_name, strength
+  from public.clubs
+  where division = 2
+),
+slots as (
+  select generate_series(1, 18) as n
+),
+seed as (
+  select
+    c.id as club_id,
+    c.short_name,
+    c.strength,
+    s.n,
+    (array['GK','LB','CB','CB','RB','DM','CM','CM','AM','LW','RW','ST','ST','CB','DM','CM','LW','RW'])[s.n] as position
+  from bclubs c cross join slots s
+)
+insert into public.players (
+  first_name,last_name,age,nationality,position,
+  pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,
+  potential,form,morale
+)
+select
+  'Atleta',
+  replace(seed.short_name, ' ', '_') || '_' || lpad(seed.n::text, 2, '0'),
+  18 + ((seed.n + ascii(left(seed.short_name, 1))) % 15),
+  'Brasil',
+  seed.position,
+  greatest(35, least(90, seed.strength + ((seed.n * 7) % 9) - 4)),
+  greatest(35, least(90, seed.strength + ((seed.n * 5) % 9) - 4)),
+  greatest(35, least(90, seed.strength + ((seed.n * 3) % 9) - 4)),
+  greatest(35, least(90, seed.strength + ((seed.n * 11) % 9) - 4)),
+  greatest(35, least(90, seed.strength + ((seed.n * 13) % 9) - 4)),
+  greatest(35, least(90, seed.strength + ((seed.n * 17) % 9) - 4)),
+  case when seed.position = 'GK' then greatest(35, least(90, seed.strength + ((seed.n * 19) % 9) - 4)) else 45 end,
+  greatest(35, least(90, seed.strength + ((seed.n * 23) % 9) - 4)),
+  greatest(seed.strength, least(95, seed.strength + 8 + (seed.n % 8))),
+  70,
+  70
+from seed
+where not exists (
+  select 1 from public.players p
+  where p.last_name = replace(seed.short_name, ' ', '_') || '_' || lpad(seed.n::text, 2, '0')
+);
+
+insert into public.club_players (club_id, player_id, squad_number, salary, market_value, contract_until)
+select
+  c.id,
+  p.id,
+  ((row_number() over (partition by c.id order by p.id))::integer),
+  greatest(12000, round(c.strength * 420 + (row_number() over (partition by c.id order by p.id)) * 350)),
+  greatest(100000, round(c.strength * 18000 + (row_number() over (partition by c.id order by p.id)) * 50000)),
+  '2028-12-31'
+from public.clubs c
+join public.players p on p.last_name like replace(c.short_name, ' ', '_') || '_%'
+where c.division = 2
+and not exists (
+  select 1 from public.club_players cp where cp.player_id = p.id and cp.club_id = c.id
+);
