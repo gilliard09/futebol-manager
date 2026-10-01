@@ -20,7 +20,7 @@ import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
-import { applyFanResult, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd, type BoardState, type FanState } from './engine/management'
+import { acceptManagerRenewal, applyFanResult, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } from './engine/loans'
@@ -867,12 +867,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     await saveCommercial(nextCommercial)
     const finalBoard = resolveContractAtSeasonEnd(boardState)
     saveManagement(finalBoard, fanState)
-    if (finalBoard.managerStatus === 'renewed') {
+    if (finalBoard.managerStatus === 'active' && finalBoard.renewalOffered) {
       appendWorldNews([{
         id: 'board-renewal:' + seasonId,
         date: toDateKey(new Date().toISOString()),
         title: 'A diretoria quer manter o treinador',
-        message: 'A temporada terminou e a diretoria decidiu renovar seu vínculo para a próxima temporada.',
+        message: 'A temporada terminou e a diretoria colocou uma renovação sobre a mesa. Agora a decisão é do treinador.',
         tone: 'positive',
         category: 'career',
         priority: 82,
@@ -894,7 +894,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
   async function startNextSeason() {
     if (!seasonClosed || !databaseSeasonId || !seasonCompletion) return
-    if (boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended') return
+    if (boardState.managerStatus !== 'renewed') return
 
     const currentYear = Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
     const nextYear = currentYear + 1
@@ -2089,6 +2089,21 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     setPendingEvent(null)
   }
+  async function renewManagerContract() {
+    if (!seasonCompletion || !boardState.renewalOffered) return
+    const nextSeasonName = seasonName(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR) + 1)
+    const nextBoard = acceptManagerRenewal(boardState, nextSeasonName)
+    await saveManagement(nextBoard, fanState)
+    setPendingEvent(null)
+  }
+
+  async function endManagerContract() {
+    if (!boardState.renewalOffered) return
+    const nextBoard = declineManagerRenewal(boardState)
+    await saveManagement(nextBoard, fanState)
+    setPendingEvent(null)
+  }
+
   async function respondToManagerOffer(offer: { id: string; from_club_id: string }) {
     const targetClub = clubs.find(club => club.id === offer.from_club_id)
     if (!targetClub) return
@@ -2099,7 +2114,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     await supabase.from('manager_offers').update({ status: 'rejected', responded_at: new Date().toISOString() }).eq('owner_id', authUser.user.id).eq('status', 'pending').neq('id', offer.id)
     const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
     const nextCareer = { ...career, club: { ...targetClub, budget: Number(targetClub.budget ?? 0) } }
-    const nextBoard = createBoardState(career.season, career.season, Number(targetClub.reputation ?? 50), Number(targetClub.budget ?? 0), Number(targetClub.strength ?? targetClub.reputation ?? 50))
+    const nextBoard = { ...createBoardState(career.season, career.season, Number(targetClub.reputation ?? 50), Number(targetClub.budget ?? 0), Number(targetClub.strength ?? targetClub.reputation ?? 50)), managerStatus: 'renewed' as const }
     const nextFans = createFanState(career.season, Number(targetClub.reputation ?? 50), nextBoard.expectation)
     const nextSponsor = { ...chooseSponsor(Number(targetClub.reputation ?? 50)), seasonId: career.season }
     const nextCommercial = {
@@ -2178,6 +2193,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       onNextSeason={startNextSeason}
       managerOffers={managerOffers.filter(item => item.status === 'pending')}
       onManagerOffer={respondToManagerOffer}
+      board={boardState}
+      onRenewManager={renewManagerContract}
+      onEndManagerContract={endManagerContract}
     />
   }
   if (view === 'board') return <BoardScreen club={career.club} board={boardState} fans={fanState} balance={financeBalance} monthlyPayroll={salaryTotal} back={() => goToView('overview')} />
