@@ -65,7 +65,7 @@ export function buildContinentalPreliminaryPlan(allForeignClubs:Club[],libBrazil
  const sulaWinners=countries.flatMap(country=>{const four=first.filter(c=>c.country===country).slice(0,4);return four.length===4?single(four,sulaId,seasonId,year).winners:[]}).slice(0,16)
  const libLosers=p3.losers.slice(0,4),usedS=new Set([...sulaBrazil,...sulaWinners,...libLosers].map(c=>c.id))
  const need=Math.max(0,32-usedS.size),arg=foreign.filter(c=>c.country==='Argentina'&&!usedS.has(c.id)).sort(rank).slice(0,Math.min(6,need));arg.forEach(c=>usedS.add(c.id))
- const extra=foreign.filter(c=>!usedS.has(c.id)&&!libSet.has(c.id)).sort(rank).slice(0,Math.max(0,32-sulaBrazil.length-usedS.size))
+ const extra=foreign.filter(c=>!usedS.has(c.id)&&!libSet.has(c.id)).sort(rank).slice(0,Math.max(0,32-usedS.size))
  const sulaGroup=[...sulaBrazil,...sulaWinners,...libLosers,...arg,...extra].slice(0,32)
  const fixtures=[...p1.fixtures,...p2.fixtures,...p3.fixtures]
  for(const country of countries){const four=first.filter(c=>c.country===country).slice(0,4);if(four.length===4)fixtures.push(...single(four,sulaId,seasonId,year).fixtures)}
