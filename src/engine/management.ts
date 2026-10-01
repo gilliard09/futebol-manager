@@ -150,7 +150,7 @@ export function resolveContractAtSeasonEnd(state: BoardState, currentSeasonName?
 
 export function acceptManagerRenewal(state: BoardState, nextSeasonName: string, years = managerContractYears(state.confidence)): BoardState {
   if (!state.renewalOffered || state.managerStatus !== 'active') return state
-  const startYear = Number(nextSeasonName.match(/\\d{4}/)?.[0] ?? new Date().getFullYear())
+  const startYear = Number(nextSeasonName.match(/\d{4}/)?.[0] ?? new Date().getFullYear())
   return {
     ...state,
     managerStatus: 'renewed',
