@@ -7,8 +7,6 @@ import {
   type StandingRow,
 } from './competitions'
 import {
-  buildContinentalGroupFixtures,
-  buildContinentalGroups,
   pairLibertadoresRoundOf16,
   pairSudamericanaPlayoffs,
   buildTwoLegFixtures,
