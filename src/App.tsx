@@ -2337,6 +2337,26 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setPendingEvent(null)
   }
 
+  if (careerStatus !== 'active') {
+    return <ManagerCareerScreen
+      managerName={career.name}
+      popularity={managerPopularity}
+      history={managerHistory}
+      trophies={managerTrophies}
+      records={managerRecords}
+      offers={managerOffers}
+      clubs={clubs}
+      careerStatus={careerStatus}
+      currentClubId={null}
+      contractEndSeason={career.contractEndSeason}
+      contractYears={boardState.contractYears ?? 1}
+      back={() => navigate('/')}
+      onOffer={respondToManagerOffer}
+      onRejectOffer={rejectManagerOffer}
+      onRetire={careerStatus === 'unemployed' ? retireManager : undefined}
+    />
+  }
+
   if (seasonClosed && seasonCompletion) {
     return <SeasonEndScreen
       completion={seasonCompletion}
