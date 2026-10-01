@@ -54,8 +54,10 @@ export const BRAZIL_SERIE_B_RULES: CompetitionConfig = {
 export const BRAZIL_CUP_RULES: CompetitionConfig = {
   name: 'Copa Nacional do Brasil',
   format: 'knockout',
-  teams: 16,
+  teams: 36,
   stages: [
+    { id: 'preliminary', label: 'Fase preliminar', legs: 1, teams: 8, penaltyIfTied: true },
+    { id: 'round_of_32', label: 'Segunda fase', legs: 1, teams: 32, penaltyIfTied: true },
     { id: 'round_of_16', label: 'Oitavas de final', legs: 2, teams: 16, penaltyIfTied: true },
     { id: 'quarterfinals', label: 'Quartas de final', legs: 2, teams: 8, penaltyIfTied: true },
     { id: 'semifinals', label: 'Semifinal', legs: 2, teams: 4, penaltyIfTied: true },
@@ -86,10 +88,12 @@ export function createKnockoutRound(clubIds: string[], round: number): KnockoutP
 }
 
 export function getCompetitionStage(round: number): CompetitionStage {
-  if (round <= 2) return BRAZIL_CUP_RULES.stages![0]
-  if (round <= 4) return BRAZIL_CUP_RULES.stages![1]
-  if (round <= 6) return BRAZIL_CUP_RULES.stages![2]
-  return BRAZIL_CUP_RULES.stages![3]
+  if (round === 1) return BRAZIL_CUP_RULES.stages![0]
+  if (round === 2) return BRAZIL_CUP_RULES.stages![1]
+  if (round <= 4) return BRAZIL_CUP_RULES.stages![2]
+  if (round <= 6) return BRAZIL_CUP_RULES.stages![3]
+  if (round <= 8) return BRAZIL_CUP_RULES.stages![4]
+  return BRAZIL_CUP_RULES.stages![5]
 }
 export function getCompetitionStageLabel(round: number, _totalRounds = 7, knockout = false) {
   if (!knockout) return `Rodada ${round}`
@@ -132,16 +136,33 @@ export function choosePenaltyWinner(homeClubId: string, awayClubId: string, seed
 }
 
 export function getNextKnockoutRound(round: number) {
+  if (round === 1) return 2
   if (round === 2) return 3
   if (round === 4) return 5
   if (round === 6) return 7
+  if (round === 8) return 9
   return null
 }
 
 export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound: number) {
   const nextRound = getNextKnockoutRound(currentRound)
-  if (!nextRound || ![2, 4, 6].includes(currentRound)) return null
+  if (!nextRound || ![1, 2, 4, 6, 8].includes(currentRound)) return null
   const firstRound = currentRound - 1
+  if (currentRound === 1) {
+    const completed = fixtures.filter(f => f.round === 1 && f.status === 'completed' && f.home_score != null && f.away_score != null)
+    if (completed.length < 4) return null
+    const winners = completed
+      .map(f => f.winner_club_id ?? getKnockoutWinner(f.home_score!, f.away_score!, f.home_club_id, f.away_club_id))
+      .filter((id): id is string => Boolean(id))
+    if (winners.length !== 4) return null
+    return {
+      round: 2,
+      homeClubId: winners[0],
+      awayClubId: winners[1],
+      scheduledAt: new Date(Math.max(...completed.map(f => new Date(f.scheduled_at).getTime())) + 7 * 86400000).toISOString(),
+    } as never
+  }
+  if (currentRound === 2) return null
   const completed = fixtures.filter(f => (f.round === firstRound || f.round === currentRound) && f.status === 'completed' && f.home_score != null && f.away_score != null)
     .sort((a, b) => a.round - b.round || a.scheduled_at.localeCompare(b.scheduled_at))
   if (completed.length < 4 || completed.length % 2 !== 0) return null
