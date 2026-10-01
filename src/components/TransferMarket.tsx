@@ -5,6 +5,7 @@ import { playerOverall } from '../engine/matchCore'
 import { getActiveLoan } from '../engine/loans'
 import { buildScoutingReport } from '../engine/worldSimulation'
 import { canAddPlayer } from '../engine/roster'
+import { playerPositionLabel } from '../engine/playerPositions'
 import { applyTransfer, calculateAskingPrice, canCompleteTransfer, createTransferRecord, negotiateTransfer, type TransferRecord, type TransferState } from '../engine/transfers'
 import type { Club, Player } from '../types/game'
 
@@ -190,7 +191,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
             <button key={item.player.id} onClick={() => openPlayer(item, 'sell')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]">
               <div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div>
               <span className="text-xs text-white/40">Seu elenco</span>
-              <span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span>
+              <span className="hidden text-xs font-bold text-emerald-300 md:block">{playerPositionLabel(item.player.position)}</span>
               <span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span>
               <span className="text-xs text-white/35">{money(item.marketValue)}</span>
             </button>
@@ -207,7 +208,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
         {filtered.map(item => <button key={item.player.id} onClick={() => openPlayer(item, 'buy')} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_110px]">
           <div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div>
           <span className="text-xs text-white/40">{item.club.short_name}</span>
-          <span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span>
+          <span className="hidden text-xs font-bold text-emerald-300 md:block">{playerPositionLabel(item.player.position)}</span>
           <span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span>
           <span className="text-xs text-white/35 md:block">{money(item.marketValue)}</span>
         </button>)}
@@ -227,7 +228,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
     {selected && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-6" onClick={() => setSelected(null)}>
       <section className="w-full max-w-xl rounded-t-3xl border border-white/8 bg-[#10141b] p-6 md:rounded-3xl" onClick={event => event.stopPropagation()}>
         <div className="flex items-start justify-between gap-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">{selected.club.short_name} · {selected.player.position}</p><h2 className="mt-2 text-3xl font-bold">{selected.player.first_name} {selected.player.last_name}</h2><p className="mt-2 text-sm text-white/35">{selected.player.age} anos · GER {playerOverall(selected.player)} · Potencial {selected.player.potential}</p></div>
+          <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">{selected.club.short_name} · {playerPositionLabel(selected.player.position)}</p><h2 className="mt-2 text-3xl font-bold">{selected.player.first_name} {selected.player.last_name}</h2><p className="mt-2 text-sm text-white/35">{selected.player.age} anos · GER {playerOverall(selected.player)} · Potencial {selected.player.potential}</p></div>
           <button onClick={() => setSelected(null)} className="rounded-lg p-2 text-white/35 hover:bg-white/5 hover:text-white"><X size={20} /></button>
         </div>
         <div className="mt-5 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
