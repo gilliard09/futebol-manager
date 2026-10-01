@@ -1749,7 +1749,39 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   if (view === 'press') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
   if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'loans') return <LoanMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} transferOverrides={transferState.playerClubOverrides} state={loanState} currentSquadSize={players.length} onLoan={(record, nextState) => { const transaction = createTransaction(record.date, record.loanClubId === career.club.id ? 'transfer_out' : 'transfer_in', `${record.loanClubId === career.club.id ? 'Empréstimo recebido' : 'Empréstimo cedido'} · ${record.playerName}`, record.loanClubId === career.club.id ? -record.fee : record.fee, undefined, `loan:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setLoanState(nextState); localStorage.setItem(LOANS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); goToView('overview') }} back={() => goToView('overview')} />
-  if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} state={transferState} loanState={loanState} currentSquadSize={players.length} personality={career.personality} onTransfer={(record, nextState, nextBalance) => { const transaction = createTransaction(record.date, record.kind === 'purchase' ? 'transfer_out' : 'transfer_in', `${record.kind === 'purchase' ? 'Compra' : 'Venda'} · ${record.playerName}`, record.kind === 'purchase' ? -record.fee : record.fee, undefined, `transfer:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setTransferState(nextState); localStorage.setItem(TRANSFERS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); goToView('overview') }} back={() => goToView('overview')} />
+  if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} state={transferState} loanState={loanState} currentSquadSize={players.length} personality={career.personality} onTransfer={(record, nextState, nextBalance) => {
+    const transaction = createTransaction(record.date, record.kind === 'purchase' ? 'transfer_out' : 'transfer_in', (record.kind === 'purchase' ? 'Compra' : 'Venda') + ' · ' + record.playerName, record.kind === 'purchase' ? -record.fee : record.fee, undefined, 'transfer:' + record.id)
+    const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]
+    const finalBalance = applyTransaction(financeBalance, transaction)
+    setTransferState(nextState)
+    localStorage.setItem(TRANSFERS_KEY, JSON.stringify(nextState))
+    saveFinance(finalBalance, finalTransactions)
+    const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    onCareerUpdate(nextCareer)
+    void (async () => {
+      const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+      const { data: playerRow } = await supabase.from('club_players').select('id,club_id').eq('player_id', record.playerId).maybeSingle()
+      if (playerRow?.id) {
+        const update = await supabase.from('club_players').update({ club_id: record.toClubId }).eq('id', playerRow.id)
+        if (!update.error && seasonRow?.id) {
+          await supabase.from('world_transfers').upsert({
+            season_id: seasonRow.id,
+            transfer_date: record.date,
+            player_id: record.playerId,
+            from_club_id: record.fromClubId === 'free-agent' ? null : record.fromClubId,
+            to_club_id: record.toClubId,
+            fee: record.fee,
+            reason: record.kind === 'purchase' ? 'user_purchase' : 'user_sale',
+          }, { onConflict: 'season_id,player_id,transfer_date' })
+        }
+      }
+      if (record.kind === 'sale') {
+        await supabase.from('clubs').update({ budget: finalBalance }).eq('id', career.club.id)
+      }
+    })()
+    goToView('overview')
+  }} back={() => goToView('overview')} />
   if (view === 'squad') return viewOpponent
     ? <OpponentSquad players={opponentPlayers} club={opponent ?? null} today={clock?.currentDate ?? SEASON_START} back={() => { setViewOpponent(false); goToView('overview') }} />
     : <Squad players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
