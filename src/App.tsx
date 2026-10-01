@@ -122,6 +122,37 @@ function addDays(date: string, days: number) {
   return next.toISOString().slice(0, 10)
 }
 
+
+async function ensureCompetitionTeams(seasonId: string, competitionId: string, clubs: Club[]) {
+  if (!clubs.length) return
+  const { data: existing, error: readError } = await supabase
+    .from('competition_teams')
+    .select('club_id')
+    .eq('season_id', seasonId)
+    .eq('competition_id', competitionId)
+
+  if (readError) {
+    console.error('Não foi possível verificar os participantes da competição', readError)
+    return
+  }
+
+  const existingIds = new Set((existing ?? []).map(row => String(row.club_id)))
+  const rows = clubs
+    .filter(club => !existingIds.has(club.id))
+    .map(club => ({
+      season_id: seasonId,
+      competition_id: competitionId,
+      club_id: club.id,
+    }))
+
+  if (!rows.length) return
+
+  const { error: insertError } = await supabase.from('competition_teams').insert(rows)
+  if (insertError) {
+    console.error('Não foi possível registrar os participantes da competição', insertError)
+  }
+}
+
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
 }
@@ -265,6 +296,8 @@ function GameApp() {
         .maybeSingle()
 
       if (activeSeason && serieBCompetition?.id && serieB.length === 20) {
+        await ensureCompetitionTeams(activeSeason.id, serieBCompetition.id, serieB)
+
         const { data: existingBFixtures } = await supabase
           .from('fixtures')
           .select('id')
@@ -1210,6 +1243,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     // O banco é a fonte de verdade da nova temporada; sincronizamos o estado
     // local antes de reconstruir calendário, IA e telas do universo.
     onClubsUpdate(nextClubs)
+
+    await ensureCompetitionTeams(nextSeasonId, leagueId, activeClubs)
+    await ensureCompetitionTeams(nextSeasonId, serieBId, serieBClubs)
+    await ensureCompetitionTeams(nextSeasonId, cupId, activeClubs)
 
     const { data: existingFixtures } = await supabase
       .from('fixtures')
