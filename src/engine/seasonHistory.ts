@@ -83,7 +83,8 @@ export function buildCompetitionHistoryResult(
     championClubId = standings[0].id
     runnerUpClubId = standings[1]?.id ?? null
   } else {
-    const final = fixtures.find(item => item.round === 7 && item.status === 'completed')
+    const finalRound = Math.max(...fixtures.map(item => item.round), 0)
+    const final = fixtures.find(item => item.round === finalRound && item.status === 'completed')
     if (!final || !final.winner_club_id) return null
     championClubId = final.winner_club_id
     runnerUpClubId = final.home_club_id === championClubId ? final.away_club_id : final.home_club_id
