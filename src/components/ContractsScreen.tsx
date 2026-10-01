@@ -16,10 +16,18 @@ function statusLabel(status: ReturnType<typeof getContractStatus>, days: number 
 }
 export default function ContractsScreen({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (oldSalary: number, newSalary: number) => void; back: () => void }) {
   const [selected, setSelected] = useState<Player | null>(null)
-  const rows = useMemo(() => players.map(player => {
-    const until = player.contractUntil ?? null
-    return { player, status: getContractStatus(until, today), days: daysUntilContractEnd(until, today) }
-  }).sort((a, b) => (a.days ?? 999999) - (b.days ?? 999999)), [players, today])
+  const rows = useMemo(() => {
+    let saved: Record<string, { contract_until?: string | null; salary?: number }> = {}
+    try { saved = JSON.parse(localStorage.getItem('futebol-manager:contracts') ?? '{}') } catch {}
+    return players.map(player => {
+      const override = saved[player.id]
+      const effectivePlayer = override
+        ? { ...player, contractUntil: override.contract_until ?? player.contractUntil, salary: Number(override.salary ?? player.salary ?? 0) }
+        : player
+      const until = effectivePlayer.contractUntil ?? null
+      return { player: effectivePlayer, status: getContractStatus(until, today), days: daysUntilContractEnd(until, today) }
+    }).sort((a, b) => (a.days ?? 999999) - (b.days ?? 999999))
+  }, [players, today])
   const critical = rows.filter(row => row.status === 'critical' || row.status === 'expired').length
   const attention = rows.filter(row => row.status === 'attention').length
   return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
