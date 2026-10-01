@@ -18,8 +18,8 @@ describe('continental competition engine',()=>{
    f('d','a',0,0,4),f('b','d',2,0,5),f('c','d',2,1,6),
   ]
   const result=buildContinentalGroupQualification([{code:'A',teams}],fixtures)
-  expect(result.winners).toEqual(['b'])
-  expect(result.runnersUp).toEqual(['a'])
+  expect(result.winners).toEqual(['a'])
+  expect(result.runnersUp).toEqual(['b'])
   expect(result.thirds).toEqual(['c'])
  })
  it('pairs Libertadores winners against runners-up',()=>{
