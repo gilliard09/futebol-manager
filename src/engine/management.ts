@@ -139,8 +139,9 @@ export function managerContractSalary(clubReputation: number, confidence: number
   return Math.round((25_000 * reputationFactor * confidenceFactor) / 1_000) * 1_000
 }
 
-export function resolveContractAtSeasonEnd(state: BoardState): BoardState {
+export function resolveContractAtSeasonEnd(state: BoardState, currentSeasonName?: string): BoardState {
   if (state.managerStatus === 'dismissed') return state
+  if (currentSeasonName && state.contractEndSeason !== currentSeasonName) return state
   if (state.confidence >= 55) {
     return { ...state, managerStatus: 'active', renewalOffered: true }
   }
