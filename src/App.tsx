@@ -2979,22 +2979,28 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           undefined,
           `matchday-cost:${activeMatchFixture.id}`,
         )
-        const nextBalanceAfterRevenue = addFinanceTransaction(transaction) ?? financeBalance
-        const nextBalance = addFinanceTransaction(matchCost) ?? nextBalanceAfterRevenue
         const redCards = result.events.filter(event => event.type === 'red_card').length
         const injuries = result.events.filter(event => event.type === 'injury').length
-        const fineAmount = calculateFineAndOperationalCost(redCards, injuries, 0, calculateFinancialStatus(nextBalance, salaryTotal) === 'crítico')
-        let finalMatchBalance = nextBalance
-        if (fineAmount > 0) {
-          finalMatchBalance = addFinanceTransaction(createTransaction(
-            toDateKey(activeMatchFixture.scheduled_at),
-            'fine',
-            'Multas e custos disciplinares da partida',
-            -fineAmount,
-            undefined,
-            `fine:${activeMatchFixture.id}`,
-          )) ?? finalMatchBalance
+        const fineAmount = calculateFineAndOperationalCost(redCards, injuries, 0, calculateFinancialStatus(financeBalance, salaryTotal) === 'crítico')
+        const fineTransaction = fineAmount > 0
+          ? createTransaction(
+              toDateKey(activeMatchFixture.scheduled_at),
+              'fine',
+              'Multas e custos disciplinares da partida',
+              -fineAmount,
+              undefined,
+              `fine:${activeMatchFixture.id}`,
+            )
+          : null
+        const matchTransactions = [transaction, matchCost, ...(fineTransaction ? [fineTransaction] : [])]
+        let finalMatchBalance = financeBalance
+        let finalMatchTransactions = financeTransactions
+        for (const item of matchTransactions) {
+          if (finalMatchTransactions.some(existing => existing.eventId === item.eventId)) continue
+          finalMatchTransactions = [...finalMatchTransactions, item]
+          finalMatchBalance = applyTransaction(finalMatchBalance, item)
         }
+        saveFinance(finalMatchBalance, finalMatchTransactions)
         const nextCareer = { ...career, club: { ...career.club, budget: finalMatchBalance } }
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
         onCareerUpdate(nextCareer)
