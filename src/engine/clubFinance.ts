@@ -69,9 +69,10 @@ export function calculateExpectedAttendance(
     Math.max(0, Math.min(100, reputation)) / 240 +
     Math.max(0, Math.min(100, fanSatisfaction)) / 420 +
     Math.max(0, Math.min(100, opponentReputation)) / 850
+  const safeCapacity = Math.max(1, Math.round(capacity))
   return Math.min(
-    Math.max(1_500, Math.round(capacity * demand * priceFactor * resultFactor)),
-    Math.max(1_500, capacity),
+    safeCapacity,
+    Math.max(0, Math.round(safeCapacity * demand * priceFactor * resultFactor)),
   )
 }
 
@@ -175,7 +176,9 @@ export function buildSeasonFinancialHistory(
   const playerSalaryExpenses = Math.abs(sum(['salary']))
   const staffSalaryExpenses = Math.abs(sum(['staff_salary']))
   const stadiumExpenses = Math.abs(sum(['stadium_maintenance']))
-  const finesAndCosts = Math.abs(sum(['fine', 'other']))
+  const finesAndCosts = ledgerTransactions
+    .filter(item => item.type === 'fine' || item.type === 'other')
+    .reduce((total, item) => total + Math.abs(item.amount), 0)
   return {
     seasonId,
     seasonName,
