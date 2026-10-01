@@ -23,6 +23,8 @@ export type ManagerOfferClub = {
   id: string
   name: string
   reputation?: number | null
+  budget?: number | null
+  strength?: number | null
 }
 
 export function clampPopularity(value: number) {
@@ -124,5 +126,20 @@ export function buildManagerRecords(input: {
     mostPoints: points.length ? Math.max(...points) : 0,
     mostWins: wins.length ? Math.max(...wins) : 0,
     titles: input.trophies,
+  }
+}
+
+
+export function managerContractEndSeason(currentSeason: string, years: number) {
+  const year = Number(currentSeason.match(/\d{4}/)?.[0] ?? new Date().getFullYear())
+  return 'Temporada ' + (year + Math.max(1, Math.round(years)))
+}
+
+export function managerDeparturePopularity(popularity: ManagerPopularity, reason: 'dismissed' | 'contract_ended' | 'resigned') {
+  const penalty = reason === 'resigned' ? 2 : reason === 'dismissed' ? 1 : 0
+  return {
+    regional: clampPopularity(popularity.regional - penalty),
+    national: clampPopularity(popularity.national - (penalty > 0 ? 1 : 0)),
+    international: clampPopularity(popularity.international),
   }
 }
