@@ -28,6 +28,7 @@ import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
+import type { AIClubManager } from './engine/aiClubManagement'
 import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
@@ -57,6 +58,8 @@ const BOARD_KEY = 'futebol-manager:board'
 const FANS_KEY = 'futebol-manager:fans'
 const COMMERCIAL_KEY = 'futebol-manager:commercial'
 const MANAGER_STATUS_KEY = 'futebol-manager:manager-status'
+const AI_MANAGERS_KEY = 'futebol-manager:ai-managers'
+const AI_BOARD_DECISIONS_KEY = 'futebol-manager:ai-board-decisions'
 
 
 function marketInterestStorageKey(seasonId: string) {
@@ -280,6 +283,8 @@ function GameApp() {
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(WORLD_NEWS_KEY)
     localStorage.removeItem(MANAGER_STATUS_KEY)
+    localStorage.removeItem(AI_MANAGERS_KEY)
+    localStorage.removeItem(AI_BOARD_DECISIONS_KEY)
     Object.keys(localStorage)
       .filter(key => key.startsWith(BOARD_KEY + ':') || key.startsWith(FANS_KEY + ':') || key.startsWith(COMMERCIAL_KEY + ':') || key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':'))
       .forEach(key => localStorage.removeItem(key))
@@ -1648,14 +1653,22 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const state = await loadWorldState()
     if (!state) return []
     const previousMarketInterest = loadMarketInterest(state.seasonId)
+    const previousAIManagers: AIClubManager[] = (() => {
+      try { return JSON.parse(localStorage.getItem(AI_MANAGERS_KEY) ?? '[]') } catch { return [] }
+    })()
     const activeLoans: LoanRecord[] = (() => {
       try {
         const stored: LoanState = JSON.parse(localStorage.getItem(LOANS_KEY) ?? '{"records":[]}')
         return stored.records ?? []
       } catch { return [] }
     })()
-    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans)
+    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans, previousAIManagers)
     localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
+    localStorage.setItem(AI_MANAGERS_KEY, JSON.stringify(result.aiManagers))
+    const previousDecisions: unknown[] = (() => {
+      try { return JSON.parse(localStorage.getItem(AI_BOARD_DECISIONS_KEY) ?? '[]') } catch { return [] }
+    })()
+    localStorage.setItem(AI_BOARD_DECISIONS_KEY, JSON.stringify([...result.boardDecisions, ...previousDecisions].slice(0, 120)))
     const news = buildWorldNews(result, state.worldClubs, state.playersForWorld, state.performanceByClub, career.club.id)
     await persistWorldState(state.seasonId, state.worldClubs, state.playersForWorld, [result])
     appendWorldNews(news)
@@ -1670,6 +1683,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const news: WorldNews[] = []
     let currentDate = startDate
     let event: ImportantEvent | null = null
+    let aiManagers: AIClubManager[] = (() => {
+      try { return JSON.parse(localStorage.getItem(AI_MANAGERS_KEY) ?? '[]') } catch { return [] }
+    })()
 
     while (currentDate < targetDate) {
       currentDate = advanceSeasonDay({ currentDate, seasonStart: startDate }).currentDate
@@ -1729,8 +1745,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           return [...(stored.records ?? []), ...results.flatMap(item => item.loans ?? [])]
         } catch { return results.flatMap(item => item.loans ?? []) }
       })()
-      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans)
+      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans, aiManagers)
+      aiManagers = result.aiManagers
       localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
+      localStorage.setItem(AI_MANAGERS_KEY, JSON.stringify(aiManagers))
+      const previousDecisions: unknown[] = (() => {
+        try { return JSON.parse(localStorage.getItem(AI_BOARD_DECISIONS_KEY) ?? '[]') } catch { return [] }
+      })()
+      localStorage.setItem(AI_BOARD_DECISIONS_KEY, JSON.stringify([...result.boardDecisions, ...previousDecisions].slice(0, 120)))
       results.push(result)
       news.push(...buildWorldNews(result, state.worldClubs, state.playersForWorld))
       const offer = result.offers[0]
