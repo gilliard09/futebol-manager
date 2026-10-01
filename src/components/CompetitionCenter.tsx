@@ -45,7 +45,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   useEffect(() => {
     let active = true
     ;(async () => {
-      const { data: season } = seasonId
+      const { data: season } = careerSeasonId
         ? await supabase.from('seasons').select('id,status').eq('id', careerSeasonId).maybeSingle()
         : await supabase.from('seasons').select('id,status').eq('name', seasonName).maybeSingle()
       const { data: allSeasons } = await supabase.from('seasons').select('id,name,year,status').order('year', { ascending: false })
