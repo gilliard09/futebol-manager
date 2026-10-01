@@ -2749,6 +2749,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     const nextClock = advanceSeasonDay(fromClock)
     const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
     await simulateOtherDivisionMatches(nextClock.currentDate)
+    await simulateContinentalUntil(nextClock.currentDate)
     if (worldResult?.event) setPendingEvent(worldResult.event)
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
@@ -2799,6 +2800,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     try {
       const advanceResult = await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
       const targetDate = advanceResult?.date ?? nextMatchDate
+      await simulateContinentalUntil(targetDate)
       if (advanceResult?.event) setPendingEvent(advanceResult.event)
 
       let current = clock
