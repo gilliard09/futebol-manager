@@ -37,11 +37,11 @@ function winner(a:Club,b:Club){return rank(a,b)<=0?a:b}
 function pair(teams:Club[],stage:ContinentalFixture['stage'],competitionId:string,seasonId:string,year:number,startRound:number){
  const ordered=[...teams].sort(rank),fixtures:ContinentalFixture[]=[],winners:Club[]=[],losers:Club[]=[]
  for(let i=0;i+1<ordered.length;i+=2){const a=ordered[i],b=ordered[i+1];const w=winner(a,b);winners.push(w);losers.push(w.id===a.id?b:a);fixtures.push(
-  {competitionId,seasonId,round:startRound,homeClubId:b.id,awayClubId:a.id,scheduledAt:new Date(Date.UTC(year,1,10+i,19)).toISOString(),stage},
-  {competitionId,seasonId,round:startRound+1,homeClubId:a.id,awayClubId:b.id,scheduledAt:new Date(Date.UTC(year,1,17+i,19)).toISOString(),stage}
+  {competitionId,seasonId,round:startRound,homeClubId:b.id,awayClubId:a.id,scheduledAt:new Date(Date.UTC(year,1,18+i,19)).toISOString(),stage},
+  {competitionId,seasonId,round:startRound+1,homeClubId:a.id,awayClubId:b.id,scheduledAt:new Date(Date.UTC(year,1,25+i,19)).toISOString(),stage}
  )}return{winners,losers,fixtures}
 }
-function single(teams:Club[],competitionId:string,seasonId:string,year:number){const ordered=[...teams].sort(rank),fixtures:ContinentalFixture[]=[],winners:Club[]=[];for(let i=0;i+1<ordered.length;i+=2){const a=ordered[i],b=ordered[i+1];winners.push(winner(a,b));fixtures.push({competitionId,seasonId,round:1,homeClubId:a.id,awayClubId:b.id,scheduledAt:new Date(Date.UTC(year,1,24+i,19)).toISOString(),stage:'preliminary'})}return{winners,fixtures}}
+function single(teams:Club[],competitionId:string,seasonId:string,year:number){const ordered=[...teams].sort(rank),fixtures:ContinentalFixture[]=[],winners:Club[]=[];for(let i=0;i+1<ordered.length;i+=2){const a=ordered[i],b=ordered[i+1];winners.push(winner(a,b));fixtures.push({competitionId,seasonId,round:1,homeClubId:a.id,awayClubId:b.id,scheduledAt:new Date(Date.UTC(year,1,18+i,19)).toISOString(),stage:'preliminary'})}return{winners,fixtures}}
 
 export function buildContinentalPreliminaryPlan(allForeignClubs:Club[],libBrazil:Club[],sulaBrazil:Club[],libId:string,sulaId:string,seasonId:string,year:number):ContinentalPreliminaryPlan{
  const foreign=[...allForeignClubs].filter(c=>c.country!=='Brasil').sort(rank)
