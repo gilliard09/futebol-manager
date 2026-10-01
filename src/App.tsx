@@ -9,6 +9,8 @@ import type { PlayedMatch } from './types/game'
 import PlayerProfile from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
 import LoanMarket from './components/LoanMarket'
+import BoardScreen from './components/BoardScreen'
+import ContractsScreen from './components/ContractsScreen'
 import CompetitionCenter from './components/CompetitionCenter'
 import PressCenter from './components/PressCenter'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
@@ -288,7 +290,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
   return <main className="min-h-screen"><Top label="ESCOLHA SEU CLUBE" back={back} /><section className="mx-auto max-w-5xl px-6 py-12 md:px-10"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">02 / 02</span><h1 className="mt-3 text-4xl font-bold tracking-[-0.03em] md:text-5xl">Onde começa sua história?</h1><p className="mt-4 max-w-xl leading-7 text-white/45">Escolha um dos clubes disponíveis para iniciar a temporada 2026.</p>{selected && <div className="mt-6 inline-block rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm"><span className="text-white/35">Selecionado</span><p className="font-semibold text-emerald-300">{selected.name}</p></div>}{loading && <div className="py-20 text-center text-sm text-white/35">Carregando clubes...</div>}{error && <div className="mt-10 rounded-xl border border-red-400/15 bg-red-400/5 p-5 text-sm text-red-200">Não foi possível carregar os clubes. {error}</div>}{!loading && !error && <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{clubs.map(club => <button key={club.id} onClick={() => select(club)} className={`group rounded-2xl border p-5 text-left transition ${selected?.id === club.id ? 'border-emerald-400/50 bg-emerald-400/8' : 'border-white/6 bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.045]'}`}><div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5">{club.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <span className={selected?.id === club.id ? 'text-emerald-700' : 'text-slate-500'}>{club.short_name.slice(0, 3)}</span>}</div><ChevronRight size={17} className="text-white/15 group-hover:text-white/45" /></div><h2 className="mt-5 font-semibold">{club.name}</h2><div className="mt-2 flex items-center gap-2 text-xs text-white/35"><MapPin size={13} />{club.city}</div><div className="mt-5 flex items-center justify-between border-t border-white/6 pt-4 text-xs"><span className="text-white/30">Capital inicial</span><span className="font-semibold text-emerald-300/80">{money(club.budget)}</span></div></button>)}</div>}<div className="mt-10 flex justify-end"><button disabled={!selected} onClick={confirm} className="flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">Assumir o clube <ArrowRight size={17} /></button></div></section></main>
 }
 
-type DashboardView = 'overview' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
+type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
 
 function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onNextSeason: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
@@ -300,7 +302,7 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
   })
   const location = useLocation()
   const navigate = useNavigate()
-  const dashboardViews: DashboardView[] = ['overview', 'calendar', 'news', 'squad', 'tactics', 'finance', 'stadium', 'trophies', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
+  const dashboardViews: DashboardView[] = ['overview', 'board', 'contracts', 'calendar', 'news', 'squad', 'tactics', 'finance', 'stadium', 'trophies', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
   const pathView = location.pathname.split('/')[2] as DashboardView | undefined
   const initialView = pathView && dashboardViews.includes(pathView) ? pathView : 'overview'
   const [view, setView] = useState<DashboardView>(initialView)
@@ -1725,6 +1727,8 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
     setPendingEvent(null)
   }
 
+  if (view === 'board') return <BoardScreen club={career.club} board={boardState} fans={fanState} balance={financeBalance} monthlyPayroll={salaryTotal} back={() => goToView('overview')} />
+  if (view === 'contracts') return <ContractsScreen players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
   if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'news') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
   if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} back={() => goToView('overview')} />
@@ -2352,6 +2356,8 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     {
       label: 'Clube',
       items: [
+        { key: 'board', label: 'Diretoria', icon: Building2 },
+        { key: 'contracts', label: 'Contratos', icon: Handshake },
         { key: 'calendar', label: 'Calendário', icon: CalendarDays },
         { key: 'news', label: 'Notícias', icon: Newspaper },
         { key: 'squad', label: 'Elenco', icon: Users },
@@ -2421,7 +2427,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0d1421]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
       <div className="flex gap-1 overflow-x-auto overscroll-contain pb-1">
         {[
-          ['overview','Dashboard',House],['calendar','Calendário',CalendarDays],['news','Notícias',Newspaper],['squad','Elenco',Users],
+          ['overview','Dashboard',House],['board','Diretoria',Building2],['contracts','Contratos',Handshake],['calendar','Calendário',CalendarDays],['news','Notícias',Newspaper],['squad','Elenco',Users],
           ['tactics','Táticas',Shield],['finance','Finanças',WalletCards],['stadium','Estádio',Building2],['market','Mercado',ShoppingBag],
           ['stats','Estatísticas',BarChart3],['training','Treinamento',Dumbbell],['trophies','Troféus',Trophy],['settings','Configurações',Settings],
         ].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex min-w-[72px] shrink-0 flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/40'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
