@@ -28,7 +28,7 @@ import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } fr
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
-import { buildContinentalGroupFixtures, buildContinentalGroups, resolveBrazilianContinentalQualifications, selectForeignContinentalClubs } from './engine/continentalQualification'
+import { buildContinentalGroupFixtures, buildContinentalGroups, buildContinentalPreliminaryPlan, resolveBrazilianContinentalQualifications } from './engine/continentalQualification'
 import { buildCupPrizePayments, buildLeaguePrizePayments, type CompetitionPrizeConfig, type PrizePayment } from './engine/competitionPrizes'
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import type { AIClubManager } from './engine/aiClubManagement'
@@ -849,7 +849,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           .update({ division: promoted.has(clubId) ? 1 : 2 })
           .eq('id', clubId)
         if (divisionError) {
-          console.error('Não tem.clubId === club.id && item.competition === 'sudamericana'))),
+          console.error('Não foi possível atualizar a divisão do clube', divisionError)
+        }
         ])
       }
 
@@ -1288,9 +1289,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       return
     }
 
-    // Monta as competições continentais da nova temporada a partir dos resultados
-    // da temporada encerrada. O campo estrangeiro usa somente o pool sul-americano
-    // cadastrado no banco e é escolhido por força/reputação.
+    // Monta o caminho continental completo antes da fase de grupos.
+    // A Libertadores passa por Fase 1, Fase 2 e Fase 3. Os quatro eliminados
+    // na Fase 3 são transferidos automaticamente para a fase de grupos da Sul-Americana.
     const { data: continentalCompetitions } = await supabase
       .from('competitions')
       .select('id,name')
@@ -1322,23 +1323,26 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       const libBrazilIds = new Set(libBrazil.map(item => item.clubId))
       const sulaBrazilIds = new Set(sulaBrazil.map(item => item.clubId))
 
-      const libForeign = selectForeignContinentalClubs(nextClubs, libBrazilIds, Math.max(0, 32 - libBrazil.length))
-      const usedForeign = new Set(libForeign.map(club => club.id))
-      const sulaForeign = selectForeignContinentalClubs(nextClubs, new Set([...sulaBrazilIds, ...usedForeign]), Math.max(0, 32 - sulaBrazil.length))
+      const foreignPool = nextClubs.filter(club => club.country !== 'Brasil')
+      const preliminaryPlan = buildContinentalPreliminaryPlan(
+        foreignPool,
+        nextClubs.filter(club => libBrazilIds.has(club.id)),
+        nextClubs.filter(club => sulaBrazilIds.has(club.id)),
+        libertadoresId,
+        sudamericanaId,
+        nextSeasonId,
+        nextYear,
+      )
 
-      const libClubs = [
-        ...nextClubs.filter(club => libBrazilIds.has(club.id)),
-        ...libForeign,
-      ]
-      const sulaClubs = [
-        ...nextClubs.filter(club => sulaBrazilIds.has(club.id)),
-        ...sulaForeign,
-      ]
+      const libClubs = preliminaryPlan.libertadores.groupClubs
+      const sulaClubs = preliminaryPlan.sudamericana.groupClubs
 
       if (libClubs.length !== 32 || sulaClubs.length !== 32) {
         console.error('Não foi possível completar os campos continentais', {
           libertadores: libClubs.length,
           sudamericana: sulaClubs.length,
+          libertadoresPreliminares: preliminaryPlan.libertadores.phase1.length + preliminaryPlan.libertadores.phase2Direct.length,
+          sulAmericanaPreliminar: preliminaryPlan.sudamericana.firstPhaseClubs.length,
         })
         return
       }
@@ -1374,18 +1378,18 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       if (!(existingContinentalFixtures?.length)) {
         const libDraw = buildContinentalGroups('libertadores', libClubs)
         const sulaDraw = buildContinentalGroups('sudamericana', sulaClubs)
-        const year = nextYear
-
         const groupRows = [
           ...libDraw.groups.map((_, index) => ({ season_id: nextSeasonId, competition_id: libertadoresId, stage: 'group_stage', group_code: String.fromCharCode(65 + index) })),
           ...sulaDraw.groups.map((_, index) => ({ season_id: nextSeasonId, competition_id: sudamericanaId, stage: 'group_stage', group_code: String.fromCharCode(65 + index) })),
         ]
 
         await supabase.from('competition_groups').delete().eq('season_id', nextSeasonId).in('competition_id', [libertadoresId, sudamericanaId])
+
         const { data: createdGroups, error: groupsError } = await supabase
           .from('competition_groups')
           .insert(groupRows)
           .select('id,competition_id,group_code')
+
         if (groupsError || !createdGroups || createdGroups.length !== 16) {
           console.error('Não foi possível criar os grupos continentais', groupsError)
           return
@@ -1393,20 +1397,19 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
         const groupTeamRows = [
           ...libDraw.groups.flatMap((group, index) => {
-            const groupRow = createdGroups.find(row => row.competition_id === libertadoresId && row.group_code === String.fromCharCode(65 + index))
-            return group.map((club, seed) => ({ group_id: groupRow!.id, club_id: club.id, seed: seed + 1 }))
+            const row = createdGroups.find(item => item.competition_id === libertadoresId && item.group_code === String.fromCharCode(65 + index))
+            return group.map((club, seed) => ({ group_id: row!.id, club_id: club.id, seed: seed + 1 }))
           }),
           ...sulaDraw.groups.flatMap((group, index) => {
-            const groupRow = createdGroups.find(row => row.competition_id === sudamericanaId && row.group_code === String.fromCharCode(65 + index))
-            return group.map((club, seed) => ({ group_id: groupRow!.id, club_id: club.id, seed: seed + 1 }))
+            const row = createdGroups.find(item => item.competition_id === sudamericanaId && item.group_code === String.fromCharCode(65 + index))
+            return group.map((club, seed) => ({ group_id: row!.id, club_id: club.id, seed: seed + 1 }))
           }),
         ]
-
         await supabase.from('competition_group_teams').insert(groupTeamRows)
 
-        const fixtureRows = [
-          ...buildContinentalGroupFixtures(nextSeasonId, libertadoresId, libDraw.groups, year),
-          ...buildContinentalGroupFixtures(nextSeasonId, sudamericanaId, sulaDraw.groups, year),
+        const groupFixtures = [
+          ...buildContinentalGroupFixtures(nextSeasonId, libertadoresId, libDraw.groups, nextYear),
+          ...buildContinentalGroupFixtures(nextSeasonId, sudamericanaId, sulaDraw.groups, nextYear),
         ].map(fixture => ({
           competition_id: fixture.competitionId,
           season_id: fixture.seasonId,
@@ -1418,7 +1421,24 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           stage: fixture.stage,
         }))
 
-        const { error: continentalFixtureError } = await supabase.from('fixtures').insert(fixtureRows)
+        const preliminaryFixtures = preliminaryPlan.fixtures.map(fixture => ({
+          competition_id: fixture.competitionId,
+          season_id: fixture.seasonId,
+          round: fixture.round,
+          home_club_id: fixture.homeClubId,
+          away_club_id: fixture.awayClubId,
+          scheduled_at: fixture.scheduledAt,
+          status: 'completed',
+          home_score: null,
+          away_score: null,
+          winner_club_id: null,
+          stage: fixture.stage,
+        }))
+
+        const { error: continentalFixtureError } = await supabase
+          .from('fixtures')
+          .insert([...preliminaryFixtures, ...groupFixtures])
+
         if (continentalFixtureError) {
           console.error('Não foi possível criar o calendário continental', continentalFixtureError)
           return
