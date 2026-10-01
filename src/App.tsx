@@ -2742,7 +2742,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       return groupFixtures.length === 96
     }
 
-    const createRows = async (competitionId: string, rows: Array<{round:number;homeClubId:string;awayClubId:string;scheduledAt:string;stage:string}>) => {
+    const createRows = async (competitionId: string, rows: Array<{round:number;homeClubId:string;awayClubId:string;scheduledAt:string;stage:string;neutralVenue?:boolean;venueName?:string}>) => {
       if (!rows.length) return
       await supabase.from('fixtures').insert(rows.map(row => ({
         competition_id: competitionId,
