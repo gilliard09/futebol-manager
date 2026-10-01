@@ -21,7 +21,7 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-white/5 bg-black/10 p-4"><p className="text-xs text-white/25">{label}</p><p className="mt-1 text-sm font-semibold">{value}</p></div>
 }
 
-export default function CompetitionCenter({ clubs, currentClubId, playedMatches, seasonName, back }: {
+export default function CompetitionCenter({ clubs, currentClubId, playedMatches, seasonName, seasonId: careerSeasonId, back }: {
   clubs: Club[]
   currentClubId: string
   playedMatches: PlayedMatch[]
@@ -46,7 +46,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
     let active = true
     ;(async () => {
       const { data: season } = seasonId
-        ? await supabase.from('seasons').select('id,status').eq('id', seasonId).maybeSingle()
+        ? await supabase.from('seasons').select('id,status').eq('id', careerSeasonId).maybeSingle()
         : await supabase.from('seasons').select('id,status').eq('name', seasonName).maybeSingle()
       const { data: allSeasons } = await supabase.from('seasons').select('id,name,year,status').order('year', { ascending: false })
       const seasonIds = (allSeasons ?? []).map(item => item.id)
@@ -122,7 +122,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       setLoading(false)
     })()
     return () => { active = false }
-  }, [competition, seasonName, seasonId, currentClubId])
+  }, [competition, seasonName, careerSeasonId, currentClubId])
 
   const brazilianFirstDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 1)
   const brazilianSecondDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 2)
