@@ -74,6 +74,8 @@ export function clubCanApproachManager(
   clubReputation: number,
   performanceScore: number,
 ) {
+  const totalPopularity = popularity.regional + popularity.national + popularity.international
+  if (totalPopularity < 20 || performanceScore < 25) return false
   const level = offerLevelForPopularity(popularity)
   const threshold =
     level === 'international' ? 72 :
