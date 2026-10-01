@@ -11,6 +11,7 @@ export type BoardState = {
   consecutivePoorResults: number
   managerStatus: 'active' | 'dismissed' | 'contract_ended' | 'renewed'
   contractEndSeason: string
+  contractYears: number
   renewalOffered: boolean
 }
 
@@ -51,6 +52,7 @@ export function createBoardState(seasonId: string, seasonName: string, reputatio
     consecutivePoorResults: 0,
     managerStatus: 'active',
     contractEndSeason: seasonName,
+    contractYears: 1,
     renewalOffered: false,
   }
 }
@@ -145,12 +147,14 @@ export function resolveContractAtSeasonEnd(state: BoardState): BoardState {
   return { ...state, managerStatus: 'contract_ended', renewalOffered: false }
 }
 
-export function acceptManagerRenewal(state: BoardState, nextSeasonName: string): BoardState {
+export function acceptManagerRenewal(state: BoardState, nextSeasonName: string, years = managerContractYears(state.confidence)): BoardState {
   if (!state.renewalOffered || state.managerStatus !== 'active') return state
+  const startYear = Number(nextSeasonName.match(/\\d{4}/)?.[0] ?? new Date().getFullYear())
   return {
     ...state,
     managerStatus: 'renewed',
-    contractEndSeason: nextSeasonName,
+    contractEndSeason: 'Temporada ' + (startYear + Math.max(1, Math.round(years))),
+    contractYears: Math.max(1, Math.round(years)),
     renewalOffered: false,
   }
 }
