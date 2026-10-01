@@ -2934,10 +2934,36 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       applyMatchManagement(result, activeMatchFixture)
       if (matchHome && clock) {
         const userOutcome: 'W' | 'D' | 'L' = result.homeScore > result.awayScore ? 'W' : result.homeScore < result.awayScore ? 'L' : 'D'
-        const attendance = estimateFanAttendance(career.club.reputation, fanState.satisfaction)
-        const revenue = calculateMatchRevenueFromAttendance(attendance, 35, userOutcome)
-        const transaction = createTransaction(toDateKey(activeMatchFixture.scheduled_at), 'match_revenue', `Bilheteria · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'} · ${attendance} torcedores`, revenue, undefined, `match_revenue:${activeMatchFixture.id}`)
-        const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
+        const opponentClubId = matchHome ? activeMatchFixture.away_club_id : activeMatchFixture.home_club_id
+        const opponentReputation = Number(clubs.find(club => club.id === opponentClubId)?.reputation ?? 50)
+        const isCup = activeMatchFixture.competition_name === 'Copa Nacional do Brasil'
+        const matchFinance = calculateMatchdayFinance(
+          commercial.stadium.capacity,
+          Number(career.club.reputation ?? 50),
+          fanState.satisfaction,
+          opponentReputation,
+          commercial.stadium.baseTicketPrice,
+          userOutcome,
+          isCup,
+        )
+        const transaction = createTransaction(
+          toDateKey(activeMatchFixture.scheduled_at),
+          'match_revenue',
+          `Bilheteria · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'} · ${matchFinance.attendance} torcedores · ingresso ${money(matchFinance.ticketPrice)}`,
+          matchFinance.grossRevenue,
+          undefined,
+          `match_revenue:${activeMatchFixture.id}`,
+        )
+        const matchCost = createTransaction(
+          toDateKey(activeMatchFixture.scheduled_at),
+          'other',
+          `Operação da partida · ${activeMatchFixture.home_club?.short_name ?? 'Mandante'}`,
+          -matchFinance.operatingCost,
+          undefined,
+          `matchday-cost:${activeMatchFixture.id}`,
+        )
+        const nextBalanceAfterRevenue = addFinanceTransaction(transaction) ?? financeBalance
+        const nextBalance = addFinanceTransaction(matchCost) ?? nextBalanceAfterRevenue
         const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
         onCareerUpdate(nextCareer)
