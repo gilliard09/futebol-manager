@@ -122,6 +122,7 @@ function normalizeManagementRow(row: any): { board: BoardState; fans: FanState }
       consecutivePoorResults: Number(row.consecutive_poor_results ?? 0),
       managerStatus: row.manager_status as BoardState['managerStatus'],
       contractEndSeason: row.contract_end_season,
+      contractYears: Number(row.contract_years ?? 1),
       renewalOffered: Boolean(row.renewal_offered),
     },
     fans: {
