@@ -2255,6 +2255,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     await supabase.from('manager_offers').update({ status: 'rejected', responded_at: new Date().toISOString() }).eq('owner_id', authUser.user.id).eq('status', 'pending').neq('id', offer.id)
 
     const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+    const departurePopularity = !seasonClosed ? managerDeparturePopularity(managerPopularity, 'resigned') : managerPopularity
     const targetConfidence = Math.max(55, Math.min(95, Math.round(Number(targetClub.reputation ?? 50) + 20)))
     const targetYears = managerContractYears(targetConfidence)
     const targetEndSeason = managerContractEndSeason(career.season, targetYears)
@@ -2264,7 +2265,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       careerStatus: 'active' as const,
       contractStartSeason: career.season,
       contractEndSeason: targetEndSeason,
-      lastDepartureReason: undefined,
+      lastDepartureReason: !seasonClosed ? 'resigned' as const : undefined,
     }
     const nextBoard = {
       ...createBoardState(career.season, career.season, Number(targetClub.reputation ?? 50), Number(targetClub.budget ?? 0), Number(targetClub.strength ?? targetClub.reputation ?? 50)),
@@ -2280,9 +2281,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
 
     await supabase.from('manager_profiles').update({
-      regional_popularity: managerPopularity.regional,
-      national_popularity: managerPopularity.national,
-      international_popularity: managerPopularity.international,
+      regional_popularity: departurePopularity.regional,
+      national_popularity: departurePopularity.national,
+      international_popularity: departurePopularity.international,
       current_club_id: targetClub.id,
       current_season_id: seasonRow?.id ?? null,
       updated_at: new Date().toISOString(),
@@ -2295,6 +2296,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(nextCommercial))
     onCareerUpdate(nextCareer)
     setCareerStatus('active')
+    setManagerPopularity(departurePopularity)
     setBoardState(nextBoard)
     setFanState(nextFans)
     setCommercial(nextCommercial)
