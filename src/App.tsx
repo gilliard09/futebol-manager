@@ -2118,6 +2118,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       currentClubId={career.club.id}
       nextSeasonName={seasonName(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR) + 1)}
       onNextSeason={startNextSeason}
+      managerOffers={managerOffers.filter(item => item.status === 'pending')}
+      onManagerOffer={respondToManagerOffer}
     />
   }
   if (view === 'board') return <BoardScreen club={career.club} board={boardState} fans={fanState} balance={financeBalance} monthlyPayroll={salaryTotal} back={() => goToView('overview')} />
