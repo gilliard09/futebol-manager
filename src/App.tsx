@@ -58,7 +58,6 @@ const seasonStart = (season: string) => `${Number(season.match(/\d{4}/)?.[0] ?? 
 const SEASON_START = seasonStart(SEASON_NAME)
 const leagueStartDate = (year: number) => `${year}-01-28`
 const cupStartDate = (year: number) => `${year}-02-18`
-const continentalGroupStartDate = (year: number) => `${year}-04-07`
 const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
 const WORLD_NEWS_KEY = 'futebol-manager:world-news'
