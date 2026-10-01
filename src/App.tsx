@@ -1156,6 +1156,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       .maybeSingle()
 
     let nextSeasonId = existingSeason?.id as string | undefined
+    if (existingSeason?.id && existingSeason.status !== 'active') {
+      await supabase.from('seasons').update({ status: 'active', start_date: nextStartDate, end_date: null }).eq('id', existingSeason.id)
+    }
     if (!nextSeasonId) {
       const { data: createdSeason, error: createSeasonError } = await supabase
         .from('seasons')
