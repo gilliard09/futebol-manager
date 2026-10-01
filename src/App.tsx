@@ -2570,6 +2570,179 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     return null
   }
 
+  async function simulateContinentalUntil(targetDate: string) {
+    if (!databaseSeasonId) return
+    const continental = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
+    const ids = new Map((continental.data ?? []).map(row => [row.name, row.id]))
+    if (!ids.size) return
+
+    const { data: pending } = await supabase
+      .from('fixtures')
+      .select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status')
+      .eq('season_id', databaseSeasonId)
+      .in('competition_id', [...ids.values()])
+      .eq('status', 'scheduled')
+      .lte('scheduled_at', targetDate)
+      .order('scheduled_at')
+
+    const clubMap = new Map(clubs.map(club => [club.id, club]))
+    await Promise.all((pending ?? [])
+      .filter(fixture => fixture.home_club_id !== career.club.id && fixture.away_club_id !== career.club.id)
+      .map(async fixture => {
+        const home = clubMap.get(fixture.home_club_id)
+        const away = clubMap.get(fixture.away_club_id)
+        if (!home || !away) return
+        const [homeScore, awayScore] = continentalAutoScore(home, away, fixture as any)
+        await supabase.from('fixtures').update({
+          status: 'completed',
+          home_score: homeScore,
+          away_score: awayScore,
+          winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
+        }).eq('id', fixture.id)
+      }))
+
+    await advanceContinentalStages()
+  }
+
+  async function advanceContinentalStages() {
+    if (!databaseSeasonId) return
+    const { data: competitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
+    const libId = competitions?.find(row => row.name === 'CONMEBOL Libertadores')?.id
+    const sulaId = competitions?.find(row => row.name === 'CONMEBOL Sudamericana')?.id
+    if (!libId || !sulaId) return
+
+    const [{ data: fixtures }, { data: groups }, { data: groupTeams }] = await Promise.all([
+      supabase.from('fixtures').select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status,home_score,away_score,winner_club_id').eq('season_id', databaseSeasonId).in('competition_id',[libId,sulaId]).order('scheduled_at'),
+      supabase.from('competition_groups').select('id,competition_id,group_code').eq('season_id',databaseSeasonId).in('competition_id',[libId,sulaId]),
+      supabase.from('competition_group_teams').select('group_id,club_id').in('group_id',(groups ?? []).map(row => row.id)),
+    ])
+    const allFixtures = (fixtures ?? []) as any[]
+    const groupRows = (groups ?? []) as any[]
+    const teamsByGroup = new Map<string,string[]>()
+    for (const row of groupTeams ?? []) {
+      const list = teamsByGroup.get(row.group_id) ?? []
+      list.push(row.club_id)
+      teamsByGroup.set(row.group_id,list)
+    }
+    const teamMap = new Map(clubs.map(club => [club.id, club]))
+
+    const getGroupData = (competitionId: string) =>
+      groupRows.filter(row => row.competition_id === competitionId).sort((a,b) => a.group_code.localeCompare(b.group_code)).map(row => ({
+        code: row.group_code,
+        teams: (teamsByGroup.get(row.id) ?? []).map(id => teamMap.get(id)).filter(Boolean),
+      })).filter(group => group.teams.length === 4) as Array<{code:string;teams:Club[]}>
+
+    const groupComplete = (competitionId: string) => {
+      const groupFixtures = allFixtures.filter(f => f.competition_id === competitionId && f.round <= 6 && f.status === 'completed' && f.home_score != null && f.away_score != null)
+      return groupFixtures.length === 48
+    }
+
+    const createRows = async (competitionId: string, rows: Array<{round:number;homeClubId:string;awayClubId:string;scheduledAt:string;stage:string}>) => {
+      if (!rows.length) return
+      await supabase.from('fixtures').insert(rows.map(row => ({
+        competition_id: competitionId,
+        season_id: databaseSeasonId,
+        round: row.round,
+        home_club_id: row.homeClubId,
+        away_club_id: row.awayClubId,
+        scheduled_at: row.scheduledAt,
+        status: 'scheduled',
+        stage: row.stage,
+      })))
+    }
+
+    const stageComplete = (competitionId: string, firstRound: number, lastRound: number, expected: number) => {
+      const rows = allFixtures.filter(f => f.competition_id === competitionId && f.round >= firstRound && f.round <= lastRound)
+      return rows.length === expected && rows.every(f => f.status === 'completed' && f.home_score != null && f.away_score != null)
+    }
+
+    const resolveWinners = (competitionId: string, firstRound: number, secondRound: number) => {
+      const rows = allFixtures.filter(f => f.competition_id === competitionId && (f.round === firstRound || f.round === secondRound) && f.status === 'completed' && f.home_score != null && f.away_score != null)
+      const ties = new Map<string, any[]>()
+      for (const fixture of rows) {
+        const key = [fixture.home_club_id, fixture.away_club_id].sort().join(':')
+        const list = ties.get(key) ?? []
+        list.push(fixture)
+        ties.set(key,list)
+      }
+      const winners:string[]=[]
+      for (const tie of ties.values()) {
+        const first=tie.find(f=>f.round===firstRound)
+        const second=tie.find(f=>f.round===secondRound)
+        if(!first||!second) continue
+        winners.push(resolveContinentalTwoLegTie(first,second,choosePenaltyWinner(second.home_club_id,second.away_club_id,second.id)))
+      }
+      return winners
+    }
+
+    const dateAfter = (rounds:number, days:number) => {
+      const relevant = allFixtures.filter(f => rounds === 0 ? true : f.round === rounds && f.status === 'completed')
+      const latest = relevant.length ? Math.max(...relevant.map(f=>new Date(f.scheduled_at).getTime())) : Date.now()
+      return new Date(latest + days * 86400000).toISOString().slice(0,10)
+    }
+
+    // Libertadores: grupos -> oitavas.
+    if (groupComplete(libId) && !allFixtures.some(f => f.competition_id === libId && f.round === 9)) {
+      const q = buildContinentalGroupQualification(getGroupData(libId), allFixtures.filter(f => f.competition_id === libId) as any)
+      const pairs = pairLibertadoresRoundOf16(q.winners,q.runnersUp)
+      const first = dateAfter(6,70), second = dateAfter(6,77)
+      await createRows(libId, buildTwoLegFixtures(pairs,9,first,second,'round_of_16'))
+    }
+
+    // Sul-Americana: grupos + terceiros da Libertadores -> playoff.
+    if (groupComplete(sulaId) && groupComplete(libId) && !allFixtures.some(f => f.competition_id === sulaId && f.round === 7)) {
+      const libQ = buildContinentalGroupQualification(getGroupData(libId), allFixtures.filter(f => f.competition_id === libId) as any)
+      const sulaQ = buildContinentalGroupQualification(getGroupData(sulaId), allFixtures.filter(f => f.competition_id === sulaId) as any)
+      const pairs = pairSudamericanaPlayoffs(libQ.thirds,sulaQ.runnersUp)
+      await createRows(sulaId, buildTwoLegFixtures(pairs,7,dateAfter(6,56),dateAfter(6,63),'sudamericana_playoff'))
+    }
+
+    // Sul-Americana: playoff -> oitavas.
+    if (stageComplete(sulaId,7,8,16) && !allFixtures.some(f => f.competition_id === sulaId && f.round === 9)) {
+      const q = buildContinentalGroupQualification(getGroupData(sulaId), allFixtures.filter(f => f.competition_id === sulaId) as any)
+      const playoffWinners = resolveWinners(sulaId,7,8)
+      const pairs = pairSequential([...q.winners,...playoffWinners])
+      await createRows(sulaId, buildTwoLegFixtures(pairs,9,dateAfter(8,14),dateAfter(8,21),'round_of_16'))
+    }
+
+    for (const competitionId of [libId,sulaId]) {
+      if (stageComplete(competitionId,9,10,16) && !allFixtures.some(f => f.competition_id === competitionId && f.round === 11)) {
+        const winners=resolveWinners(competitionId,9,10)
+        await createRows(competitionId,buildTwoLegFixtures(pairSequential(winners),11,dateAfter(10,21),dateAfter(10,28),'quarterfinals'))
+      }
+      if (stageComplete(competitionId,11,12,8) && !allFixtures.some(f => f.competition_id === competitionId && f.round === 13)) {
+        const winners=resolveWinners(competitionId,11,12)
+        await createRows(competitionId,buildTwoLegFixtures(pairSequential(winners),13,dateAfter(12,28),dateAfter(12,35),'semifinals'))
+      }
+      if (stageComplete(competitionId,13,14,4) && !allFixtures.some(f => f.competition_id === competitionId && f.round === 15)) {
+        const winners=resolveWinners(competitionId,13,14)
+        if (winners.length===2) {
+          const row=buildSingleFinalFixture(winners[0],winners[1],15,new Date(new Date(dateAfter(14,35)+'T19:00:00Z').getTime()).toISOString())
+          await createRows(competitionId,[row])
+        }
+      }
+      const final = allFixtures.find(f=>f.competition_id===competitionId && f.round===15 && f.status==='completed' && f.home_score!=null && f.away_score!=null)
+      if (final) {
+        const champion=resolveContinentalSingleMatch(final,choosePenaltyWinner(final.home_club_id,final.away_club_id,final.id))
+        const runner=champion===final.home_club_id?final.away_club_id:final.home_club_id
+        await supabase.from('competition_history').upsert({
+          season_id: databaseSeasonId,
+          competition_id: competitionId,
+          champion_club_id: champion,
+          runner_up_club_id: runner,
+          top_scorer_player_id: null,
+          top_scorer_goals: 0,
+        }, {onConflict:'season_id,competition_id'})
+      }
+    }
+  }
+
   async function advanceOneDay(fromClock = clock) {
     if (boardState.managerStatus !== 'active' && boardState.managerStatus !== 'renewed') return false
     if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
