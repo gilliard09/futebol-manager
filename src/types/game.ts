@@ -116,6 +116,7 @@ export type ManagerProfile = {
   personality: CoachPersonality
   club: Club
   season: string
+  seasonId?: string
   careerStatus?: 'active' | 'unemployed' | 'retired'
   contractStartSeason?: string
   contractEndSeason?: string
