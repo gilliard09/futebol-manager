@@ -2470,7 +2470,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   if (view === 'contracts') return <ContractsScreen players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
   if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'news') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
-  if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} back={() => goToView('overview')} />
+  if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} financeHistory={financeHistory} nextSeasonBudget={nextSeasonBudget} reputation={Number(career.club.reputation ?? 50)} back={() => goToView('overview')} />
   if (view === 'stadium') return <StadiumScreen club={career.club} commercial={commercial} balance={financeBalance} fanSatisfaction={fanState.satisfaction} reputation={career.club.reputation ?? 50} onUpgrade={async (nextStadium, cost) => {
     const transaction = createTransaction(toDateKey(new Date().toISOString()), 'other', 'Melhoria do estádio', -cost, undefined, 'stadium:' + career.season + ':' + nextStadium.level)
     const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
@@ -3259,22 +3259,30 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
   </div>
 }
 
-function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, back }: { balance: number; transactions: FinanceTransaction[]; salaryTotal: number; initialCapital: number; back: () => void }) {
+function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, financeHistory, nextSeasonBudget, reputation, back }: {
+  balance: number; transactions: FinanceTransaction[]; salaryTotal: number; initialCapital: number;
+  financeHistory: SeasonFinancialHistory[]; nextSeasonBudget: number; reputation: number; back: () => void
+}) {
   const recent = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12)
   const income = transactions.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0)
   const expense = transactions.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  const financialStatus = calculateFinancialStatus(balance, salaryTotal)
+  const statusLabel = financialStatus === 'saudável' ? 'Saudável' : financialStatus === 'atenção' ? 'Atenção' : 'Crítico'
+  const statusClass = financialStatus === 'saudável' ? 'text-emerald-300' : financialStatus === 'atenção' ? 'text-amber-200' : 'text-red-300'
   return <main className="min-h-screen bg-[#0a0f1a] px-4 py-5 sm:px-6 lg:px-8">
     <button onClick={back} className="mb-6 flex items-center gap-2 text-xs font-semibold text-white/40 hover:text-white"><ArrowLeft size={15} /> Voltar</button>
-    <div className="mb-6"><p className="label-mono text-white/30">Clube · Temporada</p><h1 className="mt-1 font-display text-3xl font-bold">Finanças</h1><p className="mt-2 text-sm text-white/40">O caixa do clube, a folha salarial e tudo o que movimenta sua temporada.</p></div>
-    <div className="grid gap-3 md:grid-cols-4">
+    <div className="mb-6"><p className="label-mono text-white/30">Clube · Temporada</p><h1 className="mt-1 font-display text-3xl font-bold">Finanças</h1><p className="mt-2 text-sm text-white/40">O caixa reage a desempenho, público, estádio, folha, comissão técnica, multas e mercado.</p></div>
+    <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
       <DashboardCard icon={<WalletCards size={18} />} label="Caixa" value={money(balance)} detail="disponível agora" />
-      <DashboardCard icon={<Banknote size={18} />} label="Capital inicial" value={money(initialCapital)} detail="início da carreira" />
-      <DashboardCard icon={<Users size={18} />} label="Folha mensal" value={money(salaryTotal)} detail="salários do elenco" />
+      <DashboardCard icon={<Banknote size={18} />} label="Próximo ano" value={money(nextSeasonBudget)} detail="orçamento projetado" />
+      <DashboardCard icon={<Users size={18} />} label="Folha mensal" value={money(salaryTotal)} detail="jogadores" />
+      <DashboardCard icon={<Handshake size={18} />} label="Comissão" value={money(calculateTechnicalStaffPayroll(salaryTotal, reputation, reputation, 62))} detail="estimativa mensal" />
       <DashboardCard icon={<BarChart3 size={18} />} label="Movimentado" value={money(income + expense)} detail={"entradas " + money(income) + " · saídas " + money(expense)} />
+      <DashboardCard icon={<Shield size={18} />} label="Situação" value={statusLabel} detail="saúde financeira" />
     </div>
-    <section className="game-panel mt-5"><div className="flex items-center justify-between"><div><p className="label-mono text-white/30">Livro-caixa</p><h2 className="mt-1 font-display text-xl font-bold">Movimentações recentes</h2></div><span className="text-xs text-white/25">{transactions.length} registros</span></div>
-      <div className="mt-4 space-y-1.5">{recent.length ? recent.map(item => <div key={item.eventId ?? item.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{item.description}</p><p className="mt-1 text-[10px] text-white/25">{formatSeasonDate(item.date)}</p></div><span className={item.amount >= 0 ? 'shrink-0 font-mono text-xs font-bold text-emerald-300' : 'shrink-0 font-mono text-xs font-bold text-red-300'}>{item.amount >= 0 ? '+' : ''}{money(item.amount)}</span></div>) : <p className="py-8 text-center text-sm text-white/30">Nenhuma movimentação registrada.</p>}</div>
-    </section>
+    <section className="game-panel mt-5"><div className="flex items-center justify-between"><div><p className="label-mono text-white/30">Saúde financeira</p><h2 className={`mt-1 font-display text-xl font-bold ${statusClass}`}>{statusLabel}</h2></div><span className="text-xs text-white/25">Reputação {Math.round(reputation)}</span></div><p className="mt-3 max-w-2xl text-sm leading-6 text-white/40">{financialStatus === 'crítico' ? 'O caixa está em zona crítica. A diretoria deve conter gastos e o mercado ficará mais restritivo.' : financialStatus === 'atenção' ? 'O clube ainda opera normalmente, mas novas despesas precisam caber no fluxo de caixa.' : 'O clube tem margem para investir, renovar contratos e absorver oscilações de receita.'}</p></section>
+    <section className="game-panel mt-5"><div className="flex items-center justify-between"><div><p className="label-mono text-white/30">Livro-caixa</p><h2 className="mt-1 font-display text-xl font-bold">Movimentações recentes</h2></div><span className="text-xs text-white/25">{transactions.length} registros</span></div><div className="mt-4 space-y-1.5">{recent.length ? recent.map(item => <div key={item.eventId ?? item.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/5 bg-black/10 px-4 py-3"><div className="min-w-0"><p className="truncate text-sm font-semibold">{item.description}</p><p className="mt-1 text-[10px] text-white/25">{formatSeasonDate(item.date)}</p></div><span className={item.amount >= 0 ? 'shrink-0 font-mono text-xs font-bold text-emerald-300' : 'shrink-0 font-mono text-xs font-bold text-red-300'}>{item.amount >= 0 ? '+' : ''}{money(item.amount)}</span></div>) : <p className="py-8 text-center text-sm text-white/30">Nenhuma movimentação registrada.</p>}</div></section>
+    <section className="game-panel mt-5"><div><p className="label-mono text-white/30">Histórico financeiro</p><h2 className="mt-1 font-display text-xl font-bold">Temporadas</h2></div><div className="mt-4 space-y-2">{financeHistory.length ? [...financeHistory].sort((a,b) => b.seasonName.localeCompare(a.seasonName)).map(item => <div key={item.seasonId} className="grid gap-3 rounded-xl border border-white/5 bg-black/10 px-4 py-4 md:grid-cols-6 md:items-center"><div><p className="text-sm font-bold">{item.seasonName}</p><p className="text-[10px] text-white/25">{item.financialStatus}</p></div><Info label="Receitas" value={money(item.revenue)} /><Info label="Despesas" value={money(item.expenses)} /><Info label="Bilheteria" value={money(item.matchRevenue)} /><Info label="Premiações" value={money(item.prizeRevenue)} /><Info label="Fechamento" value={money(item.closingBalance)} /></div>) : <p className="py-8 text-center text-sm text-white/30">O histórico será fechado ao final da primeira temporada.</p>}</div></section>
   </main>
 }
 
