@@ -128,9 +128,9 @@ export function simulateAIClubManagement(
       decisions.push({ clubId: club.id, action: 'change_strategy', message: club.name + ' mudou a estratégia para ' + targetStyle + ' após avaliar o desempenho.' })
     }
 
-    if (financialPressure) {
+    if (financialPressure && (day === 1 || day === 15)) {
       decisions.push({ clubId: club.id, action: 'financial_control', message: club.name + ' entrou em modo de controle financeiro e passou a priorizar equilíbrio de caixa.' })
-    } else if (excellent && club.budget > 2_000_000) {
+    } else if (excellent && club.budget > 2_000_000 && (day === 1 || day === 15)) {
       decisions.push({ clubId: club.id, action: 'sporting_investment', message: club.name + ' autorizou investimento esportivo após bons resultados.' })
     }
 
