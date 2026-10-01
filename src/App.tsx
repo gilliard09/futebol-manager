@@ -403,6 +403,8 @@ function GameApp() {
       style: next.style, personality: next.personality, regional_popularity: popularity.regional, national_popularity: popularity.national,
       international_popularity: popularity.international, current_club_id: next.club.id, current_season_id: careerSeason.id,
     }, { onConflict: 'owner_id' })
+  }
+
   function newCareer() {
     localStorage.removeItem(CAREER_KEY)
     localStorage.removeItem(FINANCE_KEY)
