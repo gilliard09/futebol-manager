@@ -898,8 +898,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       .sort((a: any, b: any) => Number(b.avg_rating ?? 0) - Number(a.avg_rating ?? 0) || Number(b.minutes ?? 0) - Number(a.minutes ?? 0))[0] ?? null
 
     const awardRows = [
-      { season_id: seasonId, award_type: 'league_champion', club_id: completion.league.championClubId, player_id: null, value: 3_000_000 },
-      { season_id: seasonId, award_type: 'cup_champion', club_id: completion.cup.championClubId, player_id: null, value: 2_000_000 },
+      { season_id: seasonId, award_type: 'league_champion', club_id: completion.league.championClubId, player_id: null, value: calculateVariableCompetitionPrize(1, 'league', { champion: true, reputation: Number(clubs.find(club => club.id === completion.league.championClubId)?.reputation ?? 50) }) },
+      { season_id: seasonId, award_type: 'cup_champion', club_id: completion.cup.championClubId, player_id: null, value: calculateVariableCompetitionPrize(1, 'cup', { champion: true, reputation: Number(clubs.find(club => club.id === completion.cup.championClubId)?.reputation ?? 50) }) },
       { season_id: seasonId, award_type: 'top_scorer', club_id: topScorer?.club_id ?? null, player_id: topScorer?.player_id ?? completion.league.topScorerPlayerId, value: Number(topScorer?.goals ?? completion.league.topScorerGoals ?? 0) },
       { season_id: seasonId, award_type: 'player_of_season', club_id: playerOfSeason?.club_id ?? null, player_id: playerOfSeason?.player_id ?? null, value: Number(playerOfSeason?.avg_rating ?? 0) },
     ]
