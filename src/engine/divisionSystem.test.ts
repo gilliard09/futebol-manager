@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { resolveSerieBPromotion, resolveDivisionMovement, swapDivisions } from './divisionSystem'
+import { resolveSerieBPromotion, resolveDivisionMovement, swapDivisions, SERIE_B_2026_CLUBS } from './divisionSystem'
+import { buildLeagueFixtures } from './seasonSchedule'
 
 const rows = (ids: string[]) => ids.map((id, index) => ({
   id, name: id, played: 38, wins: 20 - index, draws: 5, losses: 13 + index, gf: 50 - index, ga: 30, points: 65 - index * 2,
@@ -19,6 +20,19 @@ describe('division system', () => {
     expect(result.relegatedClubIds).toEqual(['m','n','o','p'])
     expect(result.promotedClubIds).toEqual(['q','r','s','t'])
   })
+  it('mantém a Série B com 20 clubes e 38 rodadas de ida e volta', () => {
+    expect(SERIE_B_2026_CLUBS).toHaveLength(20)
+    const clubs = SERIE_B_2026_CLUBS.map((seed, index) => ({
+      id: `b-${index}`, name: seed.name, short_name: seed.shortName, city: seed.city, country: 'Brasil',
+      division: 2, budget: seed.budget, reputation: seed.reputation, strength: seed.strength,
+    }))
+    const fixtures = buildLeagueFixtures('season', '2026-03-21', clubs, 'serie-b')
+    expect(fixtures).toHaveLength(380)
+    expect(new Set(fixtures.map(item => item.round))).toHaveSize(38)
+    expect(fixtures.filter(item => item.round === 1)).toHaveLength(10)
+    expect(fixtures.filter(item => item.round === 38)).toHaveLength(10)
+  })
+
   it('move os clubes entre as divisões sem alterar os demais', () => {
     const clubs = [
       { id: 'a', name: 'A', short_name: 'A', city: 'A', country: 'Brasil', division: 1, budget: 0, reputation: 50 },
