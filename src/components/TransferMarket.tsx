@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Search, ShoppingBag, Tag, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { playerOverall } from '../engine/match'
+import { playerOverall } from '../engine/matchCore'
 import { getActiveLoan } from '../engine/loans'
 import { buildScoutingReport } from '../engine/worldSimulation'
 import { canAddPlayer } from '../engine/roster'
