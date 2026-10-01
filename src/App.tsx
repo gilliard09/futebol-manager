@@ -15,6 +15,7 @@ import CompetitionCenter from './components/CompetitionCenter'
 import PressCenter from './components/PressCenter'
 import SeasonEndScreen, { type SeasonAward } from './components/SeasonEndScreen'
 import HistoryScreen from './components/HistoryScreen'
+import ManagerCareerScreen from './components/ManagerCareerScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
@@ -31,6 +32,7 @@ import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
+import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, clubCanApproachManager, type ManagerPopularity } from './engine/managerCareer'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -234,6 +236,24 @@ function GameApp() {
     const currentSeasonName = activeSeason?.name ?? SEASON_NAME
     const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: currentSeasonName }
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
+    const { data: authUser } = await supabase.auth.getUser()
+    if (authUser.user) {
+      const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
+      const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', currentSeasonName).maybeSingle()
+      await supabase.from('manager_profiles').upsert({
+        owner_id: authUser.user.id,
+        manager_name: next.name,
+        nationality: next.nationality,
+        birth_date: next.birthDate || null,
+        style: next.style,
+        personality: next.personality,
+        regional_popularity: popularity.regional,
+        national_popularity: popularity.national,
+        international_popularity: popularity.international,
+        current_club_id: next.club.id,
+        current_season_id: seasonRow?.id ?? null,
+      }, { onConflict: 'owner_id' })
+    }
     const initialSponsor = { ...chooseSponsor(next.club.reputation ?? 50), seasonId: next.season }
     localStorage.setItem(FINANCE_KEY, JSON.stringify([
       createTransaction(seasonStart(next.season), 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget'),
@@ -256,6 +276,18 @@ function GameApp() {
     Object.keys(localStorage)
       .filter(key => key.startsWith(BOARD_KEY + ':') || key.startsWith(FANS_KEY + ':') || key.startsWith(COMMERCIAL_KEY + ':') || key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':'))
       .forEach(key => localStorage.removeItem(key))
+    void (async () => {
+      const { data: authUser } = await supabase.auth.getUser()
+      if (authUser.user) {
+        await Promise.all([
+          supabase.from('manager_offers').delete().eq('owner_id', authUser.user.id),
+          supabase.from('manager_records').delete().eq('owner_id', authUser.user.id),
+          supabase.from('manager_trophies').delete().eq('owner_id', authUser.user.id),
+          supabase.from('manager_season_history').delete().eq('owner_id', authUser.user.id),
+          supabase.from('manager_profiles').delete().eq('owner_id', authUser.user.id),
+        ])
+      }
+    })()
     setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); navigate('/manager')
   }
 
@@ -338,6 +370,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [seasonClosed, setSeasonClosed] = useState(false)
   const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
   const [seasonAwards, setSeasonAwards] = useState<SeasonAward[]>([])
+  const [managerPopularity, setManagerPopularity] = useState<ManagerPopularity>({ regional: 0, national: 0, international: 0 })
+  const [managerHistory, setManagerHistory] = useState<Array<any>>([])
+  const [managerTrophies, setManagerTrophies] = useState<Array<any>>([])
+  const [managerRecords, setManagerRecords] = useState<Array<any>>([])
+  const [managerOffers, setManagerOffers] = useState<Array<any>>([])
   const [historyRows, setHistoryRows] = useState<Array<{ season_id: string; season_name: string; competition_name: string; champion_club_id: string | null; runner_up_club_id: string | null; top_scorer_player_id: string | null; top_scorer_goals: number }>>([])
   const [historyPlayers, setHistoryPlayers] = useState<Player[]>([])
   const [worldNews, setWorldNews] = useState<WorldNews[]>(() => {
@@ -419,6 +456,153 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         .in('id', playerIds)
       setHistoryPlayers((historicalPlayers ?? []) as Player[])
     }
+  }
+
+  async function loadManagerCareer() {
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) return
+    const ownerId = authUser.user.id
+
+    const [{ data: profile }, { data: history }, { data: trophies }, { data: records }, { data: offers }] = await Promise.all([
+      supabase.from('manager_profiles').select('*').eq('owner_id', ownerId).maybeSingle(),
+      supabase.from('manager_season_history').select('*').eq('owner_id', ownerId).order('created_at', { ascending: false }),
+      supabase.from('manager_trophies').select('id,season_id,club_id,competition_name,trophy_type').eq('owner_id', ownerId).order('created_at', { ascending: false }),
+      supabase.from('manager_records').select('id,record_type,record_value,description').eq('owner_id', ownerId).order('record_value', { ascending: false }),
+      supabase.from('manager_offers').select('id,from_club_id,offered_at,expires_at,offer_level,message,status').eq('owner_id', ownerId).order('offered_at', { ascending: false }),
+    ])
+
+    if (profile) {
+      setManagerPopularity({
+        regional: Number(profile.regional_popularity ?? 0),
+        national: Number(profile.national_popularity ?? 0),
+        international: Number(profile.international_popularity ?? 0),
+      })
+    }
+    const normalizedHistory = (history ?? []).map((row: any) => ({ ...row, points: Number(row.points ?? 0), wins: Number(row.wins ?? 0), draws: Number(row.draws ?? 0), losses: Number(row.losses ?? 0) }))
+    const seasonIds = [...new Set((trophies ?? []).map((row: any) => row.season_id).filter(Boolean))]
+    const clubIds = [...new Set((trophies ?? []).map((row: any) => row.club_id).filter(Boolean))]
+    const [seasonNames, trophyClubs] = await Promise.all([
+      seasonIds.length ? supabase.from('seasons').select('id,name').in('id', seasonIds) : Promise.resolve({ data: [] as any[] }),
+      clubIds.length ? supabase.from('clubs').select('id,name').in('id', clubIds) : Promise.resolve({ data: [] as any[] }),
+    ])
+    const seasonNameMap = new Map((seasonNames.data ?? []).map((row: any) => [row.id, row.name]))
+    const clubNameMap = new Map((trophyClubs.data ?? []).map((row: any) => [row.id, row.name]))
+    setManagerHistory(normalizedHistory)
+    setManagerTrophies((trophies ?? []).map((row: any) => ({ ...row, season_name: seasonNameMap.get(row.season_id) ?? 'Temporada', club_name: clubNameMap.get(row.club_id) ?? 'Clube' })))
+    setManagerRecords(records ?? [])
+    setManagerOffers(offers ?? [])
+  }
+
+  async function finalizeManagerSeason(
+    seasonId: string,
+    leagueStandings: Array<{ id: string; points: number; played: number; wins: number; draws: number; losses: number }>,
+    leagueTitle: boolean,
+    cupTitle: boolean,
+    leagueId: string,
+    cupId: string,
+  ) {
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) return
+    const ownerId = authUser.user.id
+    const current = managerPopularity
+    const userStanding = leagueStandings.find(team => team.id === career.club.id)
+    const completedMatches = leagueStandings.length
+      ? leagueStandings.reduce((sum, team) => team.id === career.club.id ? sum + team.played : sum, 0)
+      : 0
+    const performance = {
+      position: Math.max(1, leagueStandings.findIndex(team => team.id === career.club.id) + 1),
+      points: Number(userStanding?.points ?? 0),
+      wins: Number(userStanding?.wins ?? 0),
+      draws: Number(userStanding?.draws ?? 0),
+      losses: Number(userStanding?.losses ?? 0),
+      clubReputation: Number(career.club.reputation ?? 50),
+      leagueTitle,
+      cupTitle,
+      boardConfidence: boardState.confidence,
+      fanSatisfaction: fanState.satisfaction,
+    }
+    const nextPopularity = updateManagerPopularity(current, performance)
+    const seasonMatches = [...Object.values(matches)].filter(match => match.season_id === seasonId && (match.home_club_id === career.club.id || match.away_club_id === career.club.id))
+    const seasonWins = seasonMatches.filter(match => (match.home_club_id === career.club.id ? match.homeScore > match.awayScore : match.awayScore > match.homeScore)).length
+    const seasonDraws = seasonMatches.filter(match => match.homeScore === match.awayScore).length
+    const seasonLosses = Math.max(0, seasonMatches.length - seasonWins - seasonDraws)
+
+    await supabase.from('manager_season_history').upsert({
+      owner_id: ownerId,
+      season_id: seasonId,
+      club_id: career.club.id,
+      club_name: career.club.name,
+      season_name: career.season,
+      final_position: performance.position,
+      points: performance.points,
+      wins: seasonWins || performance.wins,
+      draws: seasonDraws || performance.draws,
+      losses: seasonLosses || performance.losses,
+      league_title: leagueTitle,
+      cup_title: cupTitle,
+      regional_popularity: nextPopularity.regional,
+      national_popularity: nextPopularity.national,
+      international_popularity: nextPopularity.international,
+    }, { onConflict: 'owner_id,season_id,club_id' })
+
+    const trophyRows = []
+    if (leagueTitle) trophyRows.push({ owner_id: ownerId, season_id: seasonId, club_id: career.club.id, competition_id: leagueId, competition_name: 'Liga Nacional do Brasil', trophy_type: 'champion' })
+    if (cupTitle) trophyRows.push({ owner_id: ownerId, season_id: seasonId, club_id: career.club.id, competition_id: cupId, competition_name: 'Copa Nacional do Brasil', trophy_type: 'champion' })
+    if (trophyRows.length) await supabase.from('manager_trophies').upsert(trophyRows, { onConflict: 'owner_id,season_id,competition_id' })
+
+    const { data: allHistory } = await supabase.from('manager_season_history').select('final_position,points,wins').eq('owner_id', ownerId)
+    const { count: trophyCount } = await supabase.from('manager_trophies').select('id', { count: 'exact', head: true }).eq('owner_id', ownerId)
+    const historyValues = allHistory ?? []
+    const records = [
+      { type: 'best_finish', value: Math.min(...historyValues.map((row: any) => Number(row.final_position ?? 99))), description: 'Melhor colocação em uma temporada' },
+      { type: 'most_points', value: Math.max(...historyValues.map((row: any) => Number(row.points ?? 0))), description: 'Maior pontuação em uma temporada' },
+      { type: 'most_wins', value: Math.max(...historyValues.map((row: any) => Number(row.wins ?? 0))), description: 'Mais vitórias em uma temporada' },
+      { type: 'titles', value: Number(trophyCount ?? 0), description: 'Títulos conquistados na carreira' },
+    ]
+    await supabase.from('manager_records').upsert(records.map(record => ({ owner_id: ownerId, record_type: record.type, record_value: record.value, season_id: seasonId, club_id: career.club.id, description: record.description })), { onConflict: 'owner_id,record_type' })
+
+    const currentProfile = {
+      regional_popularity: nextPopularity.regional,
+      national_popularity: nextPopularity.national,
+      international_popularity: nextPopularity.international,
+      career_points: managerPerformanceScore(performance) + Number((await supabase.from('manager_profiles').select('career_points').eq('owner_id', ownerId).maybeSingle()).data?.career_points ?? 0),
+      seasons_completed: Number((await supabase.from('manager_profiles').select('seasons_completed').eq('owner_id', ownerId).maybeSingle()).data?.seasons_completed ?? 0) + 1,
+      matches_played: Number((await supabase.from('manager_profiles').select('matches_played').eq('owner_id', ownerId).maybeSingle()).data?.matches_played ?? 0) + seasonMatches.length + completedMatches,
+      wins: Number((await supabase.from('manager_profiles').select('wins').eq('owner_id', ownerId).maybeSingle()).data?.wins ?? 0) + seasonWins,
+      draws: Number((await supabase.from('manager_profiles').select('draws').eq('owner_id', ownerId).maybeSingle()).data?.draws ?? 0) + seasonDraws,
+      losses: Number((await supabase.from('manager_profiles').select('losses').eq('owner_id', ownerId).maybeSingle()).data?.losses ?? 0) + seasonLosses,
+      current_club_id: career.club.id,
+      current_season_id: seasonId,
+      updated_at: new Date().toISOString(),
+    }
+    await supabase.from('manager_profiles').update(currentProfile).eq('owner_id', ownerId)
+
+    const level = offerLevelForPopularity(nextPopularity)
+    const candidateClubs = clubs
+      .filter(club => club.id !== career.club.id)
+      .filter(club => clubCanApproachManager(nextPopularity, Number(club.reputation ?? 50), managerPerformanceScore(performance)))
+      .sort((a, b) => Number(b.reputation ?? 50) - Number(a.reputation ?? 50))
+      .slice(0, 3)
+    if (candidateClubs.length) {
+      await supabase.from('manager_offers').update({ status: 'expired', responded_at: new Date().toISOString() }).eq('owner_id', ownerId).eq('status', 'pending')
+      const offeredAt = toDateKey(new Date().toISOString())
+      const expiresAt = addDays(offeredAt, 30)
+      const offerRows = candidateClubs.map(club => ({
+        owner_id: ownerId,
+        offered_at: offeredAt,
+        expires_at: expiresAt,
+        from_club_id: club.id,
+        performance_score: managerPerformanceScore(performance),
+        popularity_score: nextPopularity.regional + nextPopularity.national + nextPopularity.international,
+        offer_level: level,
+        message: `${club.name} quer contar com seu trabalho depois do desempenho apresentado nesta temporada. Sua reputação atual permite que o clube faça uma abordagem formal.`,
+        status: 'pending',
+      }))
+      await supabase.from('manager_offers').insert(offerRows)
+    }
+
+    setManagerPopularity(nextPopularity)
+    await loadManagerCareer()
   }
 
   async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
@@ -933,7 +1117,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     let active = true
     async function loadDashboard() {
       setLoading(true)
-      await loadCareerHistory()
+      await Promise.all([loadCareerHistory(), loadManagerCareer()])
       const { data: currentSeasonRow } = await supabase.from('seasons').select('id,status').eq('name', career.season).maybeSingle()
       const currentSeasonId = currentSeasonRow?.id ?? null
       if (currentSeasonId) {
@@ -1605,19 +1789,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       }
     }
 
-    if ([3, 6, 9].includes(month) && day === 15 && eventHash(date + ':manager:' + career.club.id) % 100 < 22) {
+    if ([3, 6, 9].includes(month) && day === 15 && managerPopularity.regional + managerPopularity.national + managerPopularity.international >= 35) {
+      const performanceScore = sporting ? managerPerformanceScore({ position: sporting.position, points: sporting.points, wins: Math.round(sporting.played * 0.45), draws: Math.round(sporting.played * 0.2), losses: Math.max(0, sporting.played - Math.round(sporting.played * 0.65)), clubReputation: Number(career.club.reputation ?? 50), leagueTitle: false, cupTitle: false, boardConfidence: boardState.confidence, fanSatisfaction: fanState.satisfaction }) : 0
       const candidates = clubs
         .filter(club => club.id !== career.club.id)
-        .filter(club => Number(club.reputation ?? 0) <= Number(career.club.reputation ?? 0) + 8)
+        .filter(club => clubCanApproachManager(managerPopularity, Number(club.reputation ?? 0), performanceScore))
         .sort((a, b) => Number(b.reputation ?? 0) - Number(a.reputation ?? 0))
       const target = candidates[eventHash(date + ':manager-target') % Math.max(1, candidates.length)]
       if (target) {
-        return {
-          type: 'manager_offer',
-          date,
-          fromClubId: target.id,
-          message: target.name + ' entrou em contato e gostaria de contar com você para comandar o clube.',
-        }
+        return { type: 'manager_offer', date, fromClubId: target.id, message: target.name + ' entrou em contato porque seu desempenho e sua crescente reputação colocaram você no radar do clube.' }
       }
     }
 
@@ -1898,20 +2078,32 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     setPendingEvent(null)
   }
+  async function respondToManagerOffer(offer: { id: string; from_club_id: string }) {
+    const targetClub = clubs.find(club => club.id === offer.from_club_id)
+    if (!targetClub) return
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) return
+    const { error: offerError } = await supabase.from('manager_offers').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', offer.id).eq('owner_id', authUser.user.id).eq('status', 'pending')
+    if (offerError) return
+    await supabase.from('manager_offers').update({ status: 'rejected', responded_at: new Date().toISOString() }).eq('owner_id', authUser.user.id).eq('status', 'pending').neq('id', offer.id)
+    const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+    const nextCareer = { ...career, club: { ...targetClub, budget: Number(targetClub.budget ?? 0) } }
+    await supabase.from('manager_profiles').update({ current_club_id: targetClub.id, current_season_id: seasonRow?.id ?? null, updated_at: new Date().toISOString() }).eq('owner_id', authUser.user.id)
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    onCareerUpdate(nextCareer)
+    setFinanceBalance(Number(targetClub.budget ?? 0))
+    setManagerOffers(current => current.map(item => item.id === offer.id ? { ...item, status: 'accepted' } : { ...item, status: item.status === 'pending' ? 'rejected' : item.status }))
+    setPendingEvent(null)
+  }
+
   async function respondToImportantEvent(action: 'accept' | 'continue') {
     if (!pendingEvent) return
 
     if (pendingEvent.type === 'manager_offer' && action === 'accept') {
-      const targetClub = clubs.find(club => club.id === pendingEvent.fromClubId)
-      if (targetClub) {
-        const targetBudget = Number(targetClub.budget ?? 0)
-        const nextCareer = { ...career, club: { ...targetClub, budget: targetBudget } }
-        setFinanceBalance(targetBudget)
-        localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
-        onCareerUpdate(nextCareer)
-        setPendingEvent(null)
-        return
-      }
+      const matchingOffer = managerOffers.find(item => item.from_club_id === pendingEvent.fromClubId && item.status === 'pending')
+      if (matchingOffer) await respondToManagerOffer(matchingOffer)
+      else setPendingEvent(null)
+      return
     }
 
     setPendingEvent(null)
@@ -1943,7 +2135,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     onCareerUpdate(nextCareer)
   }} back={() => goToView('overview')} />
   if (view === 'trophies' || view === 'history') return <HistoryScreen rows={historyRows} clubs={clubs} players={[...players, ...historyPlayers]} back={() => goToView('overview')} />
-  if (view === 'legacy') return <GameSection title="Conquistas & Legado" eyebrow="História" icon={<Medal size={22} />} description="Registros de carreira, marcas, conquistas e legado do treinador." back={() => goToView('overview')} />
+  if (view === 'legacy') return <ManagerCareerScreen managerName={career.name} popularity={managerPopularity} history={managerHistory} trophies={managerTrophies} records={managerRecords} offers={managerOffers} clubs={clubs} back={() => goToView('overview')} onOffer={respondToManagerOffer} />
   if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
   if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
 
@@ -2483,7 +2675,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           </section>
 
           if (pendingEvent.type === 'manager_offer' && managerClub) return <section className="mb-6 rounded-xl border border-violet-400/15 bg-violet-400/[0.04] p-5">
-            <p className="label-mono text-violet-300/70">Proposta para o treinador</p><h2 className="mt-2 text-xl font-bold">{managerClub.name} quer contratar você</h2><p className="mt-2 text-sm leading-6 text-white/55">{pendingEvent.message}</p><div className="mt-4 flex gap-2"><button onClick={() => respondToImportantEvent('continue')} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55">Recusar</button><button onClick={() => respondToImportantEvent('accept')} className="rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">Aceitar proposta</button></div>
+            <p className="label-mono text-violet-300/70">Proposta para o treinador</p><h2 className="mt-2 text-xl font-bold">{managerClub.name} quer contratar você</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">{pendingEvent.message}</p><div className="mt-4 flex gap-2"><button onClick={() => respondToImportantEvent('continue')} className="rounded-lg border border-white/8 px-4 py-2.5 text-xs font-semibold text-white/55">Recusar</button><button onClick={() => respondToImportantEvent('accept')} className="rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">Aceitar proposta</button></div>
           </section>
 
           return null
@@ -2609,7 +2801,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
         { key: 'finance', label: 'Finanças', icon: WalletCards },
         { key: 'stadium', label: 'Estádio', icon: Building2 },
         { key: 'trophies', label: 'Sala de Troféus', icon: Trophy },
-        { key: 'legacy', label: 'Conquistas & Legado', icon: Medal },
+        { key: 'legacy', label: 'Carreira do Técnico', icon: Medal },
       ],
     },
     {
