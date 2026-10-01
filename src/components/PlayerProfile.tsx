@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/matchCore'
+import { playerPositionLabel } from '../engine/playerPositions'
 import { addContractYears, calculateRenewalSalary, daysUntilContractEnd, getContractStatus } from '../engine/contracts'
 import type { Club, Player } from '../types/game'
 
