@@ -79,5 +79,8 @@ export function summarizeFinance(transactions: FinanceTransaction[], balance: nu
   const transferIncome = transactions.filter(item => item.type === 'transfer_in').reduce((sum, item) => sum + Math.abs(item.amount), 0)
   const matchRevenue = transactions.filter(item => item.type === 'match_revenue').reduce((sum, item) => sum + item.amount, 0)
   const prizes = transactions.filter(item => item.type === 'prize').reduce((sum, item) => sum + item.amount, 0)
-  return { balance, monthlyPayroll, revenue, expenses, transferSpend, transferIncome, matchRevenue, prizes }
+  const staffSalary = transactions.filter(item => item.type === 'staff_salary').reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  const fines = transactions.filter(item => item.type === 'fine').reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  const stadiumMaintenance = transactions.filter(item => item.type === 'stadium_maintenance').reduce((sum, item) => sum + Math.abs(item.amount), 0)
+  return { balance, monthlyPayroll, revenue, expenses, transferSpend, transferIncome, matchRevenue, prizes, staffSalary, fines, stadiumMaintenance }
 }
