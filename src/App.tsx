@@ -2933,7 +2933,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
       localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
       setPlayedMatches(nextMatches)
-      if (seasonId) await finalizeSeasonIfComplete(seasonId, nextMatches)
 
       const { data: refreshedFixtures } = await supabase
         .from('fixtures')
@@ -3005,6 +3004,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
         onCareerUpdate(nextCareer)
       }
+      if (seasonId) await finalizeSeasonIfComplete(seasonId, nextMatches)
       if (clock) {
         const matchClock = { ...clock, currentDate: toDateKey(activeMatchFixture.scheduled_at) }
         setClock(matchClock)
