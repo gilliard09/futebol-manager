@@ -278,6 +278,21 @@ function GameApp() {
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return
       setSession(data.session)
+      if (data.session) {
+        const savedCareer = localStorage.getItem(CAREER_KEY)
+        if (savedCareer) {
+          try {
+            if (!JSON.parse(savedCareer).seasonId) {
+              localStorage.removeItem(CAREER_KEY)
+              localStorage.removeItem(MANAGER_STATUS_KEY)
+              setCareer(null)
+            }
+          } catch {
+            localStorage.removeItem(CAREER_KEY)
+            setCareer(null)
+          }
+        }
+      }
       setAuthLoading(false)
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -302,39 +317,6 @@ function GameApp() {
       }
 
       const loadedClubs = (data ?? []) as Club[]
-      // A Série B passa a existir como uma divisão real do universo. O
-      // calendário é criado para a temporada ativa sem alterar a Série A.
-      const { data: activeSeason } = await supabase
-        .from('seasons')
-        .select('id,name,start_date')
-        .eq('status', 'active')
-        .order('start_date', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      const serieB = loadedClubs.filter(club => Number(club.division ?? 1) === 2)
-      const { data: serieBCompetition } = await supabase
-        .from('competitions')
-        .select('id,name')
-        .eq('name', SERIE_B_NAME)
-        .maybeSingle()
-
-      if (activeSeason && serieBCompetition?.id && serieB.length === 20) {
-        await ensureCompetitionTeams(activeSeason.id, serieBCompetition.id, serieB)
-
-        const { data: existingBFixtures } = await supabase
-          .from('fixtures')
-          .select('id')
-          .eq('season_id', activeSeason.id)
-          .eq('competition_id', serieBCompetition.id)
-        if (!(existingBFixtures?.length)) {
-          const seasonYear = Number(String(activeSeason.name).match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
-          const serieBStartDate = activeSeason.start_date ?? `${seasonYear}-01-01`
-          const fixtureRows = buildLeagueFixtures(activeSeason.id, serieBStartDate, serieB, serieBCompetition.id, 5)
-          const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
-          if (fixtureError) console.error('Não foi possível criar o calendário da Série B', fixtureError)
-        }
-      }
-
       if (active) setClubs(loadedClubs)
       setLoading(false)
     }
