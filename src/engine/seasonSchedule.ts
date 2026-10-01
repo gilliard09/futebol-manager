@@ -66,13 +66,14 @@ export function buildLeagueFixtures(seasonId: string, startDate: string, clubs: 
     })
   })
 
+  const secondHalfStartRound = firstHalf.length + 1
   firstHalf.forEach((pairings, roundIndex) => {
     pairings.forEach(([home, away], matchIndex) => {
       rows.push({
         season_id: seasonId,
         competition_id: competitionId,
-        round: roundIndex + 17,
-        scheduled_at: dateAt(startDate, 9 + (roundIndex + 16) * 7, 19 + (matchIndex % 3)),
+        round: secondHalfStartRound + roundIndex,
+        scheduled_at: dateAt(startDate, 9 + (roundIndex + firstHalf.length) * 7, 19 + (matchIndex % 3)),
         status: 'scheduled',
         home_club_id: away.id,
         away_club_id: home.id,
