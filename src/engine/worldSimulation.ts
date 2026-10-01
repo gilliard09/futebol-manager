@@ -532,8 +532,9 @@ export function simulateWorldDay(
   if ([10, 20].includes(day)) {
     const standoutPlayers = players
       .filter(player => player.clubId && player.age <= 31)
-      .filter(player => (player.seasonAppearances ?? 0) >= 4)
+       .filter(player => player.transferRequested || (player.seasonAppearances ?? 0) >= 4)
       .filter(player =>
+        player.transferRequested ||
         (player.seasonGoals ?? 0) >= 5 ||
         (player.seasonAssists ?? 0) >= 4 ||
         (player.seasonAverageRating ?? 0) >= 7.25,
@@ -656,6 +657,7 @@ export function simulateWorldDay(
         .filter(interest => interest.stage === 'proposal_ready' && interest.clubIds.includes(buyer.id))
         .map(interest => players.find(player => player.id === interest.playerId))
         .filter((player): player is WorldPlayer => Boolean(player?.clubId === userClubId && player.age <= 31))
+        .sort((a, b) => Number(b.transferRequested) - Number(a.transferRequested))
         .sort((a, b) => transferNeed(b, buyer, squad.length, performance) - transferNeed(a, buyer, squad.length, performance))
 
       const userTarget = matureTargets.find(player => {
