@@ -12,6 +12,7 @@ export type CompetitionPrizeConfig = {
 }
 
 export type PrizePayment = {
+  competitionId: string
   prizeId: string
   clubId: string
   prizeType: CompetitionPrizeConfig['prize_type']
@@ -88,8 +89,8 @@ export function buildCupPrizePayments(prizes: CompetitionPrizeConfig[], fixtures
   if (quarterPrize) quarterfinalists.forEach(clubId => payments.push({ prizeId: quarterPrize.id, clubId, prizeType: quarterPrize.prize_type, stage: quarterPrize.stage, position: null, amount: quarterPrize.amount, description: quarterPrize.description ?? 'Premiação — quartas de final' }))
   if (semiPrize) semifinalists.forEach(clubId => payments.push({ prizeId: semiPrize.id, clubId, prizeType: semiPrize.prize_type, stage: semiPrize.stage, position: null, amount: semiPrize.amount, description: semiPrize.description ?? 'Premiação — semifinal' }))
   if (final && finalists.size === 2 && champion && runnerUp) {
-    if (championPrize) payments.push({ prizeId: championPrize.id, clubId: champion, prizeType: championPrize.prize_type, stage: championPrize.stage, position: 1, amount: championPrize.amount, description: championPrize.description ?? 'Premiação — campeão' })
-    if (runnerPrize) payments.push({ prizeId: runnerPrize.id, clubId: runnerUp, prizeType: runnerPrize.prize_type, stage: runnerPrize.stage, position: 2, amount: runnerPrize.amount, description: runnerPrize.description ?? 'Premiação — vice-campeão' })
+    if (championPrize) payments.push({ competitionId: championPrize.competition_id, prizeId: championPrize.id, clubId: champion, prizeType: championPrize.prize_type, stage: championPrize.stage, position: 1, amount: championPrize.amount, description: championPrize.description ?? 'Premiação — campeão' })
+    if (runnerPrize) payments.push({ competitionId: runnerPrize.competition_id, prizeId: runnerPrize.id, clubId: runnerUp, prizeType: runnerPrize.prize_type, stage: runnerPrize.stage, position: 2, amount: runnerPrize.amount, description: runnerPrize.description ?? 'Premiação — vice-campeão' })
   }
   return payments
 }
