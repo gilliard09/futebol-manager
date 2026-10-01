@@ -855,6 +855,20 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       )
       if (hasContinentalCalendar && !continentalFinalsComplete) return
     }
+    const continentalHistoryFixtures = continentalIds.length === 2
+      ? await (async () => {
+          const { data } = await supabase
+            .from('fixtures')
+            .select('round,status,home_club_id,away_club_id,home_score,away_score,winner_club_id,competition_id')
+            .eq('season_id', seasonId)
+            .in('competition_id', continentalIds)
+          return data ?? []
+        })()
+      : []
+
+    const libertadoresId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
+    const sudamericanaId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
+
     const completion = buildSeasonCompletion(
       { id: seasonId, name: career.season },
       leagueId,
@@ -862,6 +876,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       leagueFixtures,
       cupFixtures,
       Object.values(matches),
+      {
+        libertadoresId,
+        sudamericanaId,
+        libertadoresFixtures: continentalHistoryFixtures.filter(item => item.competition_id === libertadoresId),
+        sudamericanaFixtures: continentalHistoryFixtures.filter(item => item.competition_id === sudamericanaId),
+      },
     )
     if (!completion) return
 
