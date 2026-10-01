@@ -4,6 +4,7 @@ import type { Club, Player } from '../types/game'
 import { daysUntilContractEnd, getContractStatus } from '../engine/contracts'
 import PlayerProfile from './PlayerProfile'
 import { playerOverall } from '../engine/matchCore'
+import { playerPositionLabel } from '../engine/playerPositions'
 
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
