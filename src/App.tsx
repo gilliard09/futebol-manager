@@ -20,7 +20,7 @@ import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
-import { acceptManagerRenewal, applyFanResult, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
+import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } from './engine/loans'
@@ -616,7 +616,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         performance_score: managerPerformanceScore(performance),
         popularity_score: nextPopularity.regional + nextPopularity.national + nextPopularity.international,
         offer_level: level,
-        message: `${club.name} quer contar com seu trabalho depois do desempenho apresentado nesta temporada. Sua reputação atual permite que o clube faça uma abordagem formal.`,
+        message: club.name + ' quer contar com seu trabalho. O objetivo da diretoria seria ' + chooseBoardObjective(Number(club.reputation ?? 50), Number(club.budget ?? 0), Number(club.strength ?? club.reputation ?? 50)).label.toLowerCase() + '. Sua reputação atual permite esta abordagem.',
         status: 'pending',
       }))
       await supabase.from('manager_offers').insert(offerRows)
@@ -1169,7 +1169,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
             performance_score: dismissalScore,
             popularity_score: managerPopularity.regional + managerPopularity.national + managerPopularity.international,
             offer_level: offerLevelForPopularity(managerPopularity),
-            message: club.name + ' está disposto a avaliar seu trabalho depois do encerramento do vínculo atual. A proposta ficará disponível por 14 dias.',
+            message: club.name + ' está disposto a avaliar seu trabalho. O objetivo inicial seria ' + chooseBoardObjective(Number(club.reputation ?? 50), Number(club.budget ?? 0), Number(club.strength ?? club.reputation ?? 50)).label.toLowerCase() + '. A proposta ficará disponível por 14 dias.',
             status: 'pending',
           })))
           await markManagerUnemployed('dismissed')
