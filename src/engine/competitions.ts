@@ -144,61 +144,90 @@ export function getNextKnockoutRound(round: number) {
   return null
 }
 
-export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound: number) {
+export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound: number, availableClubIds: string[] = []): NextKnockoutFixture[] | null {
   const nextRound = getNextKnockoutRound(currentRound)
   if (!nextRound || ![1, 2, 4, 6, 8].includes(currentRound)) return null
-  const firstRound = currentRound - 1
-  if (currentRound === 1) {
-    const completed = fixtures.filter(f => f.round === 1 && f.status === 'completed' && f.home_score != null && f.away_score != null)
-    if (completed.length < 4) return null
-    const winners = completed
-      .map(f => f.winner_club_id ?? getKnockoutWinner(f.home_score!, f.away_score!, f.home_club_id, f.away_club_id))
-      .filter((id): id is string => Boolean(id))
-    if (winners.length !== 4) return null
-    return {
-      round: 2,
-      homeClubId: winners[0],
-      awayClubId: winners[1],
-      scheduledAt: new Date(Math.max(...completed.map(f => new Date(f.scheduled_at).getTime())) + 7 * 86400000).toISOString(),
-    } as never
-  }
-  if (currentRound === 2) return null
-  const completed = fixtures.filter(f => (f.round === firstRound || f.round === currentRound) && f.status === 'completed' && f.home_score != null && f.away_score != null)
-    .sort((a, b) => a.round - b.round || a.scheduled_at.localeCompare(b.scheduled_at))
-  if (completed.length < 4 || completed.length % 2 !== 0) return null
 
+  const completed = fixtures
+    .filter(f => f.round === currentRound && f.status === 'completed' && f.home_score != null && f.away_score != null)
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+
+  const winnerOf = (fixture: Fixture) =>
+    fixture.winner_club_id ??
+    getKnockoutWinner(fixture.home_score!, fixture.away_score!, fixture.home_club_id, fixture.away_club_id) ??
+    choosePenaltyWinner(fixture.home_club_id, fixture.away_club_id, fixture.id)
+
+  if (currentRound === 1) {
+    if (completed.length !== 4 || availableClubIds.length !== 36) return null
+    const winners = completed.map(winnerOf)
+    const eliminated = new Set(completed.flatMap(f => [f.home_club_id, f.away_club_id]))
+    const byes = availableClubIds.filter(id => !eliminated.has(id))
+    const secondRoundClubs = [...winners, ...byes]
+    if (secondRoundClubs.length !== 32) return null
+    const latest = Math.max(...completed.map(f => new Date(f.scheduled_at).getTime()))
+    const date = new Date(latest + 7 * 86400000)
+    const rows: NextKnockoutFixture[] = []
+    for (let i = 0; i < 16; i++) {
+      const home = secondRoundClubs[i * 2], away = secondRoundClubs[i * 2 + 1]
+      const matchDate = new Date(date); matchDate.setHours(19 + (i % 3), 0, 0, 0)
+      rows.push({ round: 2, homeClubId: home, awayClubId: away, scheduledAt: matchDate.toISOString() })
+    }
+    return rows
+  }
+
+  if (currentRound === 2) {
+    if (completed.length !== 16) return null
+    const winners = completed.map(winnerOf)
+    const latest = Math.max(...completed.map(f => new Date(f.scheduled_at).getTime()))
+    const firstDate = new Date(latest + 7 * 86400000)
+    const rows: NextKnockoutFixture[] = []
+    for (let i = 0; i < 8; i++) {
+      const home = winners[i * 2], away = winners[i * 2 + 1]
+      const first = new Date(firstDate); first.setHours(19 + (i % 3), 0, 0, 0)
+      const second = new Date(first); second.setDate(second.getDate() + 7)
+      rows.push({ round: 3, homeClubId: home, awayClubId: away, scheduledAt: first.toISOString() })
+      rows.push({ round: 4, homeClubId: away, awayClubId: home, scheduledAt: second.toISOString() })
+    }
+    return rows
+  }
+
+  const firstRound = currentRound - 1
+  const previous = fixtures.filter(f => (f.round === firstRound || f.round === currentRound) && f.status === 'completed' && f.home_score != null && f.away_score != null)
   const ties = new Map<string, Fixture[]>()
-  for (const fixture of completed) {
+  for (const fixture of previous) {
     const key = [fixture.home_club_id, fixture.away_club_id].sort().join(':')
     const tie = ties.get(key) ?? []
-    tie.push(fixture)
-    ties.set(key, tie)
+    tie.push(fixture); ties.set(key, tie)
   }
-  if (ties.size < 2 || [...ties.values()].some(tie => tie.length !== 2)) return null
+  const expectedTies = currentRound === 4 ? 8 : currentRound === 6 ? 4 : currentRound === 8 ? 2 : 0
+  if (previous.length !== expectedTies * 2 || ties.size !== expectedTies || [...ties.values()].some(tie => tie.length !== 2)) return null
 
   const winners: string[] = []
   for (const tie of ties.values()) {
     const firstLeg = tie.find(f => f.round === firstRound)
     const secondLeg = tie.find(f => f.round === currentRound)
     if (!firstLeg || !secondLeg) return null
-    const winner = resolveTwoLegTie(firstLeg, secondLeg, secondLeg.winner_club_id ?? null)
+    const winner = resolveTwoLegTie(firstLeg, secondLeg, secondLeg.winner_club_id ?? choosePenaltyWinner(secondLeg.home_club_id, secondLeg.away_club_id, secondLeg.id))
     if (!winner) return null
     winners.push(winner)
   }
 
-  const pairings: Array<{ homeClubId: string; awayClubId: string }> = []
-  for (let i = 0; i < winners.length; i += 2) pairings.push({ homeClubId: winners[i], awayClubId: winners[i + 1] })
-
-  const latest = Math.max(...completed.map(f => new Date(f.scheduled_at).getTime()))
-  const firstDate = new Date(latest); firstDate.setDate(firstDate.getDate() + 7)
-  const result: NextKnockoutFixture[] = []
-  for (const [index, pair] of pairings.entries()) {
-    const first = new Date(firstDate); first.setHours(19 + (index % 3), 0, 0, 0)
-    result.push({ round: nextRound, homeClubId: pair.homeClubId, awayClubId: pair.awayClubId, scheduledAt: first.toISOString() })
-    if (getCompetitionStage(nextRound).legs === 2) {
-      const second = new Date(first); second.setDate(second.getDate() + 7)
-      result.push({ round: nextRound + 1, homeClubId: pair.awayClubId, awayClubId: pair.homeClubId, scheduledAt: second.toISOString() })
-    }
+  if (currentRound === 8) {
+    const date = new Date(Math.max(...previous.map(f => new Date(f.scheduled_at).getTime())) + 14 * 86400000)
+    date.setHours(20, 0, 0, 0)
+    return [{ round: 9, homeClubId: winners[0], awayClubId: winners[1], scheduledAt: date.toISOString() }]
   }
-  return result
+
+  const rows: NextKnockoutFixture[] = []
+  const latest = Math.max(...previous.map(f => new Date(f.scheduled_at).getTime()))
+  const firstDate = new Date(latest + 7 * 86400000)
+  for (let i = 0; i < winners.length / 2; i++) {
+    const home = winners[i * 2], away = winners[i * 2 + 1]
+    const first = new Date(firstDate); first.setHours(19 + (i % 3), 0, 0, 0)
+    const second = new Date(first); second.setDate(second.getDate() + 7)
+    rows.push({ round: nextRound, homeClubId: home, awayClubId: away, scheduledAt: first.toISOString() })
+    rows.push({ round: nextRound + 1, homeClubId: away, awayClubId: home, scheduledAt: second.toISOString() })
+  }
+  return rows
 }
+
