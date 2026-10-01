@@ -192,7 +192,7 @@ export function buildSeasonFinancialHistory(
     stadiumExpenses,
     finesAndCosts,
     closingBalance,
-    financialStatus: calculateFinancialStatus(closingBalance, playerSalaryExpenses / 12),
+    financialStatus: calculateFinancialStatus(closingBalance, (playerSalaryExpenses + staffSalaryExpenses) / 12),
     nextSeasonBudget,
   }
 }
