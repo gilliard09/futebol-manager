@@ -270,6 +270,23 @@ function GameApp() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [session, setSession] = useState<any>(null)
+
+  useEffect(() => {
+    let active = true
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return
+      setSession(data.session)
+      setAuthLoading(false)
+    })
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+      setAuthLoading(false)
+      if (!nextSession) setCareer(null)
+    })
+    return () => { active = false; listener.subscription.unsubscribe() }
+  }, [])
 
   useEffect(() => {
     if (clubs.length > 0) return
@@ -329,39 +346,63 @@ function GameApp() {
 
   async function confirmCareer() {
     if (!selectedClub || !canContinue) return
-    const { data: activeSeason } = await supabase.from('seasons').select('name').eq('status', 'active').order('start_date', { ascending: false }).limit(1).maybeSingle()
-    const currentSeasonName = activeSeason?.name ?? SEASON_NAME
-    const contractStartSeason = currentSeasonName
-    const contractEndSeason = managerContractEndSeason(currentSeasonName, 1)
-    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: currentSeasonName, careerStatus: 'active', contractStartSeason, contractEndSeason }
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) { navigate('/login'); return }
+
+    const { data: activeSeason } = await supabase.from('seasons').select('name,start_date').eq('status', 'active').order('start_date', { ascending: false }).limit(1).maybeSingle()
+    const baseSeasonName = activeSeason?.name ?? SEASON_NAME
+    const year = Number(baseSeasonName.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
+    const displaySeasonName = seasonName(year)
+    const contractStartSeason = displaySeasonName
+    const contractEndSeason = managerContractEndSeason(displaySeasonName, 1)
+
+    const uniqueSeasonName = displaySeasonName + ' · ' + authUser.user.id.slice(0, 8)
+    const { data: careerSeason, error: careerSeasonError } = await supabase
+      .from('seasons')
+      .insert({ name: uniqueSeasonName, year, status: 'active', start_date: year + '-01-01', end_date: null })
+      .select('id')
+      .single()
+    if (careerSeasonError || !careerSeason) {
+      setError(careerSeasonError?.message ?? 'Não foi possível criar a temporada da carreira.')
+      return
+    }
+
+    const { data: competitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil', SERIE_B_NAME])
+    const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
+    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+    const serieBId = competitions?.find(item => item.name === SERIE_B_NAME)?.id
+    if (!leagueId || !cupId || !serieBId) { setError('As competições nacionais não estão configuradas.'); return }
+
+    const firstDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
+    const secondDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 2)
+    await ensureCompetitionTeams(careerSeason.id, leagueId, firstDivision)
+    await ensureCompetitionTeams(careerSeason.id, serieBId, secondDivision)
+    await ensureCompetitionTeams(careerSeason.id, cupId, [...firstDivision, ...secondDivision])
+
+    const fixtureRows = [
+      ...buildLeagueFixtures(careerSeason.id, year + '-01-01', firstDivision, leagueId),
+      ...buildLeagueFixtures(careerSeason.id, year + '-01-01', secondDivision, serieBId, 5),
+      ...buildCupFixtures(careerSeason.id, year + '-01-01', [...firstDivision, ...secondDivision], cupId),
+    ]
+    const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
+    if (fixtureError) {
+      await supabase.from('seasons').delete().eq('id', careerSeason.id)
+      setError(fixtureError.message)
+      return
+    }
+
+    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: uniqueSeasonName, seasonId: careerSeason.id, careerStatus: 'active', contractStartSeason, contractEndSeason }
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
     localStorage.setItem(MANAGER_STATUS_KEY, 'active')
-    const { data: authUser } = await supabase.auth.getUser()
-    if (authUser.user) {
-      const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
-      const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', currentSeasonName).maybeSingle()
-      await supabase.from('manager_profiles').upsert({
-        owner_id: authUser.user.id,
-        manager_name: next.name,
-        nationality: next.nationality,
-        birth_date: next.birthDate || null,
-        style: next.style,
-        personality: next.personality,
-        regional_popularity: popularity.regional,
-        national_popularity: popularity.national,
-        international_popularity: popularity.international,
-        current_club_id: next.club.id,
-        current_season_id: seasonRow?.id ?? null,
-      }, { onConflict: 'owner_id' })
-    }
-    const initialSponsor = { ...chooseSponsor(next.club.reputation ?? 50), seasonId: next.season }
-    localStorage.setItem(FINANCE_KEY, JSON.stringify([
-      createTransaction(seasonStart(next.season), 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget'),
-      createTransaction(SEASON_START, 'sponsorship', initialSponsor.name, initialSponsor.upfront, undefined, 'sponsor:upfront:' + next.season),
-    ]))
-    setCareer(next); navigate('/dashboard')
-  }
-
+    const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
+    await supabase.from('manager_profiles').upsert({
+      owner_id: authUser.user.id, manager_name: next.name, nationality: next.nationality, birth_date: next.birthDate || null,
+      style: next.style, personality: next.personality, regional_popularity: popularity.regional, national_popularity: popularity.national,
+      international_popularity: popularity.international, current_club_id: next.club.id, current_season_id: careerSeason.id,
+    }, { onConflict: 'owner_id' })
   function newCareer() {
     localStorage.removeItem(CAREER_KEY)
     localStorage.removeItem(FINANCE_KEY)
@@ -397,6 +438,9 @@ function GameApp() {
     setCareer(null); setManagerName(''); setNationality('Brasil'); setBirthDate(''); setManagerStyle('high_press'); setManagerPersonality('motivator'); setSelectedClub(null); navigate('/manager')
   }
 
+  if (authLoading) return <div className="flex min-h-screen items-center justify-center bg-[#0a0f1a] text-sm text-white/40">Carregando...</div>
+  if (!session) return <Routes><Route path="*" element={<Login />} /></Routes>
+
   return <div className="min-h-screen bg-[#0a0f1a] text-white"><div className="mx-auto min-h-screen max-w-7xl border-x border-white/5 bg-[#0a0f1a]">
     <Routes>
       <Route path="/" element={<Home career={career} start={() => navigate('/manager')} continueCareer={() => navigate('/dashboard')} newCareer={newCareer} />} />
@@ -410,6 +454,47 @@ function GameApp() {
 
 function Top({ label, back }: { label?: string; back?: () => void }) {
   return <header className="flex h-20 items-center justify-between border-b border-white/6 px-6 md:px-10"><button onClick={back} className={back ? 'flex items-center gap-3 text-sm font-semibold text-white/60 hover:text-white' : 'pointer-events-none text-sm font-semibold'}>{back && <ArrowLeft size={18} />} FUTEBOL MANAGER</button>{label && <span className="text-xs uppercase tracking-[0.18em] text-white/30">{label}</span>}</header>
+}
+
+function Login() {
+  const navigate = useNavigate()
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  async function submit(event: any) {
+    event.preventDefault()
+    setBusy(true); setMessage(null)
+    const result = mode === 'login'
+      ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
+      : await supabase.auth.signUp({ email: email.trim(), password })
+    setBusy(false)
+    if (result.error) { setMessage(result.error.message); return }
+    if (mode === 'signup' && !result.data.session) {
+      setMessage('Conta criada. Confira seu e-mail para confirmar o cadastro e depois entre no jogo.')
+      return
+    }
+    navigate('/')
+  }
+
+  return <main className="flex min-h-screen items-center justify-center px-6 py-12">
+    <div className="w-full max-w-md rounded-3xl border border-white/8 bg-white/[0.025] p-7 md:p-9">
+      <div className="mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/60">FUTEBOL MANAGER</p>
+        <h1 className="mt-3 text-3xl font-bold">{mode === 'login' ? 'Entrar na sua carreira' : 'Criar sua conta'}</h1>
+        <p className="mt-3 text-sm leading-6 text-white/40">Sua carreira, histórico e progresso ficam vinculados à sua conta.</p>
+      </div>
+      <form onSubmit={submit} className="space-y-4">
+        <input value={email} onChange={e => setEmail(e.target.value)} type="email" required placeholder="Seu e-mail" className="w-full rounded-xl border border-white/8 bg-black/20 px-4 py-3.5 text-sm outline-none focus:border-emerald-400/40" />
+        <input value={password} onChange={e => setPassword(e.target.value)} type="password" required minLength={6} placeholder="Sua senha" className="w-full rounded-xl border border-white/8 bg-black/20 px-4 py-3.5 text-sm outline-none focus:border-emerald-400/40" />
+        {message && <p className="rounded-xl border border-white/6 bg-white/[0.03] p-3 text-xs leading-5 text-white/55">{message}</p>}
+        <button disabled={busy} className="w-full rounded-xl bg-emerald-400 px-5 py-3.5 text-sm font-bold text-[#06100c] disabled:opacity-50">{busy ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}</button>
+      </form>
+      <button onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setMessage(null) }} className="mt-5 w-full text-sm text-white/40 hover:text-white">{mode === 'login' ? 'Ainda não tenho uma conta' : 'Já tenho uma conta'}</button>
+    </div>
+  </main>
 }
 
 function Home({ career, start, continueCareer, newCareer }: { career: ManagerProfile | null; start: () => void; continueCareer: () => void; newCareer: () => void }) {
@@ -3514,7 +3599,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   }
   if (view === 'board') return <BoardScreen club={career.club} board={boardState} fans={fanState} balance={financeBalance} monthlyPayroll={salaryTotal} back={() => goToView('overview')} />
   if (view === 'contracts') return <ContractsScreen players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
-  if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
+  if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} seasonId={career.seasonId} back={() => goToView('overview')} />
   if (view === 'news') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
   if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} financeHistory={financeHistory} nextSeasonBudget={nextSeasonBudget} reputation={Number(career.club.reputation ?? 50)} strength={Number(career.club.strength ?? 50)} managerConfidence={boardState.confidence} back={() => goToView('overview')} />
   if (view === 'stadium') return <StadiumScreen club={career.club} commercial={commercial} balance={financeBalance} fanSatisfaction={fanState.satisfaction} reputation={career.club.reputation ?? 50} onUpgrade={async (nextStadium, cost) => {
@@ -3533,7 +3618,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
 
   if (view === 'press') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
-  if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
+  if (view === 'competitions') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} seasonId={career.seasonId} back={() => goToView('overview')} />
   if (view === 'loans') return <LoanMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} transferOverrides={transferState.playerClubOverrides} state={loanState} currentSquadSize={players.length} onLoan={(record, nextState) => { const transaction = createTransaction(record.date, record.loanClubId === career.club.id ? 'transfer_out' : 'transfer_in', `${record.loanClubId === career.club.id ? 'Empréstimo recebido' : 'Empréstimo cedido'} · ${record.playerName}`, record.loanClubId === career.club.id ? -record.fee : record.fee, undefined, `loan:${record.id}`); const finalTransactions = financeTransactions.some(item => item.eventId === transaction.eventId) ? financeTransactions : [...financeTransactions, transaction]; const finalBalance = applyTransaction(financeBalance, transaction); setLoanState(nextState); localStorage.setItem(LOANS_KEY, JSON.stringify(nextState)); saveFinance(finalBalance, finalTransactions); const nextCareer = { ...career, club: { ...career.club, budget: finalBalance } }; localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer)); onCareerUpdate(nextCareer); goToView('overview') }} back={() => goToView('overview')} />
   if (view === 'market') return <TransferMarket club={{ ...career.club, budget: financeBalance }} clubs={clubs} balance={financeBalance} today={clock?.currentDate ?? SEASON_START} state={transferState} loanState={loanState} currentSquadSize={players.length} personality={career.personality} onTransfer={(record, nextState, nextBalance) => {
     const transaction = createTransaction(record.date, record.kind === 'purchase' ? 'transfer_out' : 'transfer_in', (record.kind === 'purchase' ? 'Compra' : 'Venda') + ' · ' + record.playerName, record.kind === 'purchase' ? -record.fee : record.fee, undefined, 'transfer:' + record.id)
