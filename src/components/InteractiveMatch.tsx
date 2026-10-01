@@ -15,7 +15,7 @@ import {
 import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/matchCore'
 import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
-import { playMatchSound, startMatchAmbient, stopMatchAmbient } from '../engine/matchAudio'
+import { playMatchSound } from '../engine/matchAudio'
 
 
 type Props = {
@@ -214,12 +214,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     setSession(next)
     setPhase('live')
     setPaused(false)
-    startMatchAmbient()
   }
-
-  useEffect(() => {
-    return () => stopMatchAmbient()
-  }, [])
 
   useEffect(() => {
     if (!session || phase !== 'live' || paused || session.finished) return
@@ -234,7 +229,6 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     if (session.events.length > lastEventCount) setLastEventCount(session.events.length)
     if (session.finished && phase === 'live') {
       playMatchSound('whistle')
-      stopMatchAmbient()
       setPaused(true)
       setPhase('postgame')
       setPostgameTab('events')
@@ -246,9 +240,11 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     const latest = session.events[session.events.length - 1]
     if (latest && (!highlightEvent || latest.minute !== highlightEvent.minute || latest.type !== highlightEvent.type || latest.player !== highlightEvent.player) && ['goal','injury','red_card','penalty'].includes(latest.type)) {
       setHighlightEvent(latest)
-      if (latest.type === 'injury' || latest.type === 'red_card') {
+      if (['goal', 'injury', 'red_card'].includes(latest.type)) {
         setPaused(true)
-        if (latest.team === userTeam) setPendingIncident(latest.type)
+        if (latest.type === 'injury' || latest.type === 'red_card') {
+          if (latest.team === userTeam) setPendingIncident(latest.type)
+        }
       }
       if (latest.type === 'penalty') {
         setPaused(true)
@@ -391,7 +387,11 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         <div className="game-panel"><div className="flex items-center justify-between"><div><p className="label-mono text-amber-200/60">INTERVALO</p><h2 className="mt-1 font-display text-2xl font-bold">45 minutos concluídos</h2><p className="mt-1 text-sm text-white/40">Confira a energia do elenco antes de voltar para o segundo tempo.</p></div><span className="font-display text-4xl font-bold">45'</span></div>
           <div className="mt-5 grid gap-3 lg:grid-cols-2"><ProjectedPitch lineup={session.home.lineup} team="home" compact /><ProjectedPitch lineup={session.away.lineup} team="away" compact /></div>
           <div className="mt-5 grid gap-2 sm:grid-cols-2">{user?.lineup.map(item => { const energy = Math.max(0, Math.min(100, Math.round(100 - ((item.player.fatigue ?? 0) + 45 * 0.8)))); const tone = energy <= 30 ? 'text-red-300 border-red-400/20 bg-red-400/5' : energy <= 65 ? 'text-amber-200 border-amber-400/20 bg-amber-400/5' : 'text-emerald-300 border-emerald-400/20 bg-emerald-400/5'; return <div key={item.player.id} className={'flex items-center justify-between rounded-xl border px-3 py-2.5 ' + tone}><span className="text-xs font-bold">{playerName(item.player)}</span><span className="font-mono text-xs font-bold">{energy}%</span></div>})}</div>
-          <button onClick={() => { setPhase('live'); setPaused(false) }} className="mt-5 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao segundo tempo <ArrowRight size={16} className="inline ml-1" /></button>
+          <button onClick={() => {
+            setSession(current => current ? advanceInteractiveMinute(current, userTeam) : current)
+            setPhase('live')
+            setPaused(false)
+          }} className="mt-5 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao segundo tempo <ArrowRight size={16} className="inline ml-1" /></button>
         </div>
       </section>}
 
