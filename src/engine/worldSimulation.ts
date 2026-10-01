@@ -634,6 +634,7 @@ export function simulateWorldDay(
   }> = []
 
   if ([10, 20].includes(day)) {
+    const signedFreeAgents = new Set<string>()
     for (const buyer of aiClubs) {
       const squad = byClub.get(buyer.id) ?? []
       const performance = performanceByClub[buyer.id]
@@ -889,6 +890,7 @@ export function simulateWorldDay(
       if (squad.length >= 25 || buyer.budget < 150000) continue
       const needs = evaluateSquadNeeds(squad)
       const target = freeAgents.find(player => {
+        if (signedFreeAgents.has(player.id) || player.clubId) return false
         const need = needs.find(item => item.position === player.position)
         const overall = playerOverall(player)
         if (!need || need.urgency < 1) return false
@@ -901,6 +903,7 @@ export function simulateWorldDay(
       const signingCost = Math.max(25000, Math.round(target.salary * 2))
       if (signingCost > buyer.budget) continue
       target.clubId = buyer.id
+      signedFreeAgents.add(target.id)
       target.contractUntil = addYears(date, 2)
       target.salary = Math.max(target.salary, Math.round((target.marketValue * 0.004) / 500) * 500)
       target.morale = clamp(target.morale + 8, 1, 100)
