@@ -1132,28 +1132,30 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         clubs,
         career.club.id,
       )
-      const { data: authUser } = await supabase.auth.getUser()
-      if (authUser.user && candidateClubs.length) {
-        const offeredAt = toDateKey(fixture.scheduled_at)
-        const expiresAt = addDays(offeredAt, 14)
-        await supabase
-          .from('manager_offers')
-          .update({ status: 'expired', responded_at: new Date().toISOString() })
-          .eq('owner_id', authUser.user.id)
-          .eq('status', 'pending')
-
-        await supabase.from('manager_offers').insert(candidateClubs.map(club => ({
-          owner_id: authUser.user.id,
-          offered_at: offeredAt,
-          expires_at: expiresAt,
-          from_club_id: club.id,
-          performance_score: dismissalScore,
-          popularity_score: managerPopularity.regional + managerPopularity.national + managerPopularity.international,
-          offer_level: offerLevelForPopularity(managerPopularity),
-          message: club.name + ' está disposto a avaliar seu trabalho depois do encerramento do vínculo atual. A proposta ficará disponível por 14 dias.',
-          status: 'pending',
-        })))
-        await loadManagerCareer()
+      if (candidateClubs.length) {
+        void (async () => {
+          const { data: authUser } = await supabase.auth.getUser()
+          if (!authUser.user) return
+          const offeredAt = toDateKey(fixture.scheduled_at)
+          const expiresAt = addDays(offeredAt, 14)
+          await supabase
+            .from('manager_offers')
+            .update({ status: 'expired', responded_at: new Date().toISOString() })
+            .eq('owner_id', authUser.user.id)
+            .eq('status', 'pending')
+          await supabase.from('manager_offers').insert(candidateClubs.map(club => ({
+            owner_id: authUser.user.id,
+            offered_at: offeredAt,
+            expires_at: expiresAt,
+            from_club_id: club.id,
+            performance_score: dismissalScore,
+            popularity_score: managerPopularity.regional + managerPopularity.national + managerPopularity.international,
+            offer_level: offerLevelForPopularity(managerPopularity),
+            message: club.name + ' está disposto a avaliar seu trabalho depois do encerramento do vínculo atual. A proposta ficará disponível por 14 dias.',
+            status: 'pending',
+          })))
+          await loadManagerCareer()
+        })()
       }
 
       setPendingEvent({
