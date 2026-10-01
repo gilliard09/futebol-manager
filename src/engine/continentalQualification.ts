@@ -36,7 +36,7 @@ function rank(a:Club,b:Club){return Number(b.strength??b.reputation??0)-Number(a
 function winner(a:Club,b:Club){return rank(a,b)<=0?a:b}
 function pair(teams:Club[],stage:ContinentalFixture['stage'],competitionId:string,seasonId:string,year:number,startRound:number){
  const ordered=[...teams].sort(rank),fixtures:ContinentalFixture[]=[],winners:Club[]=[],losers:Club[]=[]
- for(let i=0;i+1<ordered.length;i+=2){const a=ordered[i],b=ordered[i+1];winners.push(winner(a,b));losers.push(winner(b,a));fixtures.push(
+ for(let i=0;i+1<ordered.length;i+=2){const a=ordered[i],b=ordered[i+1];const w=winner(a,b);winners.push(w);losers.push(w.id===a.id?b:a);fixtures.push(
   {competitionId,seasonId,round:startRound,homeClubId:b.id,awayClubId:a.id,scheduledAt:new Date(Date.UTC(year,1,10+i,19)).toISOString(),stage},
   {competitionId,seasonId,round:startRound+1,homeClubId:a.id,awayClubId:b.id,scheduledAt:new Date(Date.UTC(year,1,17+i,19)).toISOString(),stage}
  )}return{winners,losers,fixtures}
