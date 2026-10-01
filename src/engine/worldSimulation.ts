@@ -72,6 +72,7 @@ export type WorldSimulationResult = {
   expiredContracts: Array<{ playerId: string; clubId: string }>
   renewals: Array<{ playerId: string; clubId: string; salary: number; contractUntil: string }>
   retirements: Array<{ playerId: string; clubId: string }>
+  freeAgentSignings: Array<{ playerId: string; toClubId: string; fee: number }>
   youth: Array<{
     firstName: string
     lastName: string
@@ -290,9 +291,15 @@ const firstNames = ['Lucas', 'Gabriel', 'Pedro', 'Matheus', 'João', 'Rafael', '
 const lastNames = ['Almeida', 'Barbosa', 'Carvalho', 'Costa', 'Ferreira', 'Gomes', 'Lima', 'Martins', 'Mendes', 'Oliveira', 'Pereira', 'Ribeiro']
 const positions = ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST']
 
+function academyLevel(club: WorldClub) {
+  const profile = getClubEconomicProfile(club)
+  return clamp(Math.round(Number(club.reputation ?? 50) / 20 + profile.youthPriority * 2), 1, 7)
+}
+
 function createYouth(date: string, club: WorldClub, index: number) {
   const seed = `${date}:${club.id}:youth:${index}`
-  const base = 54 + Math.floor(random01(seed) * 10)
+  const level = academyLevel(club)
+  const base = 51 + level * 2 + Math.floor(random01(seed) * 9)
   const position = positions[hash(seed + ':position') % positions.length]
   const pace = clamp(base + (position === 'ST' || position === 'LW' || position === 'RW' ? 5 : 0), 1, 99)
   const shooting = clamp(base + (position === 'ST' ? 7 : position === 'AM' ? 3 : 0), 1, 99)
@@ -312,7 +319,7 @@ function createYouth(date: string, club: WorldClub, index: number) {
     physical: clamp(base + 2, 1, 99),
     goalkeeping,
     mental: clamp(base + 4, 1, 99),
-    potential: clamp(76 + Math.floor(random01(seed + ':potential') * 18), 70, 94),
+    potential: clamp(72 + level * 2 + Math.floor(random01(seed + ':potential') * 16), 70, 96),
     form: 65,
     morale: 72,
     marketValue: 250000 + base * 5000,
@@ -345,6 +352,7 @@ export function simulateWorldDay(
   const expiredContracts: WorldSimulationResult['expiredContracts'] = []
   const renewals: WorldSimulationResult['renewals'] = []
   const retirements: WorldSimulationResult['retirements'] = []
+  const freeAgentSignings: WorldSimulationResult['freeAgentSignings'] = []
   const youth: WorldSimulationResult['youth'] = []
   const changedClubs = new Set<string>()
   let evolvedPlayers = 0
@@ -863,6 +871,47 @@ export function simulateWorldDay(
     }
   }
 
+  // Jogadores livres também participam do mercado da IA. Sem esta etapa, contratos
+  // vencidos só retirariam atletas do mundo e a base acabaria sendo a única fonte
+  // de reposição. Clubes com necessidade e caixa podem recuperar agentes livres.
+  if ([5, 15, 25].includes(day)) {
+    const freeAgents = players
+      .filter(player => !player.clubId && player.age <= 31 && player.contractUntil === null)
+      .filter(player => player.marketValue >= 100000)
+      .sort((a, b) => {
+        const aScore = playerOverall(a) + (a.potential - playerOverall(a)) * 0.25
+        const bScore = playerOverall(b) + (b.potential - playerOverall(b)) * 0.25
+        return bScore - aScore
+      })
+
+    for (const buyer of aiClubs) {
+      const squad = byClub.get(buyer.id) ?? []
+      if (squad.length >= 25 || buyer.budget < 150000) continue
+      const needs = evaluateSquadNeeds(squad)
+      const target = freeAgents.find(player => {
+        const need = needs.find(item => item.position === player.position)
+        const overall = playerOverall(player)
+        if (!need || need.urgency < 1) return false
+        if (overall > buyer.strength + 12) return false
+        if (buyer.budget < Math.max(150000, player.marketValue * 0.08)) return false
+        return buyer.id !== player.clubId
+      })
+      if (!target) continue
+      const fee = 0
+      const signingCost = Math.max(25000, Math.round(target.salary * 2))
+      if (signingCost > buyer.budget) continue
+      target.clubId = buyer.id
+      target.contractUntil = addYears(date, 2)
+      target.salary = Math.max(target.salary, Math.round((target.marketValue * 0.004) / 500) * 500)
+      target.morale = clamp(target.morale + 8, 1, 100)
+      buyer.budget -= signingCost
+      byClub.set(buyer.id, [...squad, target])
+      changedClubs.add(buyer.id)
+      freeAgentSignings.push({ playerId: target.id, toClubId: buyer.id, fee })
+      transfers.push({ playerId: target.id, fromClubId: null, toClubId: buyer.id, fee })
+    }
+  }
+
   // Empréstimos: o mercado também resolve excesso de elenco e desenvolvimento.
   if ([10, 20].includes(day)) {
     const activeLoanPlayerIds = new Set(activeLoans.filter(loan => isLoanActiveOnDate(loan, date)).map(loan => loan.playerId))
@@ -1196,5 +1245,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, offers, loans, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs], aiManagers: aiManagement.managers, boardDecisions: aiManagement.decisions }
+  return { date, transfers, offers, loans, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, freeAgentSignings, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs], aiManagers: aiManagement.managers, boardDecisions: aiManagement.decisions }
 }
