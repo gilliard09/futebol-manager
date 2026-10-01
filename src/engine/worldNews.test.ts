@@ -21,6 +21,7 @@ const result = (): WorldSimulationResult => ({
   expiredContracts: [],
   renewals: [],
   retirements: [],
+  freeAgentSignings: [],
   youth: [],
   evolvedPlayers: 0,
   evolvedPlayerIds: [],
