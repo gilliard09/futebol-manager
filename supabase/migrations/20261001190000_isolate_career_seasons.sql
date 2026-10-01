@@ -27,11 +27,13 @@ create policy "season owner can be finalized or reset"
   using (owner_id = (select auth.uid()))
   with check (owner_id = (select auth.uid()));
 
+drop policy if exists "season owner can delete" on public.seasons;
 create policy "season owner can delete"
   on public.seasons for delete
   to authenticated
   using (owner_id = (select auth.uid()));
 
+drop policy if exists "authenticated can create own competition teams" on public.competition_teams;
 create policy "authenticated can create own competition teams"
   on public.competition_teams for insert
   to authenticated
@@ -48,6 +50,7 @@ drop policy if exists "public can reset completed fixtures" on public.fixtures;
 drop policy if exists "public can complete scheduled fixtures" on public.fixtures;
 drop policy if exists "owners can complete scheduled fixtures" on public.fixtures;
 
+drop policy if exists "authenticated can create own scheduled fixtures" on public.fixtures;
 create policy "authenticated can create own scheduled fixtures"
   on public.fixtures for insert
   to authenticated
@@ -111,6 +114,7 @@ create policy "owners can reset own completed fixtures"
     and winner_club_id is null
   );
 
+drop policy if exists "owners can delete own fixtures" on public.fixtures;
 create policy "owners can delete own fixtures"
   on public.fixtures for delete
   to authenticated
