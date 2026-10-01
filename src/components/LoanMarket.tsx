@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Handshake, Search, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { applyLoan, calculateLoanFee, calculateLoanSalaryCost, canCompleteLoan, createLoanRecord, getActiveLoan, type LoanRecord, type LoanState } from '../engine/loans'
-import { playerOverall } from '../engine/match'
+import { playerOverall } from '../engine/matchCore'
 import { canAddPlayer } from '../engine/roster'
 import type { Club, Player } from '../types/game'
 
