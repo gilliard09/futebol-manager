@@ -1281,8 +1281,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       .select('id,name,short_name,city,country,division,budget,reputation,stadium,stadium_capacity,founded_year,logo_url,strength')
       .order('name')
     const nextClubs = (nextClubsData ?? []) as Club[]
-    const activeClubs = nextClubs.filter(club => Number(club.division ?? 1) === 1)
-    const serieBClubs = nextClubs.filter(club => Number(club.division ?? 1) === 2)
+    const brazilClubs = nextClubs.filter(club => club.country === 'Brasil')
+    const activeClubs = brazilClubs.filter(club => Number(club.division ?? 1) === 1)
+    const serieBClubs = brazilClubs.filter(club => Number(club.division ?? 1) === 2)
     if (activeClubs.length !== 16 || serieBClubs.length !== 20) {
       console.error('A próxima temporada precisa de 16 clubes na Série A e 20 na Série B', { serieA: activeClubs.length, serieB: serieBClubs.length })
       return
@@ -1346,7 +1347,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         return
       }
 
-      const qualifierRows = continentalQualifications.map(item => ({
+      const brazilQualifierRows = continentalQualifications.map(item => ({
         season_id: nextSeasonId,
         competition_id: item.competition === 'libertadores' ? libertadoresId : sudamericanaId,
         club_id: item.clubId,
@@ -1358,6 +1359,49 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         status: 'qualified',
         notes: item.note,
       }))
+
+      const foreignQualifierRows = [
+        ...preliminaryPlan.libertadores.groupClubs
+          .filter(club => !libBrazilIds.has(club.id))
+          .map((club, index) => ({
+            season_id: nextSeasonId,
+            competition_id: libertadoresId,
+            club_id: club.id,
+            source_competition_id: null,
+            source_position: null,
+            qualification_type: preliminaryPlan.libertadores.phase3Winners.some(item => item.id === club.id) ? 'phase_3' : 'foreign_direct',
+            target_stage: 'group_stage',
+            slot_order: libBrazil.length + index + 1,
+            status: 'qualified',
+            notes: preliminaryPlan.libertadores.phase3Winners.some(item => item.id === club.id)
+              ? 'Classificado pela Fase 3 da Libertadores.'
+              : 'Vaga estrangeira direta da Libertadores.',
+          })),
+        ...preliminaryPlan.sudamericana.groupClubs
+          .filter(club => !sulaBrazilIds.has(club.id))
+          .map((club, index) => ({
+            season_id: nextSeasonId,
+            competition_id: sudamericanaId,
+            club_id: club.id,
+            source_competition_id: null,
+            source_position: null,
+            qualification_type: preliminaryPlan.libertadores.phase3Losers.some(item => item.id === club.id)
+              ? 'libertadores_phase_3_loser'
+              : preliminaryPlan.sudamericana.firstPhaseWinners.some(item => item.id === club.id)
+                ? 'sudamericana_first_phase'
+                : 'foreign_direct',
+            target_stage: 'group_stage',
+            slot_order: sulaBrazil.length + index + 1,
+            status: 'qualified',
+            notes: preliminaryPlan.libertadores.phase3Losers.some(item => item.id === club.id)
+              ? 'Transferido da Fase 3 da Libertadores para a Sul-Americana.'
+              : preliminaryPlan.sudamericana.firstPhaseWinners.some(item => item.id === club.id)
+                ? 'Classificado pela Primeira Fase da Sul-Americana.'
+                : 'Vaga estrangeira direta da Sul-Americana.',
+          })),
+      ]
+
+      const qualifierRows = [...brazilQualifierRows, ...foreignQualifierRows]
 
       await supabase.from('competition_qualifiers').delete().eq('season_id', nextSeasonId).in('competition_id', [libertadoresId, sudamericanaId])
       if (qualifierRows.length) {
