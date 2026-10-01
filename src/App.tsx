@@ -20,7 +20,7 @@ import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
-import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
+import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, managerContractYears, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
 import { applyTransfer, type TransferRecord, type TransferState } from './engine/transfers'
 import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } from './engine/loans'
@@ -33,7 +33,7 @@ import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
-import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
+import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, clubCanApproachManager, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -2401,7 +2401,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   }} back={() => goToView('overview')} />
   if (view === 'trophies') return <TrophyRoomScreen trophies={managerTrophies} back={() => goToView('overview')} />
   if (view === 'history') return <HistoryScreen rows={historyRows} clubs={clubs} players={[...players, ...historyPlayers]} back={() => goToView('overview')} />
-  if (view === 'legacy') return <ManagerCareerScreen managerName={career.name} popularity={managerPopularity} history={managerHistory} trophies={managerTrophies} records={managerRecords} offers={managerOffers} clubs={clubs} careerStatus={careerStatus} currentClubId={careerStatus === 'active' ? career.club.id : null} contractEndSeason={career.contractEndSeason ?? boardState.contractEndSeason} contractYears={boardState.contractYears ?? 1} back={() => goToView('overview')} onOffer={respondToManagerOffer} onRejectOffer={rejectManagerOffer} onRetire={careerStatus === 'unemployed' ? retireManager : undefined} />
+  if (view === 'legacy') return <ManagerCareerScreen managerName={career.name} popularity={managerPopularity} history={managerHistory} trophies={managerTrophies} records={managerRecords} offers={managerOffers} clubs={clubs} careerStatus={careerStatus} currentClubId={career.club.id} contractEndSeason={career.contractEndSeason ?? boardState.contractEndSeason} contractYears={boardState.contractYears ?? 1} back={() => goToView('overview')} onOffer={respondToManagerOffer} onRejectOffer={rejectManagerOffer} onRetire={undefined} />
   if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
   if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
 
