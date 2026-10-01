@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, calculateMonthSummary, calculateTrainingExpense, estimateAttendance } from './finance'
+import { applyTransaction, calculateMatchRevenue, calculateMonthlySalaryExpense, calculateMonthSummary, calculateTrainingExpense, estimateAttendance, createTransaction } from './finance'
 import {
   buildSeasonFinancialHistory,
   calculateClubChangeFinancialImpact,
@@ -12,7 +12,6 @@ import {
   calculateTechnicalStaffPayroll,
   calculateVariableCompetitionPrize,
 } from './clubFinance'
-import { createTransaction } from './finance'
 
 describe('finance engine', () => {
   it('aplica entradas e saidas ao saldo', () => {
