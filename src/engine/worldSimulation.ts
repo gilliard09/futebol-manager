@@ -2,6 +2,7 @@ import type { Club, Player } from '../types/game'
 import { getSquadRole, playerOverall } from './matchCore'
 import { calculateTargetPriority, decideTransferNegotiation } from './marketNegotiation'
 import { normalizeSalaryShare, evaluateLoanTarget, shouldOfferLoan, type LoanRecord } from './loans'
+import { simulateAIClubManagement, type AIBoardDecision, type AIClubManager } from './aiClubManagement'
 
 export type WorldClub = Club & { strength: number }
 
@@ -81,6 +82,8 @@ export type WorldSimulationResult = {
   evolvedPlayers: number
   evolvedPlayerIds: string[]
   changedClubs: string[]
+  aiManagers: AIClubManager[]
+  boardDecisions: AIBoardDecision[]
 }
 
 function hash(input: string) {
@@ -309,8 +312,10 @@ export function simulateWorldDay(
   performanceByClub: Record<string, WorldClubPerformance> = {},
   previousMarketInterest: MarketInterest[] = [],
   activeLoans: LoanRecord[] = [],
+  previousAIManagers: AIClubManager[] = [],
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
+  const aiManagement = simulateAIClubManagement(date, seasonId.match(/\\d{4}/)?.[0] ? 'Temporada ' + seasonId.match(/\\d{4}/)![0] : 'Temporada 2026', aiClubs, performanceByClub, previousAIManagers)
 
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
@@ -1081,5 +1086,5 @@ export function simulateWorldDay(
     }
   }
 
-  return { date, transfers, offers, loans, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs] }
+  return { date, transfers, offers, loans, negotiationEvents, marketInterest, expiredContracts, renewals, retirements, youth, evolvedPlayers, evolvedPlayerIds: [...evolvedPlayerIds], changedClubs: [...changedClubs], aiManagers: aiManagement.managers, boardDecisions: aiManagement.decisions }
 }
