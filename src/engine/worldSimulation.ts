@@ -3,6 +3,7 @@ import { getSquadRole, playerOverall } from './matchCore'
 import { calculateTargetPriority, decideTransferNegotiation } from './marketNegotiation'
 import { normalizeSalaryShare, evaluateLoanTarget, shouldOfferLoan, type LoanRecord } from './loans'
 import { simulateAIClubManagement, type AIBoardDecision, type AIClubManager } from './aiClubManagement'
+import { calculateTechnicalStaffPayroll } from './clubFinance'
 
 export type WorldClub = Club & { strength: number }
 
@@ -369,7 +370,9 @@ export function simulateWorldDay(
     for (const club of clubs) {
       const squad = byClub.get(club.id) ?? []
       const payroll = squad.reduce((sum, player) => sum + Math.max(0, Number(player.salary ?? 0)), 0)
-      const monthlyExpense = Math.round(payroll * getClubEconomicProfile(club).wageMultiplier)
+      const playerExpense = Math.round(payroll * getClubEconomicProfile(club).wageMultiplier)
+      const staffExpense = calculateTechnicalStaffPayroll(payroll, club.reputation, club.strength)
+      const monthlyExpense = playerExpense + staffExpense
       club.budget = Math.max(0, club.budget - monthlyExpense)
       if (club.id !== userClubId && club.budget < Math.max(250_000, monthlyExpense * 2)) {
         club.reputation = Math.max(35, club.reputation - 1)
