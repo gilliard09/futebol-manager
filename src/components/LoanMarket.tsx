@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { applyLoan, calculateLoanFee, calculateLoanSalaryCost, canCompleteLoan, createLoanRecord, getActiveLoan, type LoanRecord, type LoanState } from '../engine/loans'
 import { playerOverall } from '../engine/matchCore'
 import { canAddPlayer } from '../engine/roster'
+import { playerPositionLabel } from '../engine/playerPositions'
 import type { Club, Player } from '../types/game'
 
 function money(value: number) {
@@ -124,7 +125,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
         {available.map(item => <button key={item.player.id} onClick={() => open(item)} className="grid w-full grid-cols-[1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[1.8fr_1fr_70px_70px_120px]">
           <div><p className="text-sm font-semibold">{item.player.first_name} {item.player.last_name}</p><p className="text-xs text-white/30">{item.player.age} anos · Pot. {item.player.potential}</p></div>
           <span className="text-xs text-white/40">{item.club.short_name}</span>
-          <span className="hidden text-xs font-bold text-emerald-300 md:block">{item.player.position}</span>
+          <span className="hidden text-xs font-bold text-emerald-300 md:block">{playerPositionLabel(item.player.position)}</span>
           <span className="hidden text-sm font-bold md:block">{playerOverall(item.player)}</span>
           <span className="text-xs text-white/35">{money(item.marketValue)}</span>
         </button>)}
@@ -144,7 +145,7 @@ export default function LoanMarket({ club, clubs, balance, today, transferOverri
 
     {selected && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm md:items-center md:p-6" onClick={() => setSelected(null)}>
       <section className="w-full max-w-xl rounded-t-3xl border border-white/8 bg-[#10141b] p-6 md:rounded-3xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">{selected.club.short_name} · {selected.player.position}</p><h2 className="mt-2 text-3xl font-bold">{selected.player.first_name} {selected.player.last_name}</h2><p className="mt-2 text-sm text-white/35">{selected.player.age} anos · GER {playerOverall(selected.player)}</p></div><button onClick={() => setSelected(null)} className="rounded-lg p-2 text-white/35 hover:bg-white/5"><X size={20} /></button></div>
+        <div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300/70">{selected.club.short_name} · {playerPositionLabel(selected.player.position)}</p><h2 className="mt-2 text-3xl font-bold">{selected.player.first_name} {selected.player.last_name}</h2><p className="mt-2 text-sm text-white/35">{selected.player.age} anos · GER {playerOverall(selected.player)}</p></div><button onClick={() => setSelected(null)} className="rounded-lg p-2 text-white/35 hover:bg-white/5"><X size={20} /></button></div>
         <div className="mt-6 grid grid-cols-2 gap-3">
           <Info label="Valor de mercado" value={money(selected.marketValue)} />
           <Info label="Salário" value={money(selected.salary) + '/mês'} />
