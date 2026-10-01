@@ -31,6 +31,8 @@ export default function SeasonEndScreen({
   currentClubId: string
   nextSeasonName: string
   onNextSeason: () => void
+  managerOffers?: Array<{ id: string; from_club_id: string; offer_level: string; message: string; status: string }>
+  onManagerOffer?: (offer: { id: string; from_club_id: string }) => void
 }) {
   const clubName = (id: string | null) => clubs.find(club => club.id === id)?.name ?? 'Clube'
   const playerName = (id: string | null) => {
