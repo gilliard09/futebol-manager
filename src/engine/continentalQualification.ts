@@ -45,7 +45,8 @@ function single(teams:Club[],competitionId:string,seasonId:string,year:number){c
 
 export function buildContinentalPreliminaryPlan(allForeignClubs:Club[],libBrazil:Club[],sulaBrazil:Club[],libId:string,sulaId:string,seasonId:string,year:number):ContinentalPreliminaryPlan{
  const foreign=[...allForeignClubs].filter(c=>c.country!=='Brasil').sort(rank)
- const direct=foreign.slice(0,23),used=new Set(direct.map(c=>c.id))
+ const directCount=Math.max(0,32-libBrazil.length-4)
+ const direct=foreign.slice(0,directCount),used=new Set(direct.map(c=>c.id))
  const phase1Countries=['Bolívia','Equador','Paraguai','Peru','Uruguai','Venezuela']
  const phase1=phase1Countries.map(country=>foreign.find(c=>c.country===country&&!used.has(c.id))).filter(Boolean) as Club[]
  phase1.forEach(c=>used.add(c.id))
@@ -55,7 +56,8 @@ export function buildContinentalPreliminaryPlan(allForeignClubs:Club[],libBrazil
  const p3=pair(p2.winners,'phase_3',libId,seasonId,year,5)
  const libGroup=[...libBrazil,...direct,...p3.winners].slice(0,32)
  const libSet=new Set(libGroup.map(c=>c.id))
- const available=foreign.filter(c=>!libSet.has(c.id))
+ const libPhase3LoserSet=new Set(p3.losers.map(c=>c.id))
+ const available=foreign.filter(c=>!libSet.has(c.id)&&!libPhase3LoserSet.has(c.id))
  const countries=['Bolívia','Chile','Colômbia','Equador','Paraguai','Peru','Uruguai','Venezuela']
  const first:Club[]=[]
  for(const country of countries)first.push(...available.filter(c=>c.country===country).sort(rank).slice(0,4))
@@ -73,4 +75,4 @@ export function buildContinentalPreliminaryPlan(allForeignClubs:Club[],libBrazil
 export function selectForeignContinentalClubs(allClubs:Club[],excluded:Set<string>,count:number){return allClubs.filter(c=>c.country!=='Brasil'&&!excluded.has(c.id)).sort(rank).slice(0,count)}
 function draw(clubs:Club[]){const ordered=[...clubs].sort(rank),pots=Array.from({length:4},(_,i)=>ordered.slice(i*8,i*8+8)),groups:Club[][]=Array.from({length:8},()=>[]);function placePot(pi:number):boolean{if(pi===4)return true;const pot=pots[pi];function place(i:number,used:Set<number>):boolean{if(i===pot.length)return placePot(pi+1);const c=pot[i],candidates=groups.map((g,gi)=>({g,gi})).filter(x=>!used.has(x.gi)&&!x.g.some(y=>y.country===c.country)).sort((a,b)=>a.g.length-b.g.length||a.gi-b.gi);for(const x of candidates){x.g.push(c);used.add(x.gi);if(place(i+1,used))return true;used.delete(x.gi);x.g.pop()}return false}return place(0,new Set())}if(!placePot(0))throw new Error('Não foi possível montar os grupos continentais sem repetir país.');return groups}
 export function buildContinentalGroups(competition:'libertadores'|'sudamericana',clubs:Club[]){if(clubs.length!==32)throw new Error(`${competition} precisa de exatamente 32 clubes; recebeu ${clubs.length}.`);return{competition,clubs:[...clubs],groups:draw(clubs)}}
-export function buildContinentalGroupFixtures(seasonId:string,competitionId:string,groups:Club[][],year:number):ContinentalFixture[]{const dates=[4,11,25].map(d=>`${year}-04-${String(d).padStart(2,'0')}T19:00:00.000Z`).concat([5,19,26].map(d=>`${year}-05-${String(d).padStart(2,'0')}T19:00:00.000Z`));const out:ContinentalFixture[]=[];groups.forEach(g=>{const[a,b,c,d]=g;const rounds=[[[d,b],[c,a]],[[b,c],[a,d]],[[b,a],[d,c]],[[a,c],[b,d]],[[a,b],[c,d]],[[c,a],[d,b]]];rounds.forEach((matches,ri)=>matches.forEach(([home,away])=>out.push({competitionId,seasonId,round:ri+1,homeClubId:home.id,awayClubId:away.id,scheduledAt:dates[ri],stage:'group_stage'})))});return out}
+export function buildContinentalGroupFixtures(seasonId:string,competitionId:string,groups:Club[][],year:number):ContinentalFixture[]{const dates=[7,14,28].map(d=>`${year}-04-${String(d).padStart(2,'0')}T19:00:00.000Z`).concat([5,19,26].map(d=>`${year}-05-${String(d).padStart(2,'0')}T19:00:00.000Z`));const out:ContinentalFixture[]=[];groups.forEach(g=>{const[a,b,c,d]=g;const rounds=[[[d,b],[c,a]],[[b,c],[a,d]],[[b,a],[d,c]],[[a,c],[b,d]],[[a,b],[c,d]],[[c,a],[d,b]]];rounds.forEach((matches,ri)=>matches.forEach(([home,away])=>out.push({competitionId,seasonId,round:ri+1,homeClubId:home.id,awayClubId:away.id,scheduledAt:dates[ri],stage:'group_stage'})))});return out}
