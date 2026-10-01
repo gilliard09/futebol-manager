@@ -2631,6 +2631,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       }))
 
     await advanceContinentalStages()
+    if (databaseSeasonId) await finalizeSeasonIfComplete(databaseSeasonId, playedMatches)
   }
 
   async function advanceContinentalStages() {
