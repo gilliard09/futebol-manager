@@ -726,9 +726,141 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
     if (!closedSeason) return
 
+    const clubById = new Map(clubs.map(club => [club.id, club]))
     const leagueTeams = [...new Set(leagueFixtures.flatMap(item => [item.home_club_id, item.away_club_id]))]
-      .map(id => ({ id, name: id }))
+      .map(id => ({ id, name: clubById.get(id)?.name ?? id }))
     const leagueStandings = buildStandings(leagueTeams, leagueFixtures as any)
+
+    // A Série B é simulada integralmente quando a temporada é fechada caso o
+    // treinador esteja na elite. Isso impede que o mundo fique parado só
+    // porque o jogador não acompanha a segunda divisão.
+    const { data: serieBCompetition } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .eq('name', SERIE_B_NAME)
+      .maybeSingle()
+
+    let serieBStandings: ReturnType<typeof buildStandings> = []
+    if (serieBCompetition?.id) {
+      const { data: bFixturesBefore } = await supabase
+        .from('fixtures')
+        .select('id,home_club_id,away_club_id,home_score,away_score,status')
+        .eq('season_id', seasonId)
+        .eq('competition_id', serieBCompetition.id)
+
+      const bScheduled = (bFixturesBefore ?? []).filter(item => item.status !== 'completed')
+      const strengthMap = Object.fromEntries(clubs.map(club => [club.id, Number(club.strength ?? club.reputation ?? 50)]))
+
+      const autoScore = (homeId: string, awayId: string, round: number) => {
+        const home = Number(strengthMap[homeId] ?? 50)
+        const away = Number(strengthMap[awayId] ?? 50)
+        const seed = Math.abs(Math.sin((round * 97) + homeId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) - awayId.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)))
+        const homeGoals = Math.max(0, Math.min(5, Math.round(seed * 3 + (home - away) / 22 + 0.55)))
+        const awayGoals = Math.max(0, Math.min(5, Math.round((1 - seed) * 2.5 + (away - home) / 24)))
+        return [homeGoals, awayGoals] as const
+      }
+
+      if (bScheduled.length) {
+        await Promise.all(bScheduled.map(async fixture => {
+          const [homeScore, awayScore] = autoScore(fixture.home_club_id, fixture.away_club_id, Number(fixture.round ?? 1))
+          await supabase
+            .from('fixtures')
+            .update({
+              status: 'completed',
+              home_score: homeScore,
+              away_score: awayScore,
+              winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
+            })
+            .eq('id', fixture.id)
+        }))
+      }
+
+      const { data: bFixtures } = await supabase
+        .from('fixtures')
+        .select('home_club_id,away_club_id,home_score,away_score,status')
+        .eq('season_id', seasonId)
+        .eq('competition_id', serieBCompetition.id)
+      const bTeams = [...new Set((bFixtures ?? []).flatMap(item => [item.home_club_id, item.away_club_id]))]
+        .map(id => ({ id, name: clubById.get(id)?.name ?? id }))
+      serieBStandings = buildStandings(bTeams, (bFixtures ?? []) as any)
+
+      const movement = resolveDivisionMovement(leagueStandings, serieBStandings, strengthMap)
+      const promoted = new Set(movement.promotedClubIds)
+      const relegated = new Set(movement.relegatedClubIds)
+
+      for (const clubId of [...promoted, ...relegated]) {
+        await supabase
+          .from('clubs')
+          .update({ division: promoted.has(clubId) ? 1 : 2 })
+          .eq('id', clubId)
+      }
+
+      const movementRows = [
+        ...leagueStandings.map((row, index) => ({
+          season_id: seasonId,
+          club_id: row.id,
+          from_division: 1,
+          to_division: relegated.has(row.id) ? 2 : 1,
+          movement: relegated.has(row.id) ? 'relegated' : 'stayed',
+        })),
+        ...serieBStandings.map(row => ({
+          season_id: seasonId,
+          club_id: row.id,
+          from_division: 2,
+          to_division: promoted.has(row.id) ? 1 : 2,
+          movement: promoted.has(row.id) ? 'promoted' : 'stayed',
+        })),
+      ]
+      await supabase.from('season_club_movements').upsert(movementRows, { onConflict: 'season_id,club_id' })
+
+      const standingsRows = [
+        ...leagueStandings.map((row, index) => ({
+          season_id: seasonId, competition_id: leagueId, club_id: row.id, division: 1,
+          position: index + 1, played: row.played, wins: row.wins, draws: row.draws, losses: row.losses,
+          goals_for: row.gf, goals_against: row.ga, points: row.points,
+        })),
+        ...serieBStandings.map((row, index) => ({
+          season_id: seasonId, competition_id: serieBCompetition.id, club_id: row.id, division: 2,
+          position: index + 1, played: row.played, wins: row.wins, draws: row.draws, losses: row.losses,
+          goals_for: row.gf, goals_against: row.ga, points: row.points,
+        })),
+      ]
+      await supabase.from('season_club_standings').upsert(standingsRows, { onConflict: 'season_id,competition_id,club_id' })
+
+      for (const [competitionId, standings] of [[leagueId, leagueStandings], [serieBCompetition.id, serieBStandings] ] as Array<[string, ReturnType<typeof buildStandings>]>) {
+        const records = [
+          { record_type: 'highest_points', row: [...standings].sort((a, b) => b.points - a.points)[0], value: [...standings].sort((a, b) => b.points - a.points)[0]?.points ?? 0, description: 'Maior pontuação em uma temporada' },
+          { record_type: 'most_wins', row: [...standings].sort((a, b) => b.wins - a.wins)[0], value: [...standings].sort((a, b) => b.wins - a.wins)[0]?.wins ?? 0, description: 'Mais vitórias em uma temporada' },
+          { record_type: 'best_goal_difference', row: [...standings].sort((a, b) => (b.gf - b.ga) - (a.gf - a.ga))[0], value: [...standings].sort((a, b) => (b.gf - b.ga) - (a.gf - a.ga))[0] ? (([...standings].sort((a, b) => (b.gf - b.ga) - (a.gf - a.ga))[0].gf - [...standings].sort((a, b) => (b.gf - b.ga) - (a.gf - a.ga))[0].ga)) : 0, description: 'Melhor saldo de gols em uma temporada' },
+        ]
+        for (const record of records) {
+          if (!record.row) continue
+          const { data: previous } = await supabase
+            .from('competition_records')
+            .select('value')
+            .eq('competition_id', competitionId)
+            .eq('record_type', record.record_type)
+            .maybeSingle()
+          if (!previous || Number(previous.value) < record.value) {
+            await supabase.from('competition_records').upsert({
+              competition_id: competitionId,
+              record_type: record.record_type,
+              club_id: record.row.id,
+              value: record.value,
+              season_id: seasonId,
+              description: record.description,
+            }, { onConflict: 'competition_id,record_type' })
+          }
+        }
+      }
+
+      const userMovement = promoted.has(career.club.id) ? 'promoted' : relegated.has(career.club.id) ? 'relegated' : null
+      if (userMovement) {
+        const nextDivision = userMovement === 'promoted' ? 1 : 2
+        const nextCareer = { ...career, club: { ...career.club, division: nextDivision } }
+        onCareerUpdate(nextCareer)
+      }
+    }
     // Na Copa, a semifinal é a fase anterior à final (rodada 6 no calendário atual).
     const semifinalists = [...new Set(
       cupFixtures
