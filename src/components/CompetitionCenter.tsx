@@ -209,8 +209,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       {loading ? <div className="py-20 text-center text-sm text-white/35">Carregando competição...</div> : <>
         <div className="mt-8 grid gap-3 md:grid-cols-4">
           <Info label="Competição" value={competition} />
-          <Info label="Partidas" value={String(fixtures.length)} />
-          <Info label="Concluídas" value={String(fixtures.filter(x => x.status === 'completed').length)} />
+          <Info label="Partidas do seu clube" value={String(fixtures.filter(x => x.home_club_id === currentClubId || x.away_club_id === currentClubId).length)} />
+          <Info label="Realizadas pelo seu clube" value={String(fixtures.filter(x => (x.home_club_id === currentClubId || x.away_club_id === currentClubId) && x.status === 'completed').length)} />
           <Info label={competition === 'Liga Nacional do Brasil' ? 'Sua posição' : 'Fase atual'} value={competition === 'Liga Nacional do Brasil' ? (position ? `#${position}` : '—') : currentStage} />
         </div>
 
