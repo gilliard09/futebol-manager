@@ -1838,12 +1838,16 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const day = Number(date.slice(8, 10))
     const month = Number(date.slice(5, 7))
 
-    if (day === 1 && financeBalance < Math.max(500000, career.club.budget * 0.22)) {
+    const monthlyClubPayroll = salaryTotal + calculateTechnicalStaffPayroll(salaryTotal, Number(career.club.reputation ?? 50), Number(career.club.strength ?? 50), boardState.confidence)
+    const financialStatus = calculateFinancialStatus(financeBalance, monthlyClubPayroll)
+    if (day === 1 && financialStatus !== 'saudável') {
       return {
         type: 'board_message',
         date,
-        title: 'A diretoria está preocupada com as finanças',
-        message: 'O caixa do clube entrou em uma faixa de atenção. A diretoria espera que você controle a folha e evite comprometer o orçamento nas próximas semanas.',
+        title: financialStatus === 'crítico' ? 'A situação financeira ficou crítica' : 'A diretoria está preocupada com as finanças',
+        message: financialStatus === 'crítico'
+          ? 'O caixa entrou em uma faixa crítica. A diretoria precisa reduzir despesas, evitar contratações caras e preservar recursos para o restante da temporada.'
+          : 'O caixa entrou em uma faixa de atenção. A diretoria espera controle da folha e das próximas despesas.',
         tone: 'warning',
       }
     }
