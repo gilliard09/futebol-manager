@@ -125,11 +125,38 @@ export function shouldOfferRenewal(state: BoardState, seasonCompleted: boolean) 
   return seasonCompleted && state.managerStatus === 'active' && state.confidence >= 55
 }
 
+export function managerContractYears(confidence: number) {
+  if (confidence >= 85) return 3
+  if (confidence >= 70) return 2
+  return 1
+}
+
+export function managerContractSalary(clubReputation: number, confidence: number) {
+  const reputationFactor = Math.max(1, clubReputation / 50)
+  const confidenceFactor = 0.8 + Math.max(0, confidence - 50) / 100
+  return Math.round((25_000 * reputationFactor * confidenceFactor) / 1_000) * 1_000
+}
+
 export function resolveContractAtSeasonEnd(state: BoardState): BoardState {
   if (state.managerStatus === 'dismissed') return state
   if (state.confidence >= 55) {
-    return { ...state, managerStatus: 'renewed', renewalOffered: true }
+    return { ...state, managerStatus: 'active', renewalOffered: true }
   }
+  return { ...state, managerStatus: 'contract_ended', renewalOffered: false }
+}
+
+export function acceptManagerRenewal(state: BoardState, nextSeasonName: string): BoardState {
+  if (!state.renewalOffered || state.managerStatus !== 'active') return state
+  return {
+    ...state,
+    managerStatus: 'renewed',
+    contractEndSeason: nextSeasonName,
+    renewalOffered: false,
+  }
+}
+
+export function declineManagerRenewal(state: BoardState): BoardState {
+  if (!state.renewalOffered) return state
   return { ...state, managerStatus: 'contract_ended', renewalOffered: false }
 }
 
