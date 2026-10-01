@@ -33,7 +33,7 @@ import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
-import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, clubCanApproachManager, type ManagerPopularity } from './engine/managerCareer'
+import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, type ManagerPopularity } from './engine/managerCareer'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -1113,11 +1113,56 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     )
     saveManagement(nextBoard, nextFans)
     if (nextBoard.managerStatus === 'dismissed') {
+      const currentTeam = table.find(team => team.id === career.club.id)
+      const dismissalScore = managerPerformanceScore({
+        position: currentPosition,
+        points: Number(currentTeam?.points ?? 0),
+        wins: Number(currentTeam?.wins ?? 0),
+        draws: Number(currentTeam?.draws ?? 0),
+        losses: Number(currentTeam?.losses ?? 0),
+        clubReputation: Number(career.club.reputation ?? 50),
+        leagueTitle: false,
+        cupTitle: false,
+        boardConfidence: nextBoard.confidence,
+        fanSatisfaction: nextFans.satisfaction,
+      })
+      const candidateClubs = buildManagerOfferCandidates(
+        managerPopularity,
+        Math.max(25, dismissalScore),
+        clubs,
+        career.club.id,
+      )
+      const { data: authUser } = await supabase.auth.getUser()
+      if (authUser.user && candidateClubs.length) {
+        const offeredAt = toDateKey(fixture.scheduled_at)
+        const expiresAt = addDays(offeredAt, 14)
+        await supabase
+          .from('manager_offers')
+          .update({ status: 'expired', responded_at: new Date().toISOString() })
+          .eq('owner_id', authUser.user.id)
+          .eq('status', 'pending')
+
+        await supabase.from('manager_offers').insert(candidateClubs.map(club => ({
+          owner_id: authUser.user.id,
+          offered_at: offeredAt,
+          expires_at: expiresAt,
+          from_club_id: club.id,
+          performance_score: dismissalScore,
+          popularity_score: managerPopularity.regional + managerPopularity.national + managerPopularity.international,
+          offer_level: offerLevelForPopularity(managerPopularity),
+          message: club.name + ' está disposto a avaliar seu trabalho depois do encerramento do vínculo atual. A proposta ficará disponível por 14 dias.',
+          status: 'pending',
+        })))
+        await loadManagerCareer()
+      }
+
       setPendingEvent({
         type: 'board_message',
         date: toDateKey(fixture.scheduled_at),
         title: 'A diretoria encerrou seu trabalho',
-        message: 'A sequência de resultados e o nível de confiança chegaram a um ponto em que a diretoria decidiu encerrar o vínculo com o treinador.',
+        message: candidateClubs.length
+          ? 'A sequência de resultados encerrou seu vínculo. Outros clubes já demonstraram interesse; consulte a carreira do treinador para analisar as propostas.'
+          : 'A sequência de resultados e o nível de confiança chegaram a um ponto em que a diretoria decidiu encerrar o vínculo com o treinador.',
         tone: 'warning',
       })
     }
