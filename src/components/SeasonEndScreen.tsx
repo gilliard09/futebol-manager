@@ -21,6 +21,8 @@ export default function SeasonEndScreen({
   currentClubId,
   nextSeasonName,
   onNextSeason,
+  managerOffers = [],
+  onManagerOffer,
 }: {
   completion: SeasonCompletion
   clubs: Club[]
@@ -79,6 +81,19 @@ export default function SeasonEndScreen({
           <p className="mt-1 text-sm text-white/40">{topScorer ? 'Artilheiro da temporada' : 'Destaque ofensivo'}</p>
         </article>
       </section>
+
+      {managerOffers.length > 0 && <section className="mt-4 rounded-2xl border border-violet-400/15 bg-violet-400/[0.04] p-6 sm:p-8">
+        <p className="label-mono text-violet-300/70">Mercado de treinadores</p>
+        <h2 className="mt-2 text-2xl font-bold">Seu desempenho abriu novas portas</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">Outros clubes acompanharam sua temporada e fizeram propostas compatíveis com sua reputação atual.</p>
+        <div className="mt-5 space-y-2">{managerOffers.map(offer => <div key={offer.id} className="rounded-xl border border-white/5 bg-black/10 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="font-semibold">{clubs.find(club => club.id === offer.from_club_id)?.name ?? 'Outro clube'}</p><p className="mt-1 text-xs uppercase tracking-wider text-violet-300/60">{offer.offer_level}</p></div>
+            {offer.status === 'pending' && onManagerOffer && <button onClick={() => onManagerOffer({ id: offer.id, from_club_id: offer.from_club_id })} className="rounded-lg bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">Aceitar proposta</button>}
+          </div>
+          <p className="mt-3 text-xs leading-5 text-white/40">{offer.message}</p>
+        </div>)}</div>
+      </section>}
 
       <section className="mt-8 rounded-2xl border border-white/6 bg-[#111927] p-6 sm:p-8">
         <div className="flex items-start gap-4">
