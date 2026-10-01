@@ -464,6 +464,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (!authUser.user) return
     const ownerId = authUser.user.id
 
+    const today = toDateKey(new Date().toISOString())
+    await supabase
+      .from('manager_offers')
+      .update({ status: 'expired', responded_at: new Date().toISOString() })
+      .eq('owner_id', ownerId)
+      .eq('status', 'pending')
+      .lt('expires_at', today)
+
     const [{ data: profile }, { data: history }, { data: trophies }, { data: records }, { data: offers }] = await Promise.all([
       supabase.from('manager_profiles').select('*').eq('owner_id', ownerId).maybeSingle(),
       supabase.from('manager_season_history').select('*').eq('owner_id', ownerId).order('created_at', { ascending: false }),
@@ -2091,11 +2099,47 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     await supabase.from('manager_offers').update({ status: 'rejected', responded_at: new Date().toISOString() }).eq('owner_id', authUser.user.id).eq('status', 'pending').neq('id', offer.id)
     const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
     const nextCareer = { ...career, club: { ...targetClub, budget: Number(targetClub.budget ?? 0) } }
-    await supabase.from('manager_profiles').update({ current_club_id: targetClub.id, current_season_id: seasonRow?.id ?? null, updated_at: new Date().toISOString() }).eq('owner_id', authUser.user.id)
+    const nextBoard = createBoardState(career.season, career.season, Number(targetClub.reputation ?? 50), Number(targetClub.budget ?? 0), Number(targetClub.strength ?? targetClub.reputation ?? 50))
+    const nextFans = createFanState(career.season, Number(targetClub.reputation ?? 50), nextBoard.expectation)
+    const nextSponsor = { ...chooseSponsor(Number(targetClub.reputation ?? 50)), seasonId: career.season }
+    const nextCommercial = {
+      sponsor: nextSponsor,
+      stadium: createStadium(targetClub.id, career.season, targetClub.stadium ?? 'Estádio Municipal', targetClub.stadium_capacity ?? 12000),
+    }
+
+    await supabase.from('manager_profiles').update({
+      current_club_id: targetClub.id,
+      current_season_id: seasonRow?.id ?? null,
+      updated_at: new Date().toISOString(),
+    }).eq('owner_id', authUser.user.id)
+
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    localStorage.setItem(BOARD_KEY + ':' + career.season, JSON.stringify(nextBoard))
+    localStorage.setItem(FANS_KEY + ':' + career.season, JSON.stringify(nextFans))
+    localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(nextCommercial))
     onCareerUpdate(nextCareer)
+    setBoardState(nextBoard)
+    setFanState(nextFans)
+    setCommercial(nextCommercial)
     setFinanceBalance(Number(targetClub.budget ?? 0))
     setManagerOffers(current => current.map(item => item.id === offer.id ? { ...item, status: 'accepted' } : { ...item, status: item.status === 'pending' ? 'rejected' : item.status }))
+
+    if (seasonRow?.id) {
+      await Promise.all([
+        persistManagementToSupabase(seasonRow.id, nextBoard, nextFans),
+        persistCommercialToSupabase(seasonRow.id, nextCommercial),
+      ])
+    }
+
+    // Uma troca durante a temporada realmente muda o clube controlado pelo treinador.
+    // No encerramento, mantemos a tela de temporada para que a próxima temporada
+    // comece já pelo novo clube.
+    if (!seasonClosed) {
+      setSeasonClosed(false)
+      setSeasonCompletion(null)
+      setView('overview')
+      navigate('/dashboard')
+    }
     setPendingEvent(null)
   }
 
