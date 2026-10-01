@@ -91,15 +91,15 @@ describe('finance engine', () => {
 
   it('mantém histórico financeiro separado por categorias', () => {
     const transactions = [
-      createTransaction('2026-02-01', 'match_revenue', 'Bilheteria', 100000, '1', 'match:1'),
-      createTransaction('2026-03-01', 'sponsorship', 'Patrocínio', 50000, '2', 'sponsor:1'),
-      createTransaction('2026-04-01', 'prize', 'Premiação', 150000, '3', 'prize:1'),
-      createTransaction('2026-05-01', 'transfer_in', 'Venda', 300000, '4', 'transfer:1'),
-      createTransaction('2026-06-01', 'salary', 'Folha', -200000, '5', 'salary:1'),
-      createTransaction('2026-06-01', 'staff_salary', 'Comissão', -50000, '6', 'staff:1'),
-      createTransaction('2026-06-01', 'stadium_maintenance', 'Estádio', -20000, '7', 'stadium:1'),
-      createTransaction('2026-06-01', 'fine', 'Multa', -10000, '8', 'fine:1'),
-      createTransaction('2026-06-01', 'other', 'Custo', -5000, '9', 'other:1'),
+      createTransaction('2026-02-01', 'match_revenue', 'Bilheteria', 100000, '00000000-0000-0000-0000-000000000001', 'match:1'),
+      createTransaction('2026-03-01', 'sponsorship', 'Patrocínio', 50000, '00000000-0000-0000-0000-000000000002', 'sponsor:1'),
+      createTransaction('2026-04-01', 'prize', 'Premiação', 150000, '00000000-0000-0000-0000-000000000003', 'prize:1'),
+      createTransaction('2026-05-01', 'transfer_in', 'Venda', 300000, '00000000-0000-0000-0000-000000000004', 'transfer:1'),
+      createTransaction('2026-06-01', 'salary', 'Folha', -200000, '00000000-0000-0000-0000-000000000005', 'salary:1'),
+      createTransaction('2026-06-01', 'staff_salary', 'Comissão', -50000, '00000000-0000-0000-0000-000000000006', 'staff:1'),
+      createTransaction('2026-06-01', 'stadium_maintenance', 'Estádio', -20000, '00000000-0000-0000-0000-000000000007', 'stadium:1'),
+      createTransaction('2026-06-01', 'fine', 'Multa', -10000, '00000000-0000-0000-0000-000000000008', 'fine:1'),
+      createTransaction('2026-06-01', 'other', 'Custo', -5000, '00000000-0000-0000-0000-000000000009', 'other:1'),
     ]
 
     const history = buildSeasonFinancialHistory(
