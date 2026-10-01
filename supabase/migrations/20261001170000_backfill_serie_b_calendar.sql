@@ -68,9 +68,9 @@ begin
       case when r.round_idx % 2 = 0 then left_club.id else right_club.id end as home_club_id,
       case when r.round_idx % 2 = 0 then right_club.id else left_club.id end as away_club_id
     from generate_series(0, 18) as r(round_idx)
-    cross join generate_series(1, 9) as k(offset)
+    cross join generate_series(1, 9) as k(slot)
     join bclubs left_club
-      on left_club.rn = ((r.round_idx + k.offset - 1) % 19) + 1
+      on left_club.rn = ((r.round_idx + k.slot - 1) % 19) + 1
     join bclubs right_club
       on right_club.rn = ((r.round_idx - k.offset - 1 + 38) % 19) + 1
   ),
