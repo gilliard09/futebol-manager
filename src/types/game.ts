@@ -41,10 +41,25 @@ export type Player = {
   seasonStarts?: number
   seasonMinutes?: number
   seasonAverageRating?: number
+  seasonGoals?: number
+  seasonAssists?: number
   injuredUntil?: string | null
   suspendedUntil?: string | null
   yellowCards?: number
   redCards?: number
+  coachRelationship?: number
+  dissatisfaction?: number
+  transferRequested?: boolean
+  transferRequestDate?: string | null
+  careerGoals?: number
+  careerAssists?: number
+  careerAppearances?: number
+  careerStarts?: number
+  careerMinutes?: number
+  careerAverageRating?: number
+  careerSeasons?: number
+  injuries?: number
+  longTermInjuries?: number
 }
 
 export type Fixture = {
