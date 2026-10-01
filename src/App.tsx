@@ -3868,7 +3868,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
         onCareerUpdate(nextCareer)
       }
-      if (seasonId) await finalizeSeasonIfComplete(seasonId, nextMatches)
+      if (seasonId) {
+        await advanceContinentalStages()
+        await finalizeSeasonIfComplete(seasonId, nextMatches)
+      }
       if (clock) {
         const matchClock = { ...clock, currentDate: toDateKey(activeMatchFixture.scheduled_at) }
         setClock(matchClock)
