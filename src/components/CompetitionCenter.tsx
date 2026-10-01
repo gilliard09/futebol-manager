@@ -37,7 +37,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [seasonStatus, setSeasonStatus] = useState<'upcoming' | 'active' | 'completed' | null>(null)
   const [seasonId, setSeasonId] = useState<string | null>(null)
   const [officialHistory, setOfficialHistory] = useState<any>(null)
-  const [seasonHistory, setSeasonHistory] = useState<Array<{ season: string; year: number; leagueChampion: string; cupChampion: string; status: string }>>([])
+  const [seasonHistory, setSeasonHistory] = useState<Array<{ season: string; year: number; leagueChampion: string; serieBChampion: string; cupChampion: string; status: string }>>([])
+  const [clubHistory, setClubHistory] = useState<Array<{ season: string; competition: string; position: number; points: number; division: number }>>([])
 
   useEffect(() => {
     let active = true
@@ -67,6 +68,21 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       }
       if (active) {
         setSeasonHistory((allSeasons ?? []).map(item => ({ season: item.name, year: Number(item.year), status: item.status, ...(historyBySeason.get(item.id) ?? { leagueChampion: '—', serieBChampion: '—', cupChampion: '—' }) })))
+      }
+      const { data: clubHistoryRows } = await supabase
+        .from('season_club_standings')
+        .select('season_id,position,points,division,seasons(name),competitions(name)')
+        .eq('club_id', currentClubId)
+        .order('season_id', { ascending: false })
+        .limit(30)
+      if (active) {
+        setClubHistory((clubHistoryRows ?? []).map((row: any) => ({
+          season: String(row.seasons?.name ?? row.season_id),
+          competition: String(row.competitions?.name ?? 'Competição'),
+          position: Number(row.position ?? 0),
+          points: Number(row.points ?? 0),
+          division: Number(row.division ?? 1),
+        })))
       }
       if (season) {
         setSeasonId(season.id)
@@ -262,6 +278,17 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           </div>
           <p className="mt-3 text-xs text-white/25">{seasonStatus === 'completed' ? `Registro oficial salvo no histórico · ${officialHistory.length} competição(ões) consolidada(s).` : 'O registro persistente será gravado no encerramento da temporada.'}</p>
         </section>
+
+        {clubHistory.length > 0 && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <p className="text-xs uppercase tracking-[0.18em] text-white/30">Histórico do clube</p>
+          <h2 className="mt-2 text-2xl font-bold">Evolução ao longo das temporadas</h2>
+          <div className="mt-5 grid gap-2 md:grid-cols-2">
+            {clubHistory.map((item, index) => <div key={item.season + item.competition + index} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-4 py-3">
+              <div><p className="text-sm font-semibold">{item.season}</p><p className="mt-1 text-[10px] text-white/30">{item.competition} · Divisão {item.division}</p></div>
+              <div className="text-right"><p className="text-sm font-bold">#{item.position}</p><p className="mt-1 text-[10px] text-white/30">{item.points} pts</p></div>
+            </div>)}
+          </div>
+        </section>}
 
         {seasonHistory.length > 0 && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/30">Histórico de campeões</p>
