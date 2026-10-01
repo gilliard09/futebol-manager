@@ -708,21 +708,24 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       return current
     }
 
-    // Liga: o título tem um peso claramente maior que uma boa colocação.
-    topFour.forEach((clubId, index) => {
-      const current = achievement(clubId)
-      if (index === 0) {
-        current.budgetBonus += 3_000_000
+    // A premiação agora varia por toda a campanha, não apenas pelo G4.
+    leagueStandings.forEach((team, index) => {
+      const current = achievement(team.id)
+      const position = index + 1
+      current.budgetBonus += calculateVariableCompetitionPrize(position, 'league', {
+        champion: position === 1,
+        runnerUp: position === 2,
+        reputation: Number(clubs.find(club => club.id === team.id)?.reputation ?? 50),
+      })
+      if (position === 1) {
         current.reputationBonus += 5
         current.strengthBonus += 2
         current.marketMultiplier *= 1.05
-      } else if (index === 1) {
-        current.budgetBonus += 1_500_000
+      } else if (position === 2) {
         current.reputationBonus += 2
         current.strengthBonus += 1
         current.marketMultiplier *= 1.02
-      } else {
-        current.budgetBonus += 750_000
+      } else if (position <= 4) {
         current.reputationBonus += 1
         current.marketMultiplier *= 1.01
       }
@@ -730,7 +733,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     if (completion.cup.championClubId) {
       const cupChampion = achievement(completion.cup.championClubId)
-      cupChampion.budgetBonus += 2_000_000
+      cupChampion.budgetBonus += calculateVariableCompetitionPrize(1, 'cup', { champion: true, reputation: Number(clubs.find(club => club.id === completion.cup.championClubId)?.reputation ?? 50) })
       cupChampion.reputationBonus += 3
       cupChampion.strengthBonus += 1
       cupChampion.marketMultiplier *= 1.03
@@ -738,7 +741,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     if (completion.cup.runnerUpClubId) {
       const cupRunner = achievement(completion.cup.runnerUpClubId)
-      cupRunner.budgetBonus += 1_000_000
+      cupRunner.budgetBonus += calculateVariableCompetitionPrize(2, 'cup', { runnerUp: true, reputation: Number(clubs.find(club => club.id === completion.cup.runnerUpClubId)?.reputation ?? 50) })
       cupRunner.reputationBonus += 1
       cupRunner.marketMultiplier *= 1.015
     }
@@ -746,7 +749,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     semifinalists.forEach(clubId => {
       if (clubId === completion.cup.championClubId || clubId === completion.cup.runnerUpClubId) return
       const current = achievement(clubId)
-      current.budgetBonus += 500_000
+      current.budgetBonus += calculateVariableCompetitionPrize(3, 'cup', { semifinal: true, reputation: Number(clubs.find(club => club.id === clubId)?.reputation ?? 50) })
       current.reputationBonus += 1
       current.marketMultiplier *= 1.01
     })
