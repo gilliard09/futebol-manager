@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Club, Fixture, PlayedMatch } from '../types/game'
-import { buildStandings, getCompetitionStageLabel, BRAZIL_CUP_RULES, BRAZIL_LEAGUE_RULES } from '../engine/competitions'
+import { buildStandings, getCompetitionStageLabel, BRAZIL_CUP_RULES, BRAZIL_LEAGUE_RULES, BRAZIL_SERIE_B_RULES } from '../engine/competitions'
 import { buildPlayerCompetitionStats } from '../engine/competitionStats'
 
 function normalizeFixture(row: any): Fixture {
@@ -101,7 +101,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const rules = competition === 'Liga Nacional do Brasil'
     ? BRAZIL_LEAGUE_RULES
     : competition === 'Série B do Brasil'
-      ? { promotionSlots: 4, directPromotionSlots: 2, playoffSlots: 4, relegationSlots: 4 }
+      ? BRAZIL_SERIE_B_RULES
       : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
   const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId ?? undefined), [playedMatches, competitionId, seasonId])
