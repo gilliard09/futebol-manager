@@ -2121,7 +2121,18 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setBoardState(nextBoard)
     setFanState(nextFans)
     setCommercial(nextCommercial)
-    setFinanceBalance(Number(targetClub.budget ?? 0))
+    const targetBudget = Number(targetClub.budget ?? 0)
+    const switchTransaction = createTransaction(
+      toDateKey(new Date().toISOString()),
+      'other',
+      'Caixa disponível ao assumir o novo clube',
+      targetBudget,
+      undefined,
+      'manager-switch:' + targetClub.id + ':' + career.season,
+    )
+    setFinanceBalance(targetBudget)
+    setFinanceTransactions([switchTransaction])
+    localStorage.setItem(FINANCE_KEY, JSON.stringify([switchTransaction]))
     setManagerOffers(current => current.map(item => item.id === offer.id ? { ...item, status: 'accepted' } : { ...item, status: item.status === 'pending' ? 'rejected' : item.status }))
 
     if (seasonRow?.id) {
