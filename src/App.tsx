@@ -1246,7 +1246,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     await ensureCompetitionTeams(nextSeasonId, leagueId, activeClubs)
     await ensureCompetitionTeams(nextSeasonId, serieBId, serieBClubs)
-    await ensureCompetitionTeams(nextSeasonId, cupId, activeClubs)
+    await ensureCompetitionTeams(nextSeasonId, cupId, [...activeClubs, ...serieBClubs])
 
     const { data: existingFixtures } = await supabase
       .from('fixtures')
@@ -1257,7 +1257,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       const fixtureRows = [
         ...buildLeagueFixtures(nextSeasonId, nextStartDate, activeClubs, leagueId),
         ...buildLeagueFixtures(nextSeasonId, nextStartDate, serieBClubs, serieBId, 5),
-        ...buildCupFixtures(nextSeasonId, nextStartDate, activeClubs, cupId),
+        ...buildCupFixtures(nextSeasonId, nextStartDate, [...activeClubs, ...serieBClubs], cupId),
       ]
       const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
       if (fixtureError) {
@@ -3251,8 +3251,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           }
         }
         const stage = getCompetitionStage(currentRound)
-        if (stage.legs === 2 && currentRound % 2 === 0) {
-          const generated = resolveCompletedKnockoutStage(allFixtures, currentRound)
+        if (activeMatchFixture.competition_name === 'Copa Nacional do Brasil' && [1, 2, 4, 6, 8].includes(currentRound)) {
+          const cupClubIds = clubs.filter(club => Number(club.division ?? 1) <= 2).map(club => club.id)
+          const generated = resolveCompletedKnockoutStage(allFixtures, currentRound, cupClubIds)
           if (generated?.length) {
             const existingNext = new Set(allFixtures.map(fixture => `${fixture.round}:${fixture.home_club_id}:${fixture.away_club_id}`))
             const rows = generated.filter(fixture => !existingNext.has(`${fixture.round}:${fixture.homeClubId}:${fixture.awayClubId}`)).map(fixture => ({
