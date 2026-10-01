@@ -68,11 +68,12 @@ export function resolveDivisionMovement(
   secondDivision: StandingRow[],
   strengthByClub: Record<string, number> = {},
 ): DivisionMovementResult {
+  const promotion = resolveSerieBPromotion(secondDivision, strengthByClub)
   return {
-    promotedClubIds: resolveSerieBPromotion(secondDivision, strengthByClub).promotedClubIds,
+    promotedClubIds: promotion.promotedClubIds,
     relegatedClubIds: topDivision.slice(-4).map(row => row.id),
-    playoffWinners: resolveSerieBPromotion(secondDivision, strengthByClub).playoffs.map(item => item.winner),
-    playoffs: resolveSerieBPromotion(secondDivision, strengthByClub).playoffs,
+    playoffWinners: promotion.playoffs.map(item => item.winner),
+    playoffs: promotion.playoffs,
   }
 }
 
