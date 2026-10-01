@@ -1834,12 +1834,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       const currentSeasonId = currentSeasonRow?.id ?? null
       if (currentSeasonId) {
         setDatabaseSeasonId(currentSeasonId)
-        const [{ data: managementRow }, { data: commercialRow }] = await Promise.all([
-          supabase.from('club_management_seasons').select('*').eq('season_id', currentSeasonId).eq('club_id', career.club.id).maybeSingle(),
-          supabase.from('club_commercial_seasons').select('*').eq('season_id', currentSeasonId).eq('club_id', career.club.id).maybeSingle(),
-        ])
+        const { data: sessionData } = await supabase.auth.getSession()
 
-        if (managementRow) {
+        if (sessionData.session) {
+          const [{ data: managementRow }, { data: commercialRow }] = await Promise.all([
+            supabase.from('club_management_seasons').select('*').eq('season_id', currentSeasonId).eq('club_id', career.club.id).maybeSingle(),
+            supabase.from('club_commercial_seasons').select('*').eq('season_id', currentSeasonId).eq('club_id', career.club.id).maybeSingle(),
+          ])
+
+          if (managementRow) {
           const persisted = normalizeManagementRow(managementRow)
           setBoardState(persisted.board)
           setFanState(persisted.fans)
@@ -1855,15 +1858,16 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           const persistedCommercial = normalizeCommercialRow(commercialRow)
           setCommercial(persistedCommercial)
           localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(persistedCommercial))
-        } else {
-          const initialSponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
-          const initialCommercial = {
-            sponsor: initialSponsor,
-            stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal', career.club.stadium_capacity ?? 12000),
+          } else {
+            const initialSponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: career.season }
+            const initialCommercial = {
+              sponsor: initialSponsor,
+              stadium: createStadium(career.club.id, career.season, career.club.stadium ?? 'Estádio Municipal', career.club.stadium_capacity ?? 12000),
+            }
+            await persistCommercialToSupabase(currentSeasonId, initialCommercial)
+            setCommercial(initialCommercial)
+            localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(initialCommercial))
           }
-          await persistCommercialToSupabase(currentSeasonId, initialCommercial)
-          setCommercial(initialCommercial)
-          localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(initialCommercial))
         }
       }
       if (currentSeasonId && currentSeasonRow?.status === 'completed') {
