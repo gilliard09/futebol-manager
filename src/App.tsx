@@ -496,6 +496,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
   async function finalizeManagerSeason(
     seasonId: string,
+    matches: Record<string, PlayedMatch>,
     leagueStandings: Array<{ id: string; points: number; played: number; wins: number; draws: number; losses: number }>,
     leagueTitle: boolean,
     cupTitle: boolean,
@@ -513,6 +514,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       wins: Number(userStanding?.wins ?? 0),
       draws: Number(userStanding?.draws ?? 0),
       losses: Number(userStanding?.losses ?? 0),
+      played: Number(userStanding?.played ?? 0),
       clubReputation: Number(career.club.reputation ?? 50),
       leagueTitle,
       cupTitle,
