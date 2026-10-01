@@ -28,7 +28,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   seasonName: string
   back: () => void
 }) {
-  const [competition, setCompetition] = useState<'Liga Nacional do Brasil' | 'Copa Nacional do Brasil'>('Liga Nacional do Brasil')
+  const [competition, setCompetition] = useState<'Liga Nacional do Brasil' | 'Série B do Brasil' | 'Copa Nacional do Brasil'>('Liga Nacional do Brasil')
   const [fixtures, setFixtures] = useState<Fixture[]>([])
   const [loading, setLoading] = useState(true)
   const [round, setRound] = useState(1)
@@ -53,7 +53,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         ? await supabase.from('clubs').select('id,short_name,name').in('id', championIds)
         : { data: [] as any[] }
       const clubName = new Map((championClubs ?? []).map(item => [item.id, item.short_name ?? item.name]))
-      const { data: competitionRows } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+      const { data: competitionRows } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Série B do Brasil', 'Copa Nacional do Brasil'])
       const historyBySeason = new Map<string, { leagueChampion: string; cupChampion: string }>()
       const leagueId = competitionRows?.find(item => item.name === 'Liga Nacional do Brasil')?.id
       const cupId = competitionRows?.find(item => item.name === 'Copa Nacional do Brasil')?.id
@@ -89,12 +89,18 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   }, [competition, seasonName])
 
   const table = competition === 'Liga Nacional do Brasil'
-    ? buildStandings(clubs.map(c => ({ id: c.id, name: c.short_name })), fixtures)
-    : []
+    ? buildStandings(clubs.filter(c => Number(c.division ?? 1) === 1).map(c => ({ id: c.id, name: c.short_name })), fixtures)
+    : competition === 'Série B do Brasil'
+      ? buildStandings(clubs.filter(c => Number(c.division ?? 1) === 2).map(c => ({ id: c.id, name: c.short_name })), fixtures)
+      : []
   const rounds = [...new Set(fixtures.map(item => item.round))].sort((a, b) => a - b)
   const roundFixtures = fixtures.filter(item => item.round === round)
   const position = table.findIndex(item => item.id === currentClubId) + 1
-  const rules = competition === 'Liga Nacional do Brasil' ? BRAZIL_LEAGUE_RULES : BRAZIL_CUP_RULES
+  const rules = competition === 'Liga Nacional do Brasil'
+    ? BRAZIL_LEAGUE_RULES
+    : competition === 'Série B do Brasil'
+      ? { promotionSlots: 4, directPromotionSlots: 2, playoffSlots: 4, relegationSlots: 4 }
+      : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
   const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId ?? undefined), [playedMatches, competitionId, seasonId])
   const filteredStats = useMemo(() => {
@@ -155,6 +161,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         </div>
         <div className="flex rounded-xl border border-white/6 p-1">
           <button onClick={() => setCompetition('Liga Nacional do Brasil')} className={`rounded-lg px-4 py-2.5 text-xs font-bold ${competition === 'Liga Nacional do Brasil' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Liga</button>
+          <button onClick={() => setCompetition('Série B do Brasil')} className={`rounded-lg px-4 py-2.5 text-xs font-bold ${competition === 'Série B do Brasil' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Série B</button>
           <button onClick={() => setCompetition('Copa Nacional do Brasil')} className={`rounded-lg px-4 py-2.5 text-xs font-bold ${competition === 'Copa Nacional do Brasil' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>Copa</button>
         </div>
       </div>
@@ -235,12 +242,12 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           </div>
         </section>
 
-        {competition === 'Liga Nacional do Brasil' && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+        {(competition === 'Liga Nacional do Brasil' || competition === 'Série B do Brasil') && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">Liga Nacional do Brasil</h2>
           <div className="mt-5 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[720px] text-sm"><thead className="bg-white/[0.03] text-xs text-white/25"><tr>{['#','Clube','P','J','V','E','D','SG'].map(x => <th key={x} className="px-3 py-3 text-left">{x}</th>)}</tr></thead><tbody>
             {table.map((team, i) => <tr key={team.id} className={`border-t border-white/5 ${team.id === currentClubId ? 'bg-emerald-400/5' : ''}`}><td className="px-3 py-3">{i + 1}</td><td className="px-3 py-3 font-medium">{team.name}</td><td className="px-3 py-3 font-bold">{team.points}</td><td className="px-3 py-3">{team.played}</td><td className="px-3 py-3">{team.wins}</td><td className="px-3 py-3">{team.draws}</td><td className="px-3 py-3">{team.losses}</td><td className="px-3 py-3">{team.gf - team.ga}</td></tr>)}
           </tbody></table></div>
-          <p className="mt-3 text-xs text-white/25">Zona de rebaixamento preparada: últimos {BRAZIL_LEAGUE_RULES.relegationSlots} clubes. A segunda divisão ainda não está ativa no universo.</p>
+          <p className="mt-3 text-xs text-white/25">{competition === 'Liga Nacional do Brasil' ? 'Os quatro últimos clubes descem para a Série B.' : 'Os dois primeiros sobem diretamente; 3º a 6º disputam os dois acessos restantes em playoffs; os quatro últimos são rebaixados quando a divisão inferior existir.'}</p>
         </section>}
 
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
