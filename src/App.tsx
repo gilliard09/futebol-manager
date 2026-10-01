@@ -19,6 +19,7 @@ import ManagerCareerScreen from './components/ManagerCareerScreen'
 import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
+import { buildSeasonFinancialHistory, calculateClubChangeFinancialImpact, calculateDynamicTicketPrice, calculateFinancialStatus, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll, calculateVariableCompetitionPrize, type SeasonFinancialHistory } from './engine/clubFinance'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
 import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, estimateFanAttendance, evaluateBoard, getEconomicStatus, managerContractYears, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
@@ -57,6 +58,8 @@ const MARKET_NEGOTIATION_KEY = 'futebol-manager:market-negotiations'
 const BOARD_KEY = 'futebol-manager:board'
 const FANS_KEY = 'futebol-manager:fans'
 const COMMERCIAL_KEY = 'futebol-manager:commercial'
+const FINANCE_HISTORY_KEY = 'futebol-manager:finance-history'
+const NEXT_BUDGET_KEY = 'futebol-manager:next-budget'
 const MANAGER_STATUS_KEY = 'futebol-manager:manager-status'
 const AI_MANAGERS_KEY = 'futebol-manager:ai-managers'
 const AI_BOARD_DECISIONS_KEY = 'futebol-manager:ai-board-decisions'
@@ -285,6 +288,8 @@ function GameApp() {
     localStorage.removeItem(MANAGER_STATUS_KEY)
     localStorage.removeItem(AI_MANAGERS_KEY)
     localStorage.removeItem(AI_BOARD_DECISIONS_KEY)
+    localStorage.removeItem(FINANCE_HISTORY_KEY)
+    localStorage.removeItem(NEXT_BUDGET_KEY)
     Object.keys(localStorage)
       .filter(key => key.startsWith(BOARD_KEY + ':') || key.startsWith(FANS_KEY + ':') || key.startsWith(COMMERCIAL_KEY + ':') || key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':'))
       .forEach(key => localStorage.removeItem(key))
@@ -376,6 +381,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [salaryTotal, setSalaryTotal] = useState(0)
   const [financeBalance, setFinanceBalance] = useState(() => career?.club.budget ?? 0)
   const [financeTransactions, setFinanceTransactions] = useState<FinanceTransaction[]>(() => { try { return JSON.parse(localStorage.getItem(FINANCE_KEY) ?? '[]') } catch { return [] } })
+  const [financeHistory, setFinanceHistory] = useState<SeasonFinancialHistory[]>(() => { try { return JSON.parse(localStorage.getItem(FINANCE_HISTORY_KEY) ?? '[]') } catch { return [] } })
+  const [nextSeasonBudget, setNextSeasonBudget] = useState(() => Number(localStorage.getItem(NEXT_BUDGET_KEY) ?? 0))
   const [contractAlerts, setContractAlerts] = useState<Array<{ playerId: string; name: string; until: string | null; days: number | null; status: string }>>([])
   const [upcomingFixtures, setUpcomingFixtures] = useState<Fixture[]>([])
   const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
