@@ -68,6 +68,7 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
   return <div className="overflow-hidden rounded-3xl border border-white/8 bg-[#131b2a]">
     <div className="match-gradient px-5 py-4 text-center">
       <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/75">{fixture.competition_name ?? 'Competição'} · Rodada {fixture.round}</p>
+      {fixture.neutral_venue && <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-white/45">Campo neutro · {fixture.venue_name ?? 'Estádio Nacional'}</p>}
     </div>
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-7 text-center md:px-10">
       <div>
