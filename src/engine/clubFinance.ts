@@ -167,10 +167,11 @@ export function buildSeasonFinancialHistory(
   closingBalance: number,
   nextSeasonBudget: number,
 ) : SeasonFinancialHistory {
+  const ledgerTransactions = transactions.filter(item => item.eventId !== 'career:initial-budget' && !item.eventId?.startsWith('manager-switch:'))
   const sum = (types: FinanceTransaction['type'][]) =>
-    transactions.filter(item => types.includes(item.type)).reduce((total, item) => total + item.amount, 0)
-  const revenue = transactions.filter(item => item.amount > 0).reduce((total, item) => total + item.amount, 0)
-  const expenses = transactions.filter(item => item.amount < 0).reduce((total, item) => total + Math.abs(item.amount), 0)
+    ledgerTransactions.filter(item => types.includes(item.type)).reduce((total, item) => total + item.amount, 0)
+  const revenue = ledgerTransactions.filter(item => item.amount > 0).reduce((total, item) => total + item.amount, 0)
+  const expenses = ledgerTransactions.filter(item => item.amount < 0).reduce((total, item) => total + Math.abs(item.amount), 0)
   const playerSalaryExpenses = Math.abs(sum(['salary']))
   const staffSalaryExpenses = Math.abs(sum(['staff_salary']))
   const stadiumExpenses = Math.abs(sum(['stadium_maintenance']))
