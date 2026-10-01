@@ -297,8 +297,24 @@ function GameApp() {
     })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)
+      if (nextSession) {
+        const savedCareer = localStorage.getItem(CAREER_KEY)
+        if (savedCareer) {
+          try {
+            if (!JSON.parse(savedCareer).seasonId) {
+              localStorage.removeItem(CAREER_KEY)
+              localStorage.removeItem(MANAGER_STATUS_KEY)
+              setCareer(null)
+            }
+          } catch {
+            localStorage.removeItem(CAREER_KEY)
+            setCareer(null)
+          }
+        }
+      } else {
+        setCareer(null)
+      }
       setAuthLoading(false)
-      if (!nextSession) setCareer(null)
     })
     return () => { active = false; listener.subscription.unsubscribe() }
   }, [])
