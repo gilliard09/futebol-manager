@@ -236,7 +236,7 @@ function GameApp() {
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
     const initialSponsor = { ...chooseSponsor(next.club.reputation ?? 50), seasonId: next.season }
     localStorage.setItem(FINANCE_KEY, JSON.stringify([
-      createTransaction(SEASON_START, 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget'),
+      createTransaction(seasonStart(next.season), 'other', 'Capital inicial da carreira', next.club.budget, undefined, 'career:initial-budget'),
       createTransaction(SEASON_START, 'sponsorship', initialSponsor.name, initialSponsor.upfront, undefined, 'sponsor:upfront:' + next.season),
     ]))
     setCareer(next); navigate('/dashboard')
@@ -777,17 +777,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       undefined,
       `sponsor:upfront:${nextSeasonName}`,
     )
+    let nextBalance = financeBalance
     if (!financeTransactions.some(item => item.eventId === sponsorTransaction.eventId)) {
-      const nextBalance = addFinanceTransaction(sponsorTransaction) ?? financeBalance
+      nextBalance = addFinanceTransaction(sponsorTransaction) ?? financeBalance
       setFinanceBalance(nextBalance)
-      const updatedCareer = { ...career, club: { ...career.club, budget: nextBalance }, season: nextSeasonName }
-      localStorage.setItem(CAREER_KEY, JSON.stringify(updatedCareer))
-      onCareerUpdate(updatedCareer)
-    } else {
-      const updatedCareer = { ...career, season: nextSeasonName }
-      localStorage.setItem(CAREER_KEY, JSON.stringify(updatedCareer))
-      onCareerUpdate(updatedCareer)
     }
+    const updatedCareer = { ...career, club: { ...career.club, budget: nextBalance }, season: nextSeasonName }
+    localStorage.setItem(CAREER_KEY, JSON.stringify(updatedCareer))
+    onCareerUpdate(updatedCareer)
 
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(CONTRACTS_KEY)
@@ -798,7 +795,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.removeItem(MARKET_NEGOTIATION_KEY + ':' + nextSeasonName)
     localStorage.setItem(MARKET_INTEREST_KEY + ':' + nextSeasonName, JSON.stringify([]))
     localStorage.setItem(MARKET_NEGOTIATION_KEY + ':' + nextSeasonName, JSON.stringify([]))
-    localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, financeBalance, career.club.strength ?? 50)))
+    localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, nextBalance, career.club.strength ?? 50)))
     localStorage.setItem(FANS_KEY + ':' + nextSeasonName, JSON.stringify(createFanState(nextSeasonName, career.club.reputation ?? 50, createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, financeBalance, career.club.strength ?? 50).expectation)))
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify({
       sponsor: nextSponsor,
