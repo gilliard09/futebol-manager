@@ -4,6 +4,7 @@ import { calculateTargetPriority, decideTransferNegotiation } from './marketNego
 import { normalizeSalaryShare, evaluateLoanTarget, shouldOfferLoan, type LoanRecord } from './loans'
 import { simulateAIClubManagement, type AIBoardDecision, type AIClubManager } from './aiClubManagement'
 import { calculateTechnicalStaffPayroll } from './clubFinance'
+import { ageDevelopmentDelta, coachRelationshipDelta, injuryDurationDays, retirementChance, shouldRequestTransfer, updateDissatisfaction, updatePlayerLifecycle, type PlayerLifecycleState } from './playerLifecycle'
 
 export type WorldClub = Club & { strength: number }
 
@@ -28,6 +29,19 @@ export type WorldPlayer = Player & {
   seasonAverageRating?: number
   seasonGoals?: number
   seasonAssists?: number
+  coachRelationship?: number
+  dissatisfaction?: number
+  transferRequested?: boolean
+  transferRequestDate?: string | null
+  careerGoals?: number
+  careerAssists?: number
+  careerAppearances?: number
+  careerStarts?: number
+  careerMinutes?: number
+  careerAverageRating?: number
+  careerSeasons?: number
+  injuries?: number
+  longTermInjuries?: number
 }
 
 export type MarketInterest = {
@@ -150,6 +164,10 @@ function addMonths(date: string, months: number) {
   const [year, month, day] = date.split('-').map(Number)
   const next = new Date(Date.UTC(year, month - 1 + months, day))
   return next.toISOString().slice(0, 10)
+}
+
+function updateLifecycleSafe(state: PlayerLifecycleState, coachRelationship: number) {
+  return updatePlayerLifecycle(state, { coachRelationship })
 }
 
 function ageFactor(player: Player) {
@@ -314,6 +332,7 @@ export function simulateWorldDay(
   previousMarketInterest: MarketInterest[] = [],
   activeLoans: LoanRecord[] = [],
   previousAIManagers: AIClubManager[] = [],
+  managerContext: { personality?: string; style?: string } = {},
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
   const aiManagement = simulateAIClubManagement(date, 'Temporada ' + date.slice(0, 4), aiClubs, performanceByClub, previousAIManagers)
@@ -330,6 +349,7 @@ export function simulateWorldDay(
   const changedClubs = new Set<string>()
   let evolvedPlayers = 0
   const evolvedPlayerIds = new Set<string>()
+  const lifecycleUpdates = new Map<string, PlayerLifecycleState>()
 
   const byClub = new Map<string, WorldPlayer[]>()
   for (const player of players) {
@@ -354,6 +374,39 @@ export function simulateWorldDay(
 
   const day = Number(date.slice(8, 10))
   const month = Number(date.slice(5, 7))
+
+  const lifecycleFor = (player: WorldPlayer): PlayerLifecycleState => lifecycleUpdates.get(player.id) ?? updatePlayerLifecycle(undefined, {
+    coachRelationship: Number(player.coachRelationship ?? 50),
+    dissatisfaction: Number(player.dissatisfaction ?? 0),
+    transferRequested: Boolean(player.transferRequested),
+    transferRequestDate: player.transferRequestDate ?? null,
+    careerGoals: Number(player.careerGoals ?? 0),
+    careerAssists: Number(player.careerAssists ?? 0),
+    careerAppearances: Number(player.careerAppearances ?? 0),
+    careerStarts: Number(player.careerStarts ?? 0),
+    careerMinutes: Number(player.careerMinutes ?? 0),
+    careerAverageRating: Number(player.careerAverageRating ?? 0),
+    careerSeasons: Number(player.careerSeasons ?? 0),
+    injuries: Number(player.injuries ?? 0),
+    longTermInjuries: Number(player.longTermInjuries ?? 0),
+  })
+
+  const saveLifecycle = (player: WorldPlayer, state: PlayerLifecycleState) => {
+    lifecycleUpdates.set(player.id, state)
+    player.coachRelationship = state.coachRelationship
+    player.dissatisfaction = state.dissatisfaction
+    player.transferRequested = state.transferRequested
+    player.transferRequestDate = state.transferRequestDate
+    player.careerGoals = state.careerGoals
+    player.careerAssists = state.careerAssists
+    player.careerAppearances = state.careerAppearances
+    player.careerStarts = state.careerStarts
+    player.careerMinutes = state.careerMinutes
+    player.careerAverageRating = state.careerRatingCount ? Number((state.careerRatingTotal / state.careerRatingCount).toFixed(2)) : 0
+    player.careerSeasons = state.careerSeasons
+    player.injuries = state.injuries
+    player.longTermInjuries = state.longTermInjuries
+  }
 
   if ([10, 20].includes(day)) {
     for (const player of players) {
@@ -427,11 +480,39 @@ export function simulateWorldDay(
         const delta = direction > 0
           ? Math.min(player.age <= 23 && role === 'starter' ? 2 : 1, room)
           : direction < 0
-            ? -1
+            ? ageDevelopmentDelta(player, playerOverall(player))
             : 0
         if (delta !== 0) updatePlayer(player, delta)
       }
     }
+  }
+
+  // Relação com o treinador e insatisfação evoluem junto com uso, desempenho e contrato.
+  for (const player of players) {
+    if (!player.clubId) continue
+    const club = clubs.find(item => item.id === player.clubId)
+    const performance = club ? performanceByClub[club.id] : undefined
+    const role = getSquadRole(player)
+    const state = lifecycleFor(player)
+    const nextRelationship = Math.max(0, Math.min(100, state.coachRelationship + coachRelationshipDelta(player, {
+      managerPersonality: player.clubId === userClubId ? managerContext.personality : undefined,
+      managerStyle: player.clubId === userClubId ? managerContext.style : undefined,
+      clubPerformance: performance,
+    }, role)))
+    let next = updateLifecycleSafe(state, nextRelationship)
+    const contractMonths = player.contractUntil
+      ? Math.round((new Date(player.contractUntil).getTime() - new Date(date).getTime()) / (30 * 86400000))
+      : null
+    next = updateDissatisfaction(next, player, role, contractMonths)
+    const seed = random01(seasonId + ':request:' + date + ':' + player.id)
+    if (shouldRequestTransfer(next, player, seed)) {
+      next = updatePlayerLifecycle(next, {
+        transferRequested: true,
+        transferRequestDate: date,
+        dissatisfaction: Math.max(next.dissatisfaction, 75),
+      })
+    }
+    saveLifecycle(player, next)
   }
 
   // Contratos vencidos viram jogadores livres. Isso vale também para o clube do treinador.
@@ -941,11 +1022,11 @@ export function simulateWorldDay(
 
   // Janela de fim de temporada: veteranos podem se aposentar e clubes recompõem a base.
   if (month === 12 && day === 20) {
-    for (const club of aiClubs) {
+    for (const club of clubs) {
       const squad = byClub.get(club.id) ?? []
       for (const player of [...squad]) {
         if (player.age < 34) continue
-        if (random01(`${seasonId}:retire:${player.id}`) > 0.38) continue
+        if (random01(`${seasonId}:retire:${player.id}`) > retirementChance(player, random01(`${seasonId}:retire-roll:${player.id}`))) continue
         retirements.push({ playerId: player.id, clubId: club.id })
         byClub.set(club.id, (byClub.get(club.id) ?? []).filter(item => item.id !== player.id))
         player.clubId = ''
@@ -959,6 +1040,18 @@ export function simulateWorldDay(
         const prospect = createYouth(date, club, youthIndex++)
         youth.push(prospect)
       }
+    }
+  }
+
+  // Jogadores que pediram transferência ficam mais propensos a propostas, e o mercado
+  // passa a tratá-los como ativos negociáveis mesmo sem destaque estatístico.
+  for (const player of players) {
+    if (!player.clubId || !player.transferRequested) continue
+    const club = clubs.find(item => item.id === player.clubId)
+    if (!club) continue
+    const interest = marketInterest.find(item => item.playerId === player.id)
+    if (!interest && player.clubId !== userClubId) {
+      marketInterest.push({ playerId: player.id, clubIds: aiClubs.filter(item => item.id !== club.id && item.budget > 500000).slice(0, 2).map(item => item.id), startedAt: date, stage: 'monitoring', lastUpdated: date, stageChanged: true })
     }
   }
 
