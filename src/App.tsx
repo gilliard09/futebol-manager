@@ -2145,11 +2145,44 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
 
     setPendingEvent(null)
   }
+  async function markManagerUnemployed(reason: 'dismissed' | 'contract_ended' | 'resigned') {
+    const nextPopularity = managerDeparturePopularity(managerPopularity, reason)
+    const nextCareer = { ...career, careerStatus: 'unemployed' as const, lastDepartureReason: reason }
+    setCareerStatus('unemployed')
+    setManagerPopularity(nextPopularity)
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    localStorage.setItem(MANAGER_STATUS_KEY, 'unemployed')
+    onCareerUpdate(nextCareer)
+    const { data: authUser } = await supabase.auth.getUser()
+    if (authUser.user) {
+      await supabase.from('manager_profiles').update({
+        regional_popularity: nextPopularity.regional,
+        national_popularity: nextPopularity.national,
+        international_popularity: nextPopularity.international,
+        current_club_id: null,
+        current_season_id: null,
+        updated_at: new Date().toISOString(),
+      }).eq('owner_id', authUser.user.id)
+    }
+  }
+
   async function renewManagerContract() {
     if (!seasonCompletion || !boardState.renewalOffered) return
     const nextSeasonName = seasonName(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR) + 1)
-    const nextBoard = acceptManagerRenewal(boardState, nextSeasonName)
+    const years = managerContractYears(boardState.confidence)
+    const nextBoard = acceptManagerRenewal(boardState, nextSeasonName, years)
+    const nextCareer = {
+      ...career,
+      careerStatus: 'active' as const,
+      contractStartSeason: nextSeasonName,
+      contractEndSeason: nextBoard.contractEndSeason,
+      lastDepartureReason: undefined,
+    }
     await saveManagement(nextBoard, fanState)
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    localStorage.setItem(MANAGER_STATUS_KEY, 'active')
+    onCareerUpdate(nextCareer)
+    setCareerStatus('active')
     setPendingEvent(null)
   }
 
@@ -2157,7 +2190,35 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (!boardState.renewalOffered) return
     const nextBoard = declineManagerRenewal(boardState)
     await saveManagement(nextBoard, fanState)
+    await markManagerUnemployed('contract_ended')
     setPendingEvent(null)
+  }
+
+  async function rejectManagerOffer(offer: { id: string }) {
+    const { data: authUser } = await supabase.auth.getUser()
+    if (!authUser.user) return
+    await supabase.from('manager_offers').update({
+      status: 'rejected',
+      responded_at: new Date().toISOString(),
+    }).eq('id', offer.id).eq('owner_id', authUser.user.id).eq('status', 'pending')
+    setManagerOffers(current => current.map(item => item.id === offer.id ? { ...item, status: 'rejected' } : item))
+  }
+
+  async function retireManager() {
+    if (!window.confirm('Encerrar a carreira do treinador? Esta decisão mantém o histórico, mas encerra definitivamente esta carreira.')) return
+    const nextCareer = { ...career, careerStatus: 'retired' as const, lastDepartureReason: 'retired' as const }
+    setCareerStatus('retired')
+    localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    localStorage.setItem(MANAGER_STATUS_KEY, 'retired')
+    onCareerUpdate(nextCareer)
+    const { data: authUser } = await supabase.auth.getUser()
+    if (authUser.user) {
+      await supabase.from('manager_profiles').update({
+        current_club_id: null,
+        current_season_id: null,
+        updated_at: new Date().toISOString(),
+      }).eq('owner_id', authUser.user.id)
+    }
   }
 
   async function respondToManagerOffer(offer: { id: string; from_club_id: string }) {
@@ -2165,12 +2226,50 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (!targetClub) return
     const { data: authUser } = await supabase.auth.getUser()
     if (!authUser.user) return
+
+    if (!seasonClosed && careerStatus === 'active' && databaseSeasonId) {
+      const userStanding = table.find(team => team.id === career.club.id)
+      await supabase.from('manager_season_history').upsert({
+        owner_id: authUser.user.id,
+        season_id: databaseSeasonId,
+        club_id: career.club.id,
+        club_name: career.club.name,
+        season_name: career.season,
+        final_position: null,
+        points: Number(userStanding?.points ?? 0),
+        wins: Number(userStanding?.wins ?? 0),
+        draws: Number(userStanding?.draws ?? 0),
+        losses: Number(userStanding?.losses ?? 0),
+        league_title: false,
+        cup_title: false,
+        regional_popularity: managerPopularity.regional,
+        national_popularity: managerPopularity.national,
+        international_popularity: managerPopularity.international,
+      }, { onConflict: 'owner_id,season_id,club_id' })
+    }
+
     const { error: offerError } = await supabase.from('manager_offers').update({ status: 'accepted', responded_at: new Date().toISOString() }).eq('id', offer.id).eq('owner_id', authUser.user.id).eq('status', 'pending')
     if (offerError) return
     await supabase.from('manager_offers').update({ status: 'rejected', responded_at: new Date().toISOString() }).eq('owner_id', authUser.user.id).eq('status', 'pending').neq('id', offer.id)
+
     const { data: seasonRow } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
-    const nextCareer = { ...career, club: { ...targetClub, budget: Number(targetClub.budget ?? 0) } }
-    const nextBoard = { ...createBoardState(career.season, career.season, Number(targetClub.reputation ?? 50), Number(targetClub.budget ?? 0), Number(targetClub.strength ?? targetClub.reputation ?? 50)), managerStatus: 'renewed' as const }
+    const targetConfidence = Math.max(55, Math.min(95, Math.round(Number(targetClub.reputation ?? 50) + 20)))
+    const targetYears = managerContractYears(targetConfidence)
+    const targetEndSeason = managerContractEndSeason(career.season, targetYears)
+    const nextCareer = {
+      ...career,
+      club: { ...targetClub, budget: Number(targetClub.budget ?? 0) },
+      careerStatus: 'active' as const,
+      contractStartSeason: career.season,
+      contractEndSeason: targetEndSeason,
+      lastDepartureReason: undefined,
+    }
+    const nextBoard = {
+      ...createBoardState(career.season, career.season, Number(targetClub.reputation ?? 50), Number(targetClub.budget ?? 0), Number(targetClub.strength ?? targetClub.reputation ?? 50)),
+      managerStatus: 'renewed' as const,
+      contractYears: targetYears,
+      contractEndSeason: targetEndSeason,
+    }
     const nextFans = createFanState(career.season, Number(targetClub.reputation ?? 50), nextBoard.expectation)
     const nextSponsor = { ...chooseSponsor(Number(targetClub.reputation ?? 50)), seasonId: career.season }
     const nextCommercial = {
@@ -2179,16 +2278,21 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
 
     await supabase.from('manager_profiles').update({
+      regional_popularity: managerPopularity.regional,
+      national_popularity: managerPopularity.national,
+      international_popularity: managerPopularity.international,
       current_club_id: targetClub.id,
       current_season_id: seasonRow?.id ?? null,
       updated_at: new Date().toISOString(),
     }).eq('owner_id', authUser.user.id)
 
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
+    localStorage.setItem(MANAGER_STATUS_KEY, 'active')
     localStorage.setItem(BOARD_KEY + ':' + career.season, JSON.stringify(nextBoard))
     localStorage.setItem(FANS_KEY + ':' + career.season, JSON.stringify(nextFans))
     localStorage.setItem(COMMERCIAL_KEY + ':' + career.season, JSON.stringify(nextCommercial))
     onCareerUpdate(nextCareer)
+    setCareerStatus('active')
     setBoardState(nextBoard)
     setFanState(nextFans)
     setCommercial(nextCommercial)
@@ -2213,15 +2317,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       ])
     }
 
-    // Uma troca durante a temporada realmente muda o clube controlado pelo treinador.
-    // No encerramento, mantemos a tela de temporada para que a próxima temporada
-    // comece já pelo novo clube.
-    if (!seasonClosed) {
-      setSeasonClosed(false)
-      setSeasonCompletion(null)
-      setView('overview')
-      navigate('/dashboard')
-    }
+    setSeasonClosed(false)
+    setSeasonCompletion(null)
+    setView('overview')
+    navigate('/dashboard')
     setPendingEvent(null)
   }
 
