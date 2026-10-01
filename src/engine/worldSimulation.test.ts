@@ -236,6 +236,33 @@ describe('world simulation', () => {
     simulateWorldDay('2026-01-01', 'season', clubs, players, 'user')
     expect(players.some((player, index) => player.shooting > before[index].shooting || player.pace > before[index].pace || player.passing > before[index].passing || player.dribbling > before[index].dribbling || player.mental > before[index].mental || player.physical > before[index].physical || player.defending > before[index].defending)).toBe(true)
   })
+  it('gera uma nova safra de base com qualidade ligada ao clube', () => {
+    const clubs = [club('user', 1000000, 70), club('ai-youth', 5000000, 70)]
+    clubs[1].reputation = 90
+    const players = [basePlayer('veteran', 'ai-youth')]
+    players[0].age = 34
+    players[0].contractUntil = '2026-12-31'
+    const result = simulateWorldDay('2026-12-20', 'academy-test', clubs, players, 'user')
+    expect(result.retirements.length).toBeGreaterThanOrEqual(0)
+    expect(result.youth.length).toBeGreaterThan(0)
+    expect(result.youth.every(player => player.age >= 17 && player.age <= 19)).toBe(true)
+    expect(result.youth.every(player => player.potential >= 74)).toBe(true)
+  })
+
+  it('clubes da IA contratam jogadores livres para recompor o elenco', () => {
+    const clubs = [club('user', 1000000), club('ai-a', 5000000), club('ai-b', 5000000)]
+    const free = basePlayer('free', '', 'ST')
+    free.clubId = ''
+    free.contractUntil = null
+    free.marketValue = 500000
+    free.age = 22
+    const squad = Array.from({ length: 15 }, (_, i) => basePlayer('squad-' + i, 'ai-a', i === 0 ? 'GK' : 'CB'))
+    const result = simulateWorldDay('2026-06-15', 'free-agent-test', clubs, [free, ...squad], 'user')
+    expect(result.freeAgentSignings.length).toBeGreaterThanOrEqual(1)
+    expect(free.clubId).not.toBe('')
+    expect(result.transfers.some(item => item.playerId === 'free' && item.fromClubId === null)).toBe(true)
+  })
+
 })
 
 
