@@ -26,6 +26,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   currentClubId: string
   playedMatches: PlayedMatch[]
   seasonName: string
+  seasonId?: string
   back: () => void
 }) {
   const [competition, setCompetition] = useState<'Liga Nacional do Brasil' | 'Série B do Brasil' | 'Copa Nacional do Brasil'>('Liga Nacional do Brasil')
@@ -44,7 +45,9 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   useEffect(() => {
     let active = true
     ;(async () => {
-      const { data: season } = await supabase.from('seasons').select('id,status').eq('name', seasonName).maybeSingle()
+      const { data: season } = seasonId
+        ? await supabase.from('seasons').select('id,status').eq('id', seasonId).maybeSingle()
+        : await supabase.from('seasons').select('id,status').eq('name', seasonName).maybeSingle()
       const { data: allSeasons } = await supabase.from('seasons').select('id,name,year,status').order('year', { ascending: false })
       const seasonIds = (allSeasons ?? []).map(item => item.id)
       const { data: allHistory } = seasonIds.length
@@ -119,7 +122,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       setLoading(false)
     })()
     return () => { active = false }
-  }, [competition, seasonName, currentClubId])
+  }, [competition, seasonName, seasonId, currentClubId])
 
   const brazilianFirstDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 1)
   const brazilianSecondDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 2)
@@ -158,8 +161,9 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
   const history = useMemo(() => {
     const completed = fixtures.filter(item => item.status === 'completed')
-    if (competition === 'Liga Nacional do Brasil') {
-      const standings = buildStandings(brazilianFirstDivision.map(c => ({ id: c.id, name: c.short_name })), fixtures)
+    if (competition === 'Liga Nacional do Brasil' || competition === 'Série B do Brasil') {
+      const teams = competition === 'Liga Nacional do Brasil' ? brazilianFirstDivision : brazilianSecondDivision
+      const standings = buildStandings(teams.map(c => ({ id: c.id, name: c.short_name })), fixtures)
       const championId = standings[0]?.id
       return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === standings[1]?.id) ?? null, completed: completed.length === fixtures.length && fixtures.length > 0 }
     }
@@ -261,8 +265,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         </section>}
 
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
-          <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">{competition === 'Liga Nacional do Brasil' ? 'Rodadas' : 'Fase'}</p><h2 className="mt-2 text-2xl font-bold">{currentStage}</h2></div><Trophy className="text-emerald-300/50" /></div>
-          <div className="mt-5 flex gap-2 overflow-x-auto pb-1">{rounds.map(r => <button key={r} onClick={() => setRound(r)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 text-white/35'}`}>{competition === 'Liga Nacional do Brasil' ? `Rodada ${r}` : getCompetitionStageLabel(r, rounds.length, true)}</button>)}</div>
+          <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">{competition === 'Copa Nacional do Brasil' ? 'Fase' : 'Rodadas'}</p><h2 className="mt-2 text-2xl font-bold">{currentStage}</h2></div><Trophy className="text-emerald-300/50" /></div>
+          <div className="mt-5 flex gap-2 overflow-x-auto pb-1">{rounds.map(r => <button key={r} onClick={() => setRound(r)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 text-white/35'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}</div>
           <div className="mt-5 grid gap-2 md:grid-cols-2">
             {roundFixtures.map(item => <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.home_club_id === currentClubId || item.away_club_id === currentClubId ? 'border-emerald-400/15 bg-emerald-400/[0.03]' : 'border-white/5 bg-black/10'}`}>
               <div>
