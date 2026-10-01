@@ -501,6 +501,7 @@ export function simulateWorldDay(
       clubPerformance: performance,
     }, role)))
     let next = updateLifecycleSafe(state, nextRelationship)
+    if (month === 1 && day === 10) next = updatePlayerLifecycle(next, { careerSeasons: next.careerSeasons + 1 })
     const contractMonths = player.contractUntil
       ? Math.round((new Date(player.contractUntil).getTime() - new Date(date).getTime()) / (30 * 86400000))
       : null
