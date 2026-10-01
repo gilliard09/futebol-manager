@@ -231,6 +231,8 @@ function normalizeFixture(row: any): Fixture {
     home_score: row.home_score,
     away_score: row.away_score,
     winner_club_id: row.winner_club_id ?? null,
+    neutral_venue: Boolean(row.neutral_venue ?? false),
+    venue_name: row.venue_name ?? null,
     home_club: Array.isArray(row.home_club) ? (row.home_club[0] ?? null) : (row.home_club ?? null),
     away_club: Array.isArray(row.away_club) ? (row.away_club[0] ?? null) : (row.away_club ?? null),
     competition_name: Array.isArray(row.competitions) ? (row.competitions[0]?.name ?? null) : (row.competitions?.name ?? null),
