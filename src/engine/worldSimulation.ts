@@ -315,7 +315,7 @@ export function simulateWorldDay(
   previousAIManagers: AIClubManager[] = [],
 ): WorldSimulationResult {
   const aiClubs = clubs.filter(club => club.id !== userClubId)
-  const aiManagement = simulateAIClubManagement(date, seasonId.match(/\\d{4}/)?.[0] ? 'Temporada ' + seasonId.match(/\\d{4}/)![0] : 'Temporada 2026', aiClubs, performanceByClub, previousAIManagers)
+  const aiManagement = simulateAIClubManagement(date, 'Temporada ' + date.slice(0, 4), aiClubs, performanceByClub, previousAIManagers)
 
   const transfers: WorldSimulationResult['transfers'] = []
   const offers: WorldSimulationResult['offers'] = []
