@@ -1310,6 +1310,37 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       const previousLibertadoresChampionId = previousContinentalHistory?.find(item => item.competition_id === libertadoresId)?.champion_club_id ?? null
       const previousSudamericanaChampionId = previousContinentalHistory?.find(item => item.competition_id === sudamericanaId)?.champion_club_id ?? null
 
+      // A classificação da temporada encerrada já foi persistida no banco durante o fechamento.
+      // Recarregamos daqui para que a virada de temporada não dependa do escopo local de finalizeSeasonIfComplete.
+      const { data: persistedLeagueStandings } = await supabase
+        .from('season_club_standings')
+        .select('club_id,position,played,wins,draws,losses,goals_for,goals_against,points')
+        .eq('season_id', databaseSeasonId)
+        .eq('competition_id', leagueId)
+        .order('position', { ascending: true })
+
+      const clubNameById = new Map(nextClubs.map(club => [club.id, club.name]))
+      const leagueStandings = (persistedLeagueStandings ?? []).map(row => ({
+        id: row.club_id,
+        name: clubNameById.get(row.club_id) ?? row.club_id,
+        played: Number(row.played ?? 0),
+        wins: Number(row.wins ?? 0),
+        draws: Number(row.draws ?? 0),
+        losses: Number(row.losses ?? 0),
+        gf: Number(row.goals_for ?? 0),
+        ga: Number(row.goals_against ?? 0),
+        points: Number(row.points ?? 0),
+      }))
+
+      if (leagueStandings.length !== 16) {
+        console.error('A classificação da Liga Nacional da temporada anterior não está completa', {
+          seasonId: databaseSeasonId,
+          expected: 16,
+          received: leagueStandings.length,
+        })
+        return
+      }
+
       const continentalQualifications = resolveBrazilianContinentalQualifications({
         leagueStandings,
         clubs: nextClubs,
