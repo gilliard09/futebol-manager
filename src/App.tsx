@@ -2639,6 +2639,30 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         }).eq('id', fixture.id)
       }))
 
+    for (let pass = 0; pass < 8; pass++) {
+      await advanceContinentalStages()
+      const { data: overdue } = await supabase
+        .from('fixtures')
+        .select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status')
+        .eq('season_id', databaseSeasonId)
+        .in('competition_id', [...ids.values()])
+        .eq('status', 'scheduled')
+        .lte('scheduled_at', targetDate)
+        .limit(1)
+      if (!overdue?.length) break
+      const fixture = overdue[0]
+      if (fixture.home_club_id === career.club.id || fixture.away_club_id === career.club.id) break
+      const home = clubMap.get(fixture.home_club_id)
+      const away = clubMap.get(fixture.away_club_id)
+      if (!home || !away) break
+      const [homeScore, awayScore] = continentalAutoScore(home, away, fixture as any)
+      await supabase.from('fixtures').update({
+        status: 'completed',
+        home_score: homeScore,
+        away_score: awayScore,
+        winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
+      }).eq('id', fixture.id)
+    }
     await advanceContinentalStages()
     if (databaseSeasonId) await finalizeSeasonIfComplete(databaseSeasonId, playedMatches)
   }
