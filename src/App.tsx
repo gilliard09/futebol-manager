@@ -35,6 +35,7 @@ import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
+import { SERIE_B_NAME, getDivisionClubIds, resolveDivisionMovement } from './engine/divisionSystem'
 import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, clubCanApproachManager, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
 import { calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 import { injuryDurationDays, recordCareerMatch, updatePlayerLifecycle, type PlayerLifecycleState } from './engine/playerLifecycle'
@@ -240,7 +241,43 @@ function GameApp() {
       setLoading(true); setError(null)
       const { data, error } = await supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,stadium_capacity,founded_year,logo_url,strength').order('name')
       if (!active) return
-      if (error) setError(error.message); else setClubs(data ?? [])
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
+      }
+
+      const loadedClubs = (data ?? []) as Club[]
+      // A Série B passa a existir como uma divisão real do universo. O
+      // calendário é criado para a temporada ativa sem alterar a Série A.
+      const { data: activeSeason } = await supabase
+        .from('seasons')
+        .select('id,name,start_date')
+        .eq('status', 'active')
+        .order('start_date', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const serieB = loadedClubs.filter(club => Number(club.division ?? 1) === 2)
+      const { data: serieBCompetition } = await supabase
+        .from('competitions')
+        .select('id,name')
+        .eq('name', SERIE_B_NAME)
+        .maybeSingle()
+
+      if (activeSeason && serieBCompetition?.id && serieB.length === 20) {
+        const { data: existingBFixtures } = await supabase
+          .from('fixtures')
+          .select('id')
+          .eq('season_id', activeSeason.id)
+          .eq('competition_id', serieBCompetition.id)
+        if (!(existingBFixtures?.length)) {
+          const fixtureRows = buildLeagueFixtures(activeSeason.id, activeSeason.start_date, serieB, serieBCompetition.id)
+          const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
+          if (fixtureError) console.error('Não foi possível criar o calendário da Série B', fixtureError)
+        }
+      }
+
+      if (active) setClubs(loadedClubs)
       setLoading(false)
     }
     loadClubs()
