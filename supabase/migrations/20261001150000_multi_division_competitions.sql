@@ -141,3 +141,15 @@ where c.division = 2
 and not exists (
   select 1 from public.club_players cp where cp.player_id = p.id and cp.club_id = c.id
 );
+
+grant select, insert, update on public.season_club_standings to anon, authenticated;
+drop policy if exists "game can write season club standings" on public.season_club_standings;
+create policy "game can write season club standings" on public.season_club_standings for insert to anon, authenticated with check (true);
+drop policy if exists "game can update season club standings" on public.season_club_standings;
+create policy "game can update season club standings" on public.season_club_standings for update to anon, authenticated using (true) with check (true);
+
+grant select, insert, update on public.competition_records to anon, authenticated;
+drop policy if exists "game can write competition records" on public.competition_records;
+create policy "game can write competition records" on public.competition_records for insert to anon, authenticated with check (true);
+drop policy if exists "game can update competition records" on public.competition_records;
+create policy "game can update competition records" on public.competition_records for update to anon, authenticated using (true) with check (true);
