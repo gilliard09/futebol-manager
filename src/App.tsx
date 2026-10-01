@@ -1954,10 +1954,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
+      const staffPayroll = calculateTechnicalStaffPayroll(salaryTotal, Number(career.club.reputation ?? 50), Number(career.club.strength ?? 50), boardState.confidence)
       const monthlyTransactions = [
-        createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${nextClock.currentDate.slice(0, 7)}`),
+        createTransaction(nextClock.currentDate, 'salary', `Folha salarial de ${nextClock.currentDate.slice(0, 7)}`, salaryExpense, undefined, `salary:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
+        createTransaction(nextClock.currentDate, 'staff_salary', 'Comissão técnica e equipe do clube', -staffPayroll, undefined, `staff-salary:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
         createTransaction(nextClock.currentDate, 'sponsorship', commercial.sponsor.name, commercial.sponsor.monthly, undefined, `sponsor:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
-        createTransaction(nextClock.currentDate, 'other', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
+        createTransaction(nextClock.currentDate, 'stadium_maintenance', 'Manutenção do estádio', -commercial.stadium.maintenance, undefined, `stadium-maintenance:${career.season}:${nextClock.currentDate.slice(0, 7)}`),
       ]
       let nextBalance = financeBalance
       let nextTransactions = financeTransactions
