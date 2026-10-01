@@ -857,7 +857,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const openingBalance = financeHistory.find(item => item.seasonName === seasonName(financialYear - 1))?.closingBalance
       ?? financeTransactions.find(item => item.eventId === 'career:initial-budget')?.amount
       ?? Number(career.club.budget ?? 0)
-    const seasonTransactions = financeTransactions.filter(item => item.date.startsWith(String(financialYear)))
+    const seasonTransactions = financeTransactions.filter(item => item.date.startsWith(String(financialYear)) && item.eventId !== 'career:initial-budget' && !item.eventId?.startsWith('manager-switch:'))
     const closingBalance = Math.max(0, financeBalance + userEffect.budgetBonus)
     const seasonRevenue = seasonTransactions.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0) + (previousFinancialHistory ? 0 : 0)
     const seasonExpenses = seasonTransactions.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0)
