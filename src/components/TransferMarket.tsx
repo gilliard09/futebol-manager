@@ -179,7 +179,7 @@ export default function TransferMarket({ club, clubs, balance, today, state, loa
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar jogador ou clube" className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-white/20" />
           </label>
           <div className="flex gap-2 overflow-x-auto">
-            {['ALL','GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'].map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}
+            {['ALL','GK','RB','CB','LB','DM','CM','AM','RW','LW','ST'].map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40'}`}>{item === 'ALL' ? 'Todos' : playerPositionLabel(item)}</button>)}
           </div>
         </div>
       )}
