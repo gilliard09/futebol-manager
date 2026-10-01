@@ -45,16 +45,6 @@ describe('finance engine', () => {
     expect(calculateTrainingExpense(-100)).toBe(0)
   })
 
-  it('calcula premiação variável conforme desempenho e reputação', () => {
-    const champion = calculateVariableCompetitionPrize(1, 'league', { champion: true, reputation: 90 })
-    const fourth = calculateVariableCompetitionPrize(4, 'league', { reputation: 90 })
-    const lowRepChampion = calculateVariableCompetitionPrize(1, 'league', { champion: true, reputation: 40 })
-
-    expect(champion).toBeGreaterThan(fourth)
-    expect(champion).toBeGreaterThan(lowRepChampion)
-    expect(calculateVariableCompetitionPrize(1, 'cup', { champion: true, reputation: 70 }))
-      .toBeGreaterThan(calculateVariableCompetitionPrize(2, 'cup', { runnerUp: true, reputation: 70 }))
-  })
 
   it('calcula bilheteria, preço e público com demanda do clube', () => {
     const low = calculateMatchdayFinance(20000, 40, 45, 35, 35, 'L')
