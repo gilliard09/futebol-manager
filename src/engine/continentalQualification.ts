@@ -230,7 +230,7 @@ export function buildContinentalGroupFixtures(
       [[b, a], [d, c]],
       [[a, c], [b, d]],
       [[a, b], [c, d]],
-      [[b, d], [a, c]],
+      [[c, a], [d, b]],
     ]
 
     rounds.forEach((matches, roundIndex) => {
