@@ -121,10 +121,13 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
     return () => { active = false }
   }, [competition, seasonName, currentClubId])
 
+  const brazilianFirstDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 1)
+  const brazilianSecondDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 2)
+
   const table = competition === 'Liga Nacional do Brasil'
-    ? buildStandings(clubs.filter(c => Number(c.division ?? 1) === 1).map(c => ({ id: c.id, name: c.short_name })), fixtures)
+    ? buildStandings(brazilianFirstDivision.map(c => ({ id: c.id, name: c.short_name })), fixtures)
     : competition === 'Série B do Brasil'
-      ? buildStandings(clubs.filter(c => Number(c.division ?? 1) === 2).map(c => ({ id: c.id, name: c.short_name })), fixtures)
+      ? buildStandings(brazilianSecondDivision.map(c => ({ id: c.id, name: c.short_name })), fixtures)
       : []
   const rounds = [...new Set(fixtures.map(item => item.round))].sort((a, b) => a - b)
   const roundFixtures = fixtures.filter(item => item.round === round)
@@ -156,7 +159,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const history = useMemo(() => {
     const completed = fixtures.filter(item => item.status === 'completed')
     if (competition === 'Liga Nacional do Brasil') {
-      const standings = buildStandings(clubs.map(c => ({ id: c.id, name: c.short_name })), fixtures)
+      const standings = buildStandings(brazilianFirstDivision.map(c => ({ id: c.id, name: c.short_name })), fixtures)
       const championId = standings[0]?.id
       return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === standings[1]?.id) ?? null, completed: completed.length === fixtures.length && fixtures.length > 0 }
     }
