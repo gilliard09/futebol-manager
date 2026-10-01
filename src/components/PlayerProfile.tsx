@@ -92,7 +92,7 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
   const remaining = daysUntilContractEnd(contract?.contract_until ?? null, today)
   const renewalSalary = calculateRenewalSalary(Number(contract?.salary ?? 0), Number(contract?.market_value ?? 0), years)
 
-  function renew() {
+  async function renew() {
     if (!contract || renewing) return
     setRenewing(true)
     const base = contract.contract_until && contract.contract_until > today ? contract.contract_until : today
