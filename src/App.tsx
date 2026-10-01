@@ -2377,17 +2377,30 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setFanState(nextFans)
     setCommercial(nextCommercial)
     const targetBudget = Number(targetClub.budget ?? 0)
-    const switchTransaction = createTransaction(
-      toDateKey(new Date().toISOString()),
-      'other',
-      'Caixa disponível ao assumir o novo clube',
-      targetBudget,
-      undefined,
-      'manager-switch:' + targetClub.id + ':' + career.season,
-    )
-    setFinanceBalance(targetBudget)
-    setFinanceTransactions([switchTransaction])
-    localStorage.setItem(FINANCE_KEY, JSON.stringify([switchTransaction]))
+    const switchImpact = calculateClubChangeFinancialImpact(targetBudget, Number(targetClub.reputation ?? 50))
+    const switchDate = toDateKey(new Date().toISOString())
+    const switchTransactions = [
+      createTransaction(
+        switchDate,
+        'other',
+        'Caixa disponível ao assumir o novo clube',
+        targetBudget,
+        undefined,
+        'manager-switch:' + targetClub.id + ':' + career.season,
+      ),
+      createTransaction(
+        switchDate,
+        'other',
+        'Custos de transição da troca de clube',
+        -switchImpact.transitionCost,
+        undefined,
+        'manager-switch-cost:' + targetClub.id + ':' + career.season,
+      ),
+    ]
+    setFinanceBalance(switchImpact.availableBudget)
+    setFinanceTransactions(switchTransactions)
+    localStorage.setItem(FINANCE_KEY, JSON.stringify(switchTransactions))
+
     setManagerOffers(current => current.map(item => item.id === offer.id ? { ...item, status: 'accepted' } : { ...item, status: item.status === 'pending' ? 'rejected' : item.status }))
 
     if (seasonRow?.id) {
