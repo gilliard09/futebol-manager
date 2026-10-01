@@ -96,17 +96,12 @@ function playKnockoutStage(rows: SimFixture[], round: number) {
 }
 
 function simulateBrazilCup(): SimFixture[] {
-  const rows = buildCupFixtures(
-    seasonId,
-    '2026-02-18',
-    copa,
-    'copa',
-  ).map((row, i) => asFixture(row, i))
+  const initial = buildCupFixtures(seasonId, '2026-02-18', copa, 'copa')
+    .map((row, i) => asFixture(row, i))
+  const all = [...playKnockoutStage(initial, 1)]
+  const resolverRounds = [1, 2, 4, 6, 8]
 
-  const all = [...playKnockoutStage(rows, 1)]
-  let currentRound = 1
-
-  while (currentRound !== 9) {
+  for (const currentRound of resolverRounds) {
     const next = resolveCompletedKnockoutStage(
       all,
       currentRound,
@@ -128,10 +123,7 @@ function simulateBrazilCup(): SimFixture[] {
         winner_club_id: null,
       }, all.length + index),
     )
-
-    const played = playKnockoutStage(nextRows, nextRows[0]?.round ?? currentRound + 1)
-    all.push(...played)
-    currentRound = nextRows[0]?.round ?? 9
+    all.push(...playKnockoutStage(nextRows, currentRound + 1))
   }
 
   return all
@@ -271,30 +263,10 @@ function simulateContinental(prefix: 'lib' | 'sul') {
     prefix === 'lib' ? 7 : 8,
   ).map((item, index) => fixtureFromContinental(competitionId, index, item))
 
-  const qualification = (() => {
-    const result = { winners: [] as string[], runnersUp: [] as string[], thirds: [] as string[] }
-    for (const group of groups) {
-      const groupFixturesForClub = groupFixtures.filter(f => group.teams.some(team => team.id === f.home_club_id) && group.teams.some(team => team.id === f.away_club_id))
-      const qualified = buildContinentalGroups
-        ? null
-        : null
-      const rows = new Map<string, { id: string; points: number; wins: number; gf: number; ga: number }>()
-      for (const team of group.teams) rows.set(team.id, { id: team.id, points: 0, wins: 0, gf: 0, ga: 0 })
-      for (const fixture of groupFixturesForClub) {
-        const home = rows.get(fixture.home_club_id)!
-        const away = rows.get(fixture.away_club_id)!
-        home.points += 3
-        home.wins++
-        home.gf += 1
-        away.ga += 1
-      }
-      const ordered = [...rows.values()].sort((a, b) => b.points - a.points || b.wins - a.wins || b.gf - a.gf || a.id.localeCompare(b.id))
-      result.winners.push(ordered[0].id)
-      result.runnersUp.push(ordered[1].id)
-      result.thirds.push(ordered[2].id)
-    }
-    return result
-  })()
+  const qualification = buildContinentalGroupQualification(
+    groups,
+    groupFixtures,
+  )
 
   const allFixtures = [...groupFixtures]
   if (prefix === 'lib') {
