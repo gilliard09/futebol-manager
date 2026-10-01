@@ -20,6 +20,7 @@ const state: BoardState = {
   managerStatus: 'active',
   contractEndSeason: 'Temporada 2026',
   renewalOffered: false,
+  contractYears: 1,
 }
 
 describe('manager contract lifecycle', () => {
@@ -33,7 +34,7 @@ describe('manager contract lifecycle', () => {
     const offered = resolveContractAtSeasonEnd(state)
     const renewed = acceptManagerRenewal(offered, 'Temporada 2027')
     expect(renewed.managerStatus).toBe('renewed')
-    expect(renewed.contractEndSeason).toBe('Temporada 2027')
+    expect(renewed.contractEndSeason).toBe('Temporada 2028')
     expect(renewed.renewalOffered).toBe(false)
   })
 
