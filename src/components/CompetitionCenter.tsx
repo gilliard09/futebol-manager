@@ -54,17 +54,19 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         : { data: [] as any[] }
       const clubName = new Map((championClubs ?? []).map(item => [item.id, item.short_name ?? item.name]))
       const { data: competitionRows } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Série B do Brasil', 'Copa Nacional do Brasil'])
-      const historyBySeason = new Map<string, { leagueChampion: string; cupChampion: string }>()
+      const historyBySeason = new Map<string, { leagueChampion: string; serieBChampion: string; cupChampion: string }>()
       const leagueId = competitionRows?.find(item => item.name === 'Liga Nacional do Brasil')?.id
       const cupId = competitionRows?.find(item => item.name === 'Copa Nacional do Brasil')?.id
       for (const row of allHistory ?? []) {
-        const current = historyBySeason.get(row.season_id) ?? { leagueChampion: '—', cupChampion: '—' }
+        const current = historyBySeason.get(row.season_id) ?? { leagueChampion: '—', serieBChampion: '—', cupChampion: '—' }
         if (row.competition_id === leagueId) current.leagueChampion = clubName.get(row.champion_club_id) ?? '—'
         if (row.competition_id === cupId) current.cupChampion = clubName.get(row.champion_club_id) ?? '—'
+        const serieBId = competitionRows?.find(item => item.name === 'Série B do Brasil')?.id
+        if (row.competition_id === serieBId) current.serieBChampion = clubName.get(row.champion_club_id) ?? '—'
         historyBySeason.set(row.season_id, current)
       }
       if (active) {
-        setSeasonHistory((allSeasons ?? []).map(item => ({ season: item.name, year: Number(item.year), status: item.status, ...(historyBySeason.get(item.id) ?? { leagueChampion: '—', cupChampion: '—' }) })))
+        setSeasonHistory((allSeasons ?? []).map(item => ({ season: item.name, year: Number(item.year), status: item.status, ...(historyBySeason.get(item.id) ?? { leagueChampion: '—', serieBChampion: '—', cupChampion: '—' }) })))
       }
       if (season) {
         setSeasonId(season.id)
@@ -266,8 +268,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           <h2 className="mt-2 text-2xl font-bold">Temporadas anteriores</h2>
           <div className="mt-5 overflow-x-auto rounded-xl border border-white/5">
             <table className="w-full min-w-[620px] text-sm">
-              <thead className="bg-white/[0.03] text-xs text-white/25"><tr><th className="px-4 py-3 text-left">Temporada</th><th className="px-4 py-3 text-left">Liga</th><th className="px-4 py-3 text-left">Copa</th><th className="px-4 py-3 text-left">Status</th></tr></thead>
-              <tbody>{seasonHistory.map(item => <tr key={item.season} className="border-t border-white/5"><td className="px-4 py-3 font-semibold">{item.season}</td><td className="px-4 py-3">{item.leagueChampion}</td><td className="px-4 py-3">{item.cupChampion}</td><td className="px-4 py-3 text-white/40">{item.status === 'completed' ? 'Encerrada' : item.status === 'active' ? 'Em andamento' : item.status}</td></tr>)}</tbody>
+              <thead className="bg-white/[0.03] text-xs text-white/25"><tr><th className="px-4 py-3 text-left">Temporada</th><th className="px-4 py-3 text-left">Série A</th><th className="px-4 py-3 text-left">Série B</th><th className="px-4 py-3 text-left">Copa</th><th className="px-4 py-3 text-left">Status</th></tr></thead>
+              <tbody>{seasonHistory.map(item => <tr key={item.season} className="border-t border-white/5"><td className="px-4 py-3 font-semibold">{item.season}</td><td className="px-4 py-3">{item.leagueChampion}</td><td className="px-4 py-3">{item.serieBChampion}</td><td className="px-4 py-3">{item.cupChampion}</td><td className="px-4 py-3 text-white/40">{item.status === 'completed' ? 'Encerrada' : item.status === 'active' ? 'Em andamento' : item.status}</td></tr>)}</tbody>
             </table>
           </div>
         </section>}
