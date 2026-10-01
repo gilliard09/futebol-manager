@@ -35,7 +35,7 @@ import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
-import { SERIE_B_NAME, resolveDivisionMovement } from './engine/divisionSystem'
+import { SERIE_B_NAME, resolveDivisionMovement, swapDivisions } from './engine/divisionSystem'
 import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, clubCanApproachManager, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
 import { calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 import { injuryDurationDays, recordCareerMatch, updatePlayerLifecycle, type PlayerLifecycleState } from './engine/playerLifecycle'
@@ -801,11 +801,20 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         }, { onConflict: 'season_id,competition_id' })
       }
 
+      // Atualiza a divisão no mundo inteiro, não apenas no clube do treinador.
+      // O estado local também precisa acompanhar o banco imediatamente: ele é usado
+      // pela IA, pelo mercado e pela preparação da temporada seguinte.
+      const nextWorldClubs = swapDivisions(clubs, [...promoted], [...relegated])
+      setClubs(nextWorldClubs)
+
       for (const clubId of [...promoted, ...relegated]) {
-        await supabase
+        const { error: divisionError } = await supabase
           .from('clubs')
           .update({ division: promoted.has(clubId) ? 1 : 2 })
           .eq('id', clubId)
+        if (divisionError) {
+          console.error('Não foi possível atualizar a divisão do clube', clubId, divisionError)
+        }
       }
 
       const movementRows = [
@@ -1242,7 +1251,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       nextBalance = addFinanceTransaction(sponsorTransaction) ?? financeBalance
       setFinanceBalance(nextBalance)
     }
-    const updatedCareer = { ...career, club: { ...career.club, budget: nextBalance }, season: nextSeasonName }
+    const currentClubInNextSeason = nextClubs.find(club => club.id === career.club.id)
+    const updatedCareer = {
+      ...career,
+      club: currentClubInNextSeason
+        ? { ...currentClubInNextSeason, budget: nextBalance }
+        : { ...career.club, budget: nextBalance },
+      season: nextSeasonName,
+    }
     localStorage.setItem(CAREER_KEY, JSON.stringify(updatedCareer))
     onCareerUpdate(updatedCareer)
 
