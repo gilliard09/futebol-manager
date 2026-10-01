@@ -33,7 +33,7 @@ import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
-import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, type ManagerPopularity } from './engine/managerCareer'
+import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -56,6 +56,7 @@ const MARKET_NEGOTIATION_KEY = 'futebol-manager:market-negotiations'
 const BOARD_KEY = 'futebol-manager:board'
 const FANS_KEY = 'futebol-manager:fans'
 const COMMERCIAL_KEY = 'futebol-manager:commercial'
+const MANAGER_STATUS_KEY = 'futebol-manager:manager-status'
 
 
 function marketInterestStorageKey(seasonId: string) {
@@ -235,8 +236,11 @@ function GameApp() {
     if (!selectedClub || !canContinue) return
     const { data: activeSeason } = await supabase.from('seasons').select('name').eq('status', 'active').order('start_date', { ascending: false }).limit(1).maybeSingle()
     const currentSeasonName = activeSeason?.name ?? SEASON_NAME
-    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: currentSeasonName }
+    const contractStartSeason = currentSeasonName
+    const contractEndSeason = managerContractEndSeason(currentSeasonName, 1)
+    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: currentSeasonName, careerStatus: 'active', contractStartSeason, contractEndSeason }
     localStorage.setItem(CAREER_KEY, JSON.stringify(next))
+    localStorage.setItem(MANAGER_STATUS_KEY, 'active')
     const { data: authUser } = await supabase.auth.getUser()
     if (authUser.user) {
       const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
@@ -274,6 +278,7 @@ function GameApp() {
     localStorage.removeItem(CLOCK_KEY)
     localStorage.removeItem(MATCHES_KEY)
     localStorage.removeItem(WORLD_NEWS_KEY)
+    localStorage.removeItem(MANAGER_STATUS_KEY)
     Object.keys(localStorage)
       .filter(key => key.startsWith(BOARD_KEY + ':') || key.startsWith(FANS_KEY + ':') || key.startsWith(COMMERCIAL_KEY + ':') || key.startsWith(MARKET_INTEREST_KEY + ':') || key.startsWith(MARKET_NEGOTIATION_KEY + ':'))
       .forEach(key => localStorage.removeItem(key))
