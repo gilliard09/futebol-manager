@@ -259,7 +259,7 @@ function GameApp() {
       <Route path="/" element={<Home career={career} start={() => navigate('/manager')} continueCareer={() => navigate('/dashboard')} newCareer={newCareer} />} />
       <Route path="/manager" element={<Manager name={managerName} nationality={nationality} birthDate={birthDate} style={managerStyle} personality={managerPersonality} canContinue={canContinue} onName={setManagerName} onNationality={setNationality} onBirthDate={setBirthDate} onStyle={setManagerStyle} onPersonality={setManagerPersonality} back={() => navigate('/')} next={() => navigate('/club')} />} />
       <Route path="/club" element={<ClubList clubs={clubs} selected={selectedClub} loading={loading} error={error} select={setSelectedClub} back={() => navigate('/manager')} confirm={confirmCareer} />} />
-      <Route path="/dashboard/*" element={career ? <Dashboard career={career} clubs={clubs} newCareer={newCareer} onNextSeason={startNextSeason} onCareerUpdate={setCareer} /> : <Navigate to="/" replace />} />
+      <Route path="/dashboard/*" element={career ? <Dashboard career={career} clubs={clubs} newCareer={newCareer} onCareerUpdate={setCareer} /> : <Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to={career ? '/dashboard' : '/'} replace />} />
     </Routes>
   </div></div>
@@ -292,7 +292,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
 
 type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
 
-function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onNextSeason: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
+function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
