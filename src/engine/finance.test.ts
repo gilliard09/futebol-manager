@@ -10,7 +10,6 @@ import {
   calculateMatchdayFinance,
   calculateNextSeasonBudget,
   calculateTechnicalStaffPayroll,
-  calculateVariableCompetitionPrize,
 } from './clubFinance'
 
 describe('finance engine', () => {
