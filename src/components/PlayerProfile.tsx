@@ -135,6 +135,13 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Info label="Relação com treinador" value={String(player.coachRelationship ?? 50)} />
+        <Info label="Insatisfação" value={String(player.dissatisfaction ?? 0)} />
+        <Info label="Pedidos de saída" value={player.transferRequested ? 'Sim' : 'Não'} />
+        <Info label="Lesões na carreira" value={String(player.injuries ?? 0)} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Info label="Valor de mercado" value={loading ? 'Carregando...' : money(contract?.market_value ?? null)} />
         <Info label="Salário" value={loading ? 'Carregando...' : money(contract?.salary ?? null)} />
         <Info label="Contrato até" value={loading ? 'Carregando...' : date(contract?.contract_until ?? null)} />
@@ -154,6 +161,18 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
           <Info label="Gols" value={String(seasonStats?.goals ?? 0)} />
           <Info label="Assistências" value={String(seasonStats?.assists ?? 0)} />
           <Info label="Nota média" value={seasonStats ? seasonStats.avg_rating.toFixed(1) : '—'} />
+        </div>
+      </div>
+
+      <div className="mt-7">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Carreira</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-6">
+          <Info label="Jogos" value={String(player.careerAppearances ?? 0)} />
+          <Info label="Titular" value={String(player.careerStarts ?? 0)} />
+          <Info label="Minutos" value={String(player.careerMinutes ?? 0)} />
+          <Info label="Gols" value={String(player.careerGoals ?? 0)} />
+          <Info label="Assistências" value={String(player.careerAssists ?? 0)} />
+          <Info label="Nota média" value={player.careerAverageRating ? player.careerAverageRating.toFixed(2) : '—'} />
         </div>
       </div>
 
