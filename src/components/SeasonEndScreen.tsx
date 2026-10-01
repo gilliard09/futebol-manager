@@ -49,7 +49,9 @@ export default function SeasonEndScreen({
   const award = (type: string) => awards.find(item => item.award_type === type)
   const leagueChampion = completion.league.championClubId
   const cupChampion = completion.cup.championClubId
-  const userIsChampion = leagueChampion === currentClubId || cupChampion === currentClubId
+  const libertadoresChampion = completion.libertadores?.championClubId ?? null
+  const sudamericanaChampion = completion.sudamericana?.championClubId ?? null
+  const userIsChampion = [leagueChampion, cupChampion, libertadoresChampion, sudamericanaChampion].includes(currentClubId)
   const topScorer = award('top_scorer')
 
   return <main className="min-h-screen bg-[#0a0f1a] px-5 py-8 text-white sm:px-8 lg:px-12">
@@ -71,6 +73,19 @@ export default function SeasonEndScreen({
           <h2 className="mt-5 text-2xl font-bold">{clubName(cupChampion)}</h2>
           <p className="mt-2 text-sm text-white/40">Vice-campeão: {clubName(completion.cup.runnerUpClubId)}</p>
         </article>
+      </section>
+
+      {(completion.libertadores || completion.sudamericana) && <section className="mt-4 grid gap-4 md:grid-cols-2">
+        {completion.libertadores && <article className="game-panel">
+          <div className="flex items-center gap-3 text-sky-300"><Trophy size={20} /><span className="label-mono">Campeão da Libertadores</span></div>
+          <h2 className="mt-5 text-2xl font-bold">{clubName(completion.libertadores.championClubId)}</h2>
+          <p className="mt-2 text-sm text-white/40">Vice-campeão: {clubName(completion.libertadores.runnerUpClubId)}</p>
+        </article>}
+        {completion.sudamericana && <article className="game-panel">
+          <div className="flex items-center gap-3 text-violet-300"><Trophy size={20} /><span className="label-mono">Campeão da Sul-Americana</span></div>
+          <h2 className="mt-5 text-2xl font-bold">{clubName(completion.sudamericana.championClubId)}</h2>
+          <p className="mt-2 text-sm text-white/40">Vice-campeão: {clubName(completion.sudamericana.runnerUpClubId)}</p>
+        </article>}
       </section>
 
       <section className="mt-4 grid gap-4 md:grid-cols-3">
