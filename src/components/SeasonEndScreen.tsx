@@ -1,6 +1,7 @@
 import { ArrowRight, Award, CalendarDays, Crown, Medal, Trophy } from 'lucide-react'
 import type { Club, Player } from '../types/game'
 import type { SeasonCompletion } from '../engine/seasonHistory'
+import { managerContractSalary, managerContractYears, type BoardState } from '../engine/management'
 
 export type SeasonAward = {
   award_type: string
@@ -23,6 +24,8 @@ export default function SeasonEndScreen({
   onNextSeason,
   managerOffers = [],
   onManagerOffer,
+  onRenewManager,
+  onEndManagerContract,
 }: {
   completion: SeasonCompletion
   clubs: Club[]
@@ -33,6 +36,9 @@ export default function SeasonEndScreen({
   onNextSeason: () => void
   managerOffers?: Array<{ id: string; from_club_id: string; offer_level: string; message: string; status: string }>
   onManagerOffer?: (offer: { id: string; from_club_id: string }) => void
+  board: BoardState
+  onRenewManager: () => void
+  onEndManagerContract: () => void
 }) {
   const clubName = (id: string | null) => clubs.find(club => club.id === id)?.name ?? 'Clube'
   const playerName = (id: string | null) => {
@@ -84,6 +90,16 @@ export default function SeasonEndScreen({
         </article>
       </section>
 
+      <section className="mt-4 rounded-2xl border border-white/6 bg-[#111927] p-6 sm:p-8">
+        <p className="label-mono text-white/30">Contrato do treinador</p>
+        <h2 className="mt-2 text-2xl font-bold">{board.managerStatus === 'dismissed' ? 'Vínculo encerrado pela diretoria' : board.renewalOffered ? 'A diretoria quer renovar' : board.managerStatus === 'contract_ended' ? 'Você está sem clube' : 'Vínculo atual'}</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">{board.managerStatus === 'dismissed' ? 'A diretoria encerrou seu trabalho antes da renovação. Você poderá avaliar as propostas recebidas.' : board.renewalOffered ? <>Sua confiança terminou em {board.confidence}/100. A diretoria oferece {managerContractYears(board.confidence)} ano(s), com salário de {money(managerContractSalary(Number(clubs.find(club => club.id === currentClubId)?.reputation ?? 50), board.confidence))} por mês.</> : board.managerStatus === 'contract_ended' ? 'O vínculo terminou. Você pode assumir uma nova oportunidade.' : 'O vínculo segue ativo para a próxima temporada.'}</p>
+        {board.renewalOffered && <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <button onClick={onRenewManager} className="rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c]">Renovar contrato</button>
+          <button onClick={onEndManagerContract} className="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-white/65 hover:border-white/20 hover:text-white">Encerrar vínculo</button>
+        </div>}
+      </section>
+
       {managerOffers.length > 0 && <section className="mt-4 rounded-2xl border border-violet-400/15 bg-violet-400/[0.04] p-6 sm:p-8">
         <p className="label-mono text-violet-300/70">Mercado de treinadores</p>
         <h2 className="mt-2 text-2xl font-bold">Seu desempenho abriu novas portas</h2>
@@ -107,7 +123,7 @@ export default function SeasonEndScreen({
             {userIsChampion && <p className="mt-3 text-sm font-semibold text-amber-200">Seu clube terminou a temporada com um título.</p>}
           </div>
         </div>
-        <button onClick={onNextSeason} className="mt-7 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">
+        <button disabled={board.managerStatus !== 'renewed'} onClick={onNextSeason} className="mt-7 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] hover:bg-emerald-300">
           Começar {nextSeasonName} <ArrowRight size={17} />
         </button>
       </section>
