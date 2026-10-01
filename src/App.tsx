@@ -381,6 +381,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [managerTrophies, setManagerTrophies] = useState<Array<any>>([])
   const [managerRecords, setManagerRecords] = useState<Array<any>>([])
   const [managerOffers, setManagerOffers] = useState<Array<any>>([])
+  const [careerStatus, setCareerStatus] = useState<'active' | 'unemployed' | 'retired'>(() => career.careerStatus ?? (localStorage.getItem(MANAGER_STATUS_KEY) as 'active' | 'unemployed' | 'retired' | null) ?? 'active')
   const [historyRows, setHistoryRows] = useState<Array<{ season_id: string; season_name: string; competition_name: string; champion_club_id: string | null; runner_up_club_id: string | null; top_scorer_player_id: string | null; top_scorer_goals: number }>>([])
   const [historyPlayers, setHistoryPlayers] = useState<Player[]>([])
   const [worldNews, setWorldNews] = useState<WorldNews[]>(() => {
@@ -486,6 +487,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     ])
 
     if (profile) {
+      if (!career.careerStatus && !localStorage.getItem(MANAGER_STATUS_KEY)) {
+        setCareerStatus(profile.current_club_id ? 'active' : 'unemployed')
+      }
       setManagerPopularity({
         regional: Number(profile.regional_popularity ?? 0),
         national: Number(profile.national_popularity ?? 0),
