@@ -159,6 +159,120 @@ async function ensureCompetitionTeams(seasonId: string, competitionId: string, c
   }
 }
 
+async function initializeFirstSeasonContinentalCalendar(seasonId: string, year: number, clubs: Club[], libertadoresId: string, sudamericanaId: string) {
+  const brazil = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
+    .sort((a, b) => Number(b.strength ?? b.reputation ?? 0) - Number(a.strength ?? a.reputation ?? 0))
+  const libBrazil = brazil.slice(0, 5)
+  const sulaBrazil = brazil.slice(5, 11)
+  const foreignPool = clubs.filter(club => club.country !== 'Brasil')
+
+  const plan = buildContinentalPreliminaryPlan(
+    foreignPool,
+    libBrazil,
+    sulaBrazil,
+    libertadoresId,
+    sudamericanaId,
+    seasonId,
+    year,
+  )
+
+  const libGroups = buildContinentalGroups('libertadores', plan.libertadores.groupClubs)
+  const sulaGroups = buildContinentalGroups('sudamericana', plan.sudamericana.groupClubs)
+
+  await ensureCompetitionTeams(seasonId, libertadoresId, [
+    ...plan.libertadores.phase1,
+    ...plan.libertadores.phase2Direct,
+    ...plan.libertadores.phase2Winners,
+    ...plan.libertadores.phase3Winners,
+    ...plan.libertadores.phase3Losers,
+    ...plan.libertadores.groupClubs,
+  ].filter((club, index, list) => list.findIndex(item => item.id === club.id) === index))
+
+  await ensureCompetitionTeams(seasonId, sudamericanaId, [
+    ...plan.sudamericana.firstPhaseClubs,
+    ...plan.sudamericana.firstPhaseWinners,
+    ...plan.libertadores.phase3Losers,
+    ...plan.sudamericana.groupClubs,
+  ].filter((club, index, list) => list.findIndex(item => item.id === club.id) === index))
+
+  const groupRows = [
+    ...libGroups.groups.map((_, index) => ({
+      season_id: seasonId,
+      competition_id: libertadoresId,
+      stage: 'group_stage',
+      group_code: String.fromCharCode(65 + index),
+    })),
+    ...sulaGroups.groups.map((_, index) => ({
+      season_id: seasonId,
+      competition_id: sudamericanaId,
+      stage: 'group_stage',
+      group_code: String.fromCharCode(65 + index),
+    })),
+  ]
+
+  const { data: createdGroups, error: groupsError } = await supabase
+    .from('competition_groups')
+    .insert(groupRows)
+    .select('id,competition_id,group_code')
+
+  if (groupsError || !createdGroups || createdGroups.length !== 16) {
+    throw new Error(groupsError?.message ?? 'Não foi possível criar os grupos continentais.')
+  }
+
+  const groupTeamRows = [
+    ...libGroups.groups.flatMap((group, index) => {
+      const row = createdGroups.find(item => item.competition_id === libertadoresId && item.group_code === String.fromCharCode(65 + index))
+      return group.map((club, seed) => ({ group_id: row!.id, club_id: club.id, seed: seed + 1 }))
+    }),
+    ...sulaGroups.groups.flatMap((group, index) => {
+      const row = createdGroups.find(item => item.competition_id === sudamericanaId && item.group_code === String.fromCharCode(65 + index))
+      return group.map((club, seed) => ({ group_id: row!.id, club_id: club.id, seed: seed + 1 }))
+    }),
+  ]
+  const { error: groupTeamError } = await supabase.from('competition_group_teams').insert(groupTeamRows)
+  if (groupTeamError) throw new Error(groupTeamError.message)
+
+  const groupFixtures = [
+    ...buildContinentalGroupFixtures(seasonId, libertadoresId, libGroups.groups, year, 7),
+    ...buildContinentalGroupFixtures(seasonId, sudamericanaId, sulaGroups.groups, year, 8),
+  ].map(fixture => ({
+    competition_id: fixture.competitionId,
+    season_id: fixture.seasonId,
+    round: fixture.round,
+    home_club_id: fixture.homeClubId,
+    away_club_id: fixture.awayClubId,
+    scheduled_at: fixture.scheduledAt,
+    status: 'scheduled',
+    stage: fixture.stage,
+  }))
+
+  const preliminaryFixtures = plan.fixtures.map((fixture, index) => {
+    const home = clubs.find(club => club.id === fixture.homeClubId)
+    const away = clubs.find(club => club.id === fixture.awayClubId)
+    const homeStrength = Number(home?.strength ?? home?.reputation ?? 50)
+    const awayStrength = Number(away?.strength ?? away?.reputation ?? 50)
+    const winner = homeStrength >= awayStrength ? fixture.homeClubId : fixture.awayClubId
+    const homeScore = winner === fixture.homeClubId ? 1 + (index % 2) : 0
+    const awayScore = winner === fixture.awayClubId ? 1 + (index % 2) : 0
+    return {
+      competition_id: fixture.competitionId,
+      season_id: fixture.seasonId,
+      round: fixture.round,
+      home_club_id: fixture.homeClubId,
+      away_club_id: fixture.awayClubId,
+      scheduled_at: fixture.scheduledAt,
+      status: 'completed',
+      home_score: homeScore,
+      away_score: awayScore,
+      winner_club_id: winner,
+      stage: fixture.stage,
+    }
+  })
+
+  const { error: fixtureError } = await supabase.from('fixtures').insert([...preliminaryFixtures, ...groupFixtures])
+  if (fixtureError) throw new Error(fixtureError.message)
+}
+
 function money(value: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value)
 }
@@ -387,11 +501,28 @@ function GameApp() {
       ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5),
       ...buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId),
     ]
+
+    const { data: continentalCompetitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
+    const libertadoresId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
+    const sudamericanaId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
     const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
     if (fixtureError) {
       await supabase.from('seasons').delete().eq('id', careerSeason.id)
       setError(fixtureError.message)
       return
+    }
+
+    if (libertadoresId && sudamericanaId) {
+      try {
+        await initializeFirstSeasonContinentalCalendar(careerSeason.id, year, clubs, libertadoresId, sudamericanaId)
+      } catch (continentalError) {
+        await supabase.from('seasons').delete().eq('id', careerSeason.id)
+        setError(continentalError instanceof Error ? continentalError.message : 'Não foi possível criar o calendário continental.')
+        return
+      }
     }
 
     const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: uniqueSeasonName, seasonId: careerSeason.id, careerStatus: 'active', contractStartSeason, contractEndSeason }
