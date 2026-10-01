@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildContinentalGroups, buildContinentalGroupFixtures, resolveBrazilianContinentalQualifications, selectForeignContinentalClubs } from './continentalQualification'
+import { buildContinentalGroups, buildContinentalGroupFixtures, buildContinentalPreliminaryPlan, resolveBrazilianContinentalQualifications, selectForeignContinentalClubs } from './continentalQualification'
 import type { StandingRow } from './competitions'
 import type { Club } from '../types/game'
 
@@ -87,8 +87,31 @@ describe('montagem continental', () => {
     const all = Array.from({ length: 32 }, (_, i) => mockClub(`c${i + 1}`, `P${i % 8}`, 100 - i))
     const draw = buildContinentalGroups('sudamericana', all)
     const fixtures = buildContinentalGroupFixtures('season', 'competition', draw.groups, 2027)
-    expect(fixtures).toHaveLength(48)
+    expect(fixtures).toHaveLength(96)
     expect(new Set(fixtures.map(fixture => fixture.round))).toEqual(new Set([1,2,3,4,5,6]))
     expect(new Set(fixtures.map(fixture => fixture.homeClubId))).toHaveLength(32)
+  })
+})
+
+
+describe('fases preliminares e integração continental', () => {
+  it('monta Libertadores fase 1, fase 2, fase 3 e envia os quatro perdedores da fase 3 para a Sul-Americana', () => {
+    const countries = ['Argentina','Bolívia','Chile','Colômbia','Equador','Paraguai','Peru','Uruguai','Venezuela']
+    const all = Array.from({ length: 66 }, (_, i) => ({
+      id: `foreign-${i + 1}`, name: `Estrangeiro ${i + 1}`, short_name: `E${i + 1}`,
+      city: 'Cidade', country: countries[i % countries.length], division: 1, budget: 0,
+      reputation: 95 - (i % 50), strength: 95 - (i % 50),
+    })) as Club[]
+    const libBrazil = Array.from({ length: 5 }, (_, i) => mockClub(`lib-br-${i + 1}`, 'Brasil', 90 - i))
+    const sulaBrazil = Array.from({ length: 6 }, (_, i) => mockClub(`sula-br-${i + 1}`, 'Brasil', 80 - i))
+    const plan = buildContinentalPreliminaryPlan(all, libBrazil, sulaBrazil, 'lib', 'sula', 'season', 2027)
+    expect(plan.libertadores.phase1).toHaveLength(6)
+    expect(plan.libertadores.phase2Direct).toHaveLength(13)
+    expect(plan.libertadores.phase3Winners).toHaveLength(4)
+    expect(plan.libertadores.phase3Losers).toHaveLength(4)
+    expect(plan.libertadores.groupClubs).toHaveLength(32)
+    expect(plan.sudamericana.groupClubs).toHaveLength(32)
+    expect(new Set(plan.libertadores.groupClubs.map(c => c.id)).size).toBe(32)
+    expect(new Set(plan.sudamericana.groupClubs.map(c => c.id)).size).toBe(32)
   })
 })
