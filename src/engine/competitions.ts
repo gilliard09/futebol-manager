@@ -20,6 +20,9 @@ export type CompetitionConfig = {
   pointsForLoss?: number
   doubleRoundRobin?: boolean
   relegationSlots?: number
+  promotionSlots?: number
+  directPromotionSlots?: number
+  playoffSlots?: number
   stages?: CompetitionStage[]
 }
 
@@ -31,6 +34,20 @@ export const BRAZIL_LEAGUE_RULES: CompetitionConfig = {
   pointsForDraw: 1,
   pointsForLoss: 0,
   doubleRoundRobin: true,
+  relegationSlots: 4,
+}
+
+export const BRAZIL_SERIE_B_RULES: CompetitionConfig = {
+  name: 'Série B do Brasil',
+  format: 'league',
+  teams: 20,
+  pointsForWin: 3,
+  pointsForDraw: 1,
+  pointsForLoss: 0,
+  doubleRoundRobin: true,
+  promotionSlots: 4,
+  directPromotionSlots: 2,
+  playoffSlots: 4,
   relegationSlots: 4,
 }
 
