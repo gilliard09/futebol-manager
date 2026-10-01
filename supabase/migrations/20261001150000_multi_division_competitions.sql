@@ -1,8 +1,8 @@
 -- Multi-divisão: Série B, histórico de classificação e recordes.
 -- A Série B de 2026 tem 20 clubes e 38 rodadas; os dois primeiros sobem
 -- diretamente e 3º-6º disputam os dois acessos restantes.
-insert into public.competitions (name)
-select 'Série B do Brasil'
+insert into public.competitions (name, type)
+select 'Série B do Brasil', 'league'
 where not exists (
   select 1 from public.competitions where lower(name) = lower('Série B do Brasil')
 );
