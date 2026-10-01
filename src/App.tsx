@@ -19,7 +19,7 @@ import ManagerCareerScreen from './components/ManagerCareerScreen'
 import TrophyRoomScreen from './components/TrophyRoomScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
-import { buildSeasonFinancialHistory, calculateClubChangeFinancialImpact, calculateFinancialStatus, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll, calculateVariableCompetitionPrize, type SeasonFinancialHistory } from './engine/clubFinance'
+import { buildSeasonFinancialHistory, calculateClubChangeFinancialImpact, calculateFinancialStatus, calculateFineAndOperationalCost, calculateMatchdayFinance, calculateNextSeasonBudget, calculateTechnicalStaffPayroll, calculateVariableCompetitionPrize, type SeasonFinancialHistory } from './engine/clubFinance'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
 import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, evaluateBoard, getEconomicStatus, managerContractYears, resolveContractAtSeasonEnd, declineManagerRenewal, type BoardState, type FanState } from './engine/management'
 import { daysUntilContractEnd, getContractStatus } from './engine/contracts'
@@ -2964,7 +2964,21 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         )
         const nextBalanceAfterRevenue = addFinanceTransaction(transaction) ?? financeBalance
         const nextBalance = addFinanceTransaction(matchCost) ?? nextBalanceAfterRevenue
-        const nextCareer = { ...career, club: { ...career.club, budget: nextBalance } }
+        const redCards = result.events.filter(event => event.type === 'red_card').length
+        const injuries = result.events.filter(event => event.type === 'injury').length
+        const fineAmount = calculateFineAndOperationalCost(redCards, injuries, 0, calculateFinancialStatus(nextBalance, salaryTotal) === 'crítico')
+        if (fineAmount > 0) {
+          addFinanceTransaction(createTransaction(
+            toDateKey(activeMatchFixture.scheduled_at),
+            'fine',
+            'Multas e custos disciplinares da partida',
+            -fineAmount,
+            undefined,
+            `fine:${activeMatchFixture.id}`,
+          ))
+        }
+        const finalMatchBalance = financeBalance
+        const nextCareer = { ...career, club: { ...career.club, budget: finalMatchBalance } }
         localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
         onCareerUpdate(nextCareer)
       }
