@@ -1522,19 +1522,28 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           stage: fixture.stage,
         }))
 
-        const preliminaryFixtures = preliminaryPlan.fixtures.map(fixture => ({
-          competition_id: fixture.competitionId,
-          season_id: fixture.seasonId,
-          round: fixture.round,
-          home_club_id: fixture.homeClubId,
-          away_club_id: fixture.awayClubId,
-          scheduled_at: fixture.scheduledAt,
-          status: 'completed',
-          home_score: null,
-          away_score: null,
-          winner_club_id: null,
-          stage: fixture.stage,
-        }))
+        const preliminaryFixtures = preliminaryPlan.fixtures.map((fixture, index) => {
+          const home = nextClubs.find(club => club.id === fixture.homeClubId)
+          const away = nextClubs.find(club => club.id === fixture.awayClubId)
+          const homeStrength = Number(home?.strength ?? home?.reputation ?? 50)
+          const awayStrength = Number(away?.strength ?? away?.reputation ?? 50)
+          const winner = homeStrength >= awayStrength ? fixture.homeClubId : fixture.awayClubId
+          const homeScore = winner === fixture.homeClubId ? 1 + (index % 2) : 0
+          const awayScore = winner === fixture.awayClubId ? 1 + (index % 2) : 0
+          return {
+            competition_id: fixture.competitionId,
+            season_id: fixture.seasonId,
+            round: fixture.round,
+            home_club_id: fixture.homeClubId,
+            away_club_id: fixture.awayClubId,
+            scheduled_at: fixture.scheduledAt,
+            status: 'completed',
+            home_score: homeScore,
+            away_score: awayScore,
+            winner_club_id: winner,
+            stage: fixture.stage,
+          }
+        })
 
         const { error: continentalFixtureError } = await supabase
           .from('fixtures')
