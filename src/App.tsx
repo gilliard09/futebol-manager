@@ -739,6 +739,32 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     const leagueFixtures = (fixtures ?? []).filter(item => item.competition_id === leagueId)
     const cupFixtures = (fixtures ?? []).filter(item => item.competition_id === cupId)
+    // A temporada só fecha depois que o ciclo continental também terminou.
+    // Libertadores e Sul-Americana têm finais em partida única; quando os dois finais
+    // ainda não foram disputados, o treinador continua na mesma temporada.
+    const { data: continentalCompetitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
+    const continentalIds = (continentalCompetitions ?? []).map(row => row.id)
+    if (continentalIds.length === 2) {
+      const { data: continentalFixtures } = await supabase
+        .from('fixtures')
+        .select('id,competition_id,round,status,home_score,away_score')
+        .eq('season_id', seasonId)
+        .in('competition_id', continentalIds)
+      const hasContinentalCalendar = (continentalFixtures ?? []).length > 0
+      const continentalFinalsComplete = continentalIds.every(competitionId =>
+        (continentalFixtures ?? []).some(fixture =>
+          fixture.competition_id === competitionId &&
+          Number(fixture.round) === 15 &&
+          fixture.status === 'completed' &&
+          fixture.home_score != null &&
+          fixture.away_score != null,
+        ),
+      )
+      if (hasContinentalCalendar && !continentalFinalsComplete) return
+    }
     const completion = buildSeasonCompletion(
       { id: seasonId, name: career.season },
       leagueId,
