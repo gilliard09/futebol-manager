@@ -32,6 +32,31 @@ export function buildWorldNews(
 
   const news: WorldNews[] = []
 
+  for (const decision of result.boardDecisions ?? []) {
+    const club = clubName(decision.clubId)
+    const tone: WorldNewsTone = decision.action === 'dismiss_manager' || decision.action === 'financial_control' ? 'warning' : decision.action === 'sporting_investment' || decision.action === 'renew_manager' ? 'positive' : 'neutral'
+    const title = decision.action === 'hire_manager'
+      ? 'Novo treinador anunciado'
+      : decision.action === 'dismiss_manager'
+        ? 'Treinador demitido'
+        : decision.action === 'renew_manager'
+          ? 'Treinador renovado'
+          : decision.action === 'change_strategy'
+            ? 'Clube muda de estratégia'
+            : decision.action === 'financial_control'
+              ? 'Diretoria aperta o controle financeiro'
+              : 'Diretoria libera investimento'
+    news.push({
+      id: `ai-board:${result.date}:${decision.clubId}:${decision.action}:${news.length}`,
+      date: result.date,
+      title,
+      message: decision.message,
+      tone,
+      category: 'club',
+      priority: tone === 'warning' ? 78 : 62,
+    })
+  }
+
   const push = (item: Omit<WorldNews, 'id'> & { id?: string }) => {
     news.push({
       ...item,
