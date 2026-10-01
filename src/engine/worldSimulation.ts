@@ -1079,7 +1079,17 @@ export function simulateWorldDay(
           ? -1.5
           : 0
       : 0
-    const nextStrength = clamp(average + Math.min(4, Math.max(0, club.reputation - 50) / 25) + sportingModifier - depthPenalty, 35, 95)
+    const manager = aiManagement.managers.find(item => item.clubId === club.id)
+    const strategyModifier = manager
+      ? manager.style === 'ambitious' && performance?.position <= 6
+        ? 0.7
+        : manager.style === 'defensive' && performance?.position >= 13
+          ? 0.5
+          : (manager.style === 'youth' || manager.style === 'development') && squad.filter(player => player.age <= 23).length >= 5
+            ? 0.4
+            : 0
+      : 0
+    const nextStrength = clamp(average + Math.min(4, Math.max(0, club.reputation - 50) / 25) + sportingModifier + strategyModifier - depthPenalty, 35, 95)
     if (nextStrength !== club.strength) {
       club.strength = nextStrength
       changedClubs.add(club.id)
