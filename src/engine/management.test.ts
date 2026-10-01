@@ -19,7 +19,10 @@ describe('management systems', () => {
 
     expect(offered.managerStatus).toBe('active')
     expect(offered.renewalOffered).toBe(true)
-    expect(acceptManagerRenewal(offered, 'Temporada 2027').managerStatus).toBe('renewed')
+    const renewed = acceptManagerRenewal(offered, 'Temporada 2027')
+    expect(renewed.managerStatus).toBe('renewed')
+    expect(renewed.contractYears).toBe(2)
+    expect(renewed.contractEndSeason).toBe('Temporada 2029')
     expect(resolveContractAtSeasonEnd({ ...state, confidence: 40 }).managerStatus).toBe('contract_ended')
   })
 
