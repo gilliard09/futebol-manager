@@ -113,11 +113,23 @@ export function resolveDivisionMovement(standings: StandingRow[], options: { rel
 }
 
 
+export type SeasonCompletionFixture = {
+  round: number
+  status: string
+  home_club_id: string
+  away_club_id: string
+  home_score: number | null
+  away_score: number | null
+  winner_club_id?: string | null
+}
+
 export type SeasonCompletion = {
   seasonId: string
   seasonName: string
   league: CompetitionHistoryResult
   cup: CompetitionHistoryResult
+  libertadores?: CompetitionHistoryResult | null
+  sudamericana?: CompetitionHistoryResult | null
 }
 
 export function buildSeasonCompletion(
@@ -143,9 +155,16 @@ export function buildSeasonCompletion(
     winner_club_id?: string | null
   }>,
   matches: PlayedMatch[],
+  continental?: { libertadoresId?: string; sudamericanaId?: string; libertadoresFixtures?: SeasonCompletionFixture[]; sudamericanaFixtures?: SeasonCompletionFixture[] },
 ): SeasonCompletion | null {
   const league = buildCompetitionHistoryResult(leagueId, leagueFixtures, matches, true, season.id)
   const cup = buildCompetitionHistoryResult(cupId, cupFixtures, matches, false, season.id)
   if (!league || !cup) return null
-  return { seasonId: season.id, seasonName: season.name, league, cup }
+  const libertadores = continental?.libertadoresId && continental.libertadoresFixtures
+    ? buildCompetitionHistoryResult(continental.libertadoresId, continental.libertadoresFixtures, matches, false, season.id)
+    : null
+  const sudamericana = continental?.sudamericanaId && continental.sudamericanaFixtures
+    ? buildCompetitionHistoryResult(continental.sudamericanaId, continental.sudamericanaFixtures, matches, false, season.id)
+    : null
+  return { seasonId: season.id, seasonName: season.name, league, cup, libertadores, sudamericana }
 }
