@@ -827,8 +827,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         : 0
     const sponsorResolution = resolveSponsorAtSeasonEnd(commercial.sponsor, sponsorProgress, Number(career.club.reputation ?? 50))
 
-    // Se o clube do treinador foi premiado, o mesmo efeito precisa chegar
-    // imediatamente à carreira local e ao caixa exibido no dashboard.
+    // A premiação da temporada entra no caixa real e altera o orçamento do próximo ano.
     const userEffect = achievementByClub.get(career.club.id) ?? { budgetBonus: 0, reputationBonus: 0, strengthBonus: 0, marketMultiplier: 1 }
     {
       const nextBudget = Math.max(0, Number(career.club.budget ?? 0) + userEffect.budgetBonus)
@@ -854,6 +853,39 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         ))
       }
     }
+
+    const financialYear = Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
+    const previousFinancialHistory = financeHistory.find(item => item.seasonId === seasonId)
+    const openingBalance = financeHistory.find(item => item.seasonName === seasonName(financialYear - 1))?.closingBalance
+      ?? financeTransactions.find(item => item.eventId === 'career:initial-budget')?.amount
+      ?? Number(career.club.budget ?? 0)
+    const seasonTransactions = financeTransactions.filter(item => item.date.startsWith(String(financialYear)))
+    const closingBalance = Math.max(0, Number(career.club.budget ?? 0) + userEffect.budgetBonus)
+    const seasonRevenue = seasonTransactions.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0) + (previousFinancialHistory ? 0 : 0)
+    const seasonExpenses = seasonTransactions.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0)
+    const financialStatus = calculateFinancialStatus(closingBalance, salaryTotal)
+    const calculatedNextBudget = calculateNextSeasonBudget(
+      closingBalance,
+      seasonRevenue,
+      seasonExpenses,
+      userEffect.budgetBonus,
+      Math.max(35, Math.min(95, Number(career.club.reputation ?? 50) + userEffect.reputationBonus)),
+      financialStatus,
+    )
+    const historyEntry = buildSeasonFinancialHistory(
+      [...seasonTransactions, ...(userEffect.budgetBonus > 0 ? [createTransaction(toDateKey(new Date().toISOString()), 'prize', 'Premiação por desempenho da temporada', userEffect.budgetBonus, undefined, `season:achievement:${seasonId}`)] : [])],
+      seasonId,
+      career.season,
+      career.club.id,
+      openingBalance,
+      closingBalance,
+      calculatedNextBudget,
+    )
+    const nextHistory = [...financeHistory.filter(item => item.seasonId !== seasonId), historyEntry]
+    setFinanceHistory(nextHistory)
+    localStorage.setItem(FINANCE_HISTORY_KEY, JSON.stringify(nextHistory))
+    setNextSeasonBudget(calculatedNextBudget)
+    localStorage.setItem(NEXT_BUDGET_KEY, String(calculatedNextBudget))
     const { data: seasonStats } = await supabase
       .from('player_season_stats')
       .select('player_id,club_id,goals,assists,minutes,avg_rating')
