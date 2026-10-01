@@ -2616,55 +2616,87 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     const ids = new Map((continental.data ?? []).map(row => [row.name, row.id]))
     if (!ids.size) return
 
-    const { data: pending } = await supabase
-      .from('fixtures')
-      .select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status')
-      .eq('season_id', databaseSeasonId)
-      .in('competition_id', [...ids.values()])
-      .eq('status', 'scheduled')
-      .lte('scheduled_at', targetDate)
-      .order('scheduled_at')
+    const { simulateMatch } = await import('./engine/match')
 
-    const clubMap = new Map(clubs.map(club => [club.id, club]))
-    await Promise.all((pending ?? [])
-      .filter(fixture => fixture.home_club_id !== career.club.id && fixture.away_club_id !== career.club.id)
-      .map(async fixture => {
-        const home = clubMap.get(fixture.home_club_id)
-        const away = clubMap.get(fixture.away_club_id)
-        if (!home || !away) return
-        const [homeScore, awayScore] = continentalAutoScore(home, away, fixture as any)
-        await supabase.from('fixtures').update({
-          status: 'completed',
-          home_score: homeScore,
-          away_score: awayScore,
-          winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
-        }).eq('id', fixture.id)
-      }))
-
-    for (let pass = 0; pass < 8; pass++) {
-      await advanceContinentalStages()
-      const { data: overdue } = await supabase
+    for (let pass = 0; pass < 20; pass++) {
+      const { data: pending } = await supabase
         .from('fixtures')
-        .select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status')
+        .select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status,home_score,away_score,winner_club_id,neutral_venue,venue_name,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)')
         .eq('season_id', databaseSeasonId)
         .in('competition_id', [...ids.values()])
         .eq('status', 'scheduled')
         .lte('scheduled_at', targetDate)
-        .limit(1)
-      if (!overdue?.length) break
-      const fixture = overdue[0]
-      if (fixture.home_club_id === career.club.id || fixture.away_club_id === career.club.id) break
-      const home = clubMap.get(fixture.home_club_id)
-      const away = clubMap.get(fixture.away_club_id)
-      if (!home || !away) break
-      const [homeScore, awayScore] = continentalAutoScore(home, away, fixture as any)
-      await supabase.from('fixtures').update({
-        status: 'completed',
-        home_score: homeScore,
-        away_score: awayScore,
-        winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
-      }).eq('id', fixture.id)
+        .order('scheduled_at')
+
+      const eligible = (pending ?? []).filter(fixture => fixture.home_club_id !== career.club.id && fixture.away_club_id !== career.club.id)
+      if (!eligible.length) {
+        if ((pending ?? []).some(fixture => fixture.home_club_id === career.club.id || fixture.away_club_id === career.club.id)) break
+        await advanceContinentalStages()
+        const { data: nextPending } = await supabase
+          .from('fixtures')
+          .select('id')
+          .eq('season_id', databaseSeasonId)
+          .in('competition_id', [...ids.values()])
+          .eq('status', 'scheduled')
+          .lte('scheduled_at', targetDate)
+          .limit(1)
+        if (!nextPending?.length) break
+        continue
+      }
+
+      const clubIds = [...new Set(eligible.flatMap(fixture => [fixture.home_club_id, fixture.away_club_id]))]
+      const { data: squadRows } = await supabase
+        .from('club_players')
+        .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)')
+        .in('club_id', clubIds)
+
+      const squads = new Map<string, Player[]>()
+      for (const row of squadRows ?? []) {
+        const player = normalizePlayer(row)
+        const squad = squads.get(row.club_id) ?? []
+        squad.push(player)
+        squads.set(row.club_id, squad)
+      }
+
+      let simulatedAny = false
+      for (const rawFixture of eligible) {
+        const fixture = normalizeFixture(rawFixture)
+        const homePlayers = squads.get(fixture.home_club_id) ?? []
+        const awayPlayers = squads.get(fixture.away_club_id) ?? []
+        if (!homePlayers.length || !awayPlayers.length) continue
+
+        const homeCoach = getAiCoachProfile(fixture.home_club_id)
+        const simulated = simulateMatch(
+          fixture,
+          homePlayers,
+          awayPlayers,
+          homeCoach.tactic,
+          homeCoach.formation,
+          undefined,
+          undefined,
+          Math.random,
+          homeCoach.style,
+          homeCoach.personality,
+        )
+
+        const { error } = await supabase.from('fixtures').update({
+          status: 'completed',
+          home_score: simulated.homeScore,
+          away_score: simulated.awayScore,
+          winner_club_id: simulated.homeScore > simulated.awayScore
+            ? fixture.home_club_id
+            : simulated.awayScore > simulated.homeScore
+              ? fixture.away_club_id
+              : null,
+        }).eq('id', fixture.id).eq('status', 'scheduled')
+
+        if (!error) simulatedAny = true
+      }
+
+      if (!simulatedAny) break
+      await advanceContinentalStages()
     }
+
     await advanceContinentalStages()
     if (databaseSeasonId) await finalizeSeasonIfComplete(databaseSeasonId, playedMatches)
   }
@@ -2679,11 +2711,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     const sulaId = competitions?.find(row => row.name === 'CONMEBOL Sudamericana')?.id
     if (!libId || !sulaId) return
 
-    const [{ data: fixtures }, { data: groups }, { data: groupTeams }] = await Promise.all([
-      supabase.from('fixtures').select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status,home_score,away_score,winner_club_id').eq('season_id', databaseSeasonId).in('competition_id',[libId,sulaId]).order('scheduled_at'),
+    const [{ data: fixtures }, { data: groups }] = await Promise.all([
+      supabase.from('fixtures').select('id,round,competition_id,home_club_id,away_club_id,scheduled_at,status,home_score,away_score,winner_club_id,neutral_venue,venue_name').eq('season_id', databaseSeasonId).in('competition_id',[libId,sulaId]).order('scheduled_at'),
       supabase.from('competition_groups').select('id,competition_id,group_code').eq('season_id',databaseSeasonId).in('competition_id',[libId,sulaId]),
-      supabase.from('competition_group_teams').select('group_id,club_id').in('group_id',(groups ?? []).map(row => row.id)),
     ])
+    const groupIds = (groups ?? []).map((row: { id: string }) => row.id)
+    const { data: groupTeams } = groupIds.length
+      ? await supabase.from('competition_group_teams').select('group_id,club_id').in('group_id', groupIds)
+      : { data: [] as Array<{ group_id: string; club_id: string }> }
     const allFixtures = (fixtures ?? []) as any[]
     const groupRows = (groups ?? []) as any[]
     const teamsByGroup = new Map<string,string[]>()
@@ -2702,7 +2737,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     const groupComplete = (competitionId: string) => {
       const groupFixtures = allFixtures.filter(f => f.competition_id === competitionId && f.round <= 6 && f.status === 'completed' && f.home_score != null && f.away_score != null)
-      return groupFixtures.length === 48
+      return groupFixtures.length === 96
     }
 
     const createRows = async (competitionId: string, rows: Array<{round:number;homeClubId:string;awayClubId:string;scheduledAt:string;stage:string}>) => {
@@ -2716,6 +2751,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         scheduled_at: row.scheduledAt,
         status: 'scheduled',
         stage: row.stage,
+        neutral_venue: row.neutralVenue ?? false,
+        venue_name: row.venueName ?? null,
       })))
     }
 
@@ -2785,7 +2822,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       if (stageComplete(competitionId,13,14,4) && !allFixtures.some(f => f.competition_id === competitionId && f.round === 15)) {
         const winners=resolveWinners(competitionId,13,14)
         if (winners.length===2) {
-          const row=buildSingleFinalFixture(winners[0],winners[1],15,new Date(new Date(dateAfter(14,35)+'T19:00:00Z').getTime()).toISOString())
+          const neutralVenue = clubs
+            .filter(club => club.country === 'Brasil' && club.id !== winners[0] && club.id !== winners[1])
+            .sort((a,b) => Number(b.stadium_capacity ?? 0) - Number(a.stadium_capacity ?? 0))[0]
+          const row = {
+            ...buildSingleFinalFixture(winners[0], winners[1], 15, new Date(new Date(dateAfter(14,35)+'T19:00:00Z').getTime()).toISOString()),
+            neutralVenue: true,
+            venueName: neutralVenue?.stadium ?? 'Estádio Nacional',
+          }
           await createRows(competitionId,[row])
         }
       }
