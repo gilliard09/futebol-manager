@@ -15,6 +15,7 @@ export type PlayerLifecycleState = {
   injuries: number
   longTermInjuries: number
   seasons: number
+  careerSeasons: number
 }
 
 export type PlayerLifecycleContext = {
@@ -39,6 +40,7 @@ export const DEFAULT_PLAYER_LIFECYCLE: PlayerLifecycleState = {
   injuries: 0,
   longTermInjuries: 0,
   seasons: 0,
+  careerSeasons: 0,
 }
 
 export function clampLifecycle(value: number) {
