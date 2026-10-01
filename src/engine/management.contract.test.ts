@@ -34,7 +34,7 @@ describe('manager contract lifecycle', () => {
     const offered = resolveContractAtSeasonEnd(state)
     const renewed = acceptManagerRenewal(offered, 'Temporada 2027')
     expect(renewed.managerStatus).toBe('renewed')
-    expect(renewed.contractEndSeason).toBe('Temporada 2028')
+    expect(renewed.contractEndSeason).toBe('Temporada 2029')
     expect(renewed.renewalOffered).toBe(false)
   })
 
