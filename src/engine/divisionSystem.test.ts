@@ -7,7 +7,7 @@ const rows = (ids: string[]) => ids.map((id, index) => ({
 
 describe('division system', () => {
   it('promove os dois primeiros diretamente e resolve os dois playoffs do G4', () => {
-    const result = resolveSerieBPromotion(rows(['1','2','3','4','5','6']), { '3': 80, '4': 60, '5': 70, '6': 50 })
+    const result = resolveSerieBPromotion(rows(['1','2','3','4','5','6']), { '3': 80, '4': 80, '5': 70, '6': 50 })
     expect(result.promotedClubIds).toEqual(['1','2','3','4'])
     expect(result.playoffs).toEqual([
       { first: '3', second: '6', winner: '3' },
