@@ -2474,7 +2474,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   if (view === 'contracts') return <ContractsScreen players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
   if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
   if (view === 'news') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
-  if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} financeHistory={financeHistory} nextSeasonBudget={nextSeasonBudget} reputation={Number(career.club.reputation ?? 50)} back={() => goToView('overview')} />
+  if (view === 'finance') return <FinanceScreen balance={financeBalance} transactions={financeTransactions} salaryTotal={salaryTotal} initialCapital={initialCapital} financeHistory={financeHistory} nextSeasonBudget={nextSeasonBudget} reputation={Number(career.club.reputation ?? 50)} strength={Number(career.club.strength ?? 50)} managerConfidence={boardState.confidence} back={() => goToView('overview')} />
   if (view === 'stadium') return <StadiumScreen club={career.club} commercial={commercial} balance={financeBalance} fanSatisfaction={fanState.satisfaction} reputation={career.club.reputation ?? 50} onUpgrade={async (nextStadium, cost) => {
     const transaction = createTransaction(toDateKey(new Date().toISOString()), 'other', 'Melhoria do estádio', -cost, undefined, 'stadium:' + career.season + ':' + nextStadium.level)
     const nextBalance = addFinanceTransaction(transaction) ?? financeBalance
@@ -3269,9 +3269,9 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
   </div>
 }
 
-function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, financeHistory, nextSeasonBudget, reputation, back }: {
+function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, financeHistory, nextSeasonBudget, reputation, strength, managerConfidence, back }: {
   balance: number; transactions: FinanceTransaction[]; salaryTotal: number; initialCapital: number;
-  financeHistory: SeasonFinancialHistory[]; nextSeasonBudget: number; reputation: number; back: () => void
+  financeHistory: SeasonFinancialHistory[]; nextSeasonBudget: number; reputation: number; strength: number; managerConfidence: number; back: () => void
 }) {
   const recent = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12)
   const income = transactions.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0)
@@ -3286,7 +3286,7 @@ function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, fin
       <DashboardCard icon={<WalletCards size={18} />} label="Caixa" value={money(balance)} detail="disponível agora" />
       <DashboardCard icon={<Banknote size={18} />} label="Próximo ano" value={money(nextSeasonBudget)} detail="orçamento projetado" />
       <DashboardCard icon={<Users size={18} />} label="Folha mensal" value={money(salaryTotal)} detail="jogadores" />
-      <DashboardCard icon={<Handshake size={18} />} label="Comissão" value={money(calculateTechnicalStaffPayroll(salaryTotal, reputation, reputation, 62))} detail="estimativa mensal" />
+      <DashboardCard icon={<Handshake size={18} />} label="Comissão" value={money(calculateTechnicalStaffPayroll(salaryTotal, reputation, strength, managerConfidence))} detail="estimativa mensal" />
       <DashboardCard icon={<BarChart3 size={18} />} label="Movimentado" value={money(income + expense)} detail={"entradas " + money(income) + " · saídas " + money(expense)} />
       <DashboardCard icon={<Shield size={18} />} label="Situação" value={statusLabel} detail="saúde financeira" />
     </div>
