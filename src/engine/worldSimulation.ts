@@ -998,13 +998,22 @@ export function simulateWorldDay(
     }
   }
 
-  // Pequena inflação/pressão financeira mantém o mercado ligado à economia do clube.
+  // Finanças da IA: além dos salários, os clubes recebem receitas recorrentes
+  // proporcionais à reputação, estádio e força comercial. Assim, o caixa não vira
+  // apenas uma contagem regressiva de salários e as decisões de mercado continuam sustentáveis.
   if (day === 1) {
     for (const club of aiClubs) {
       const squad = byClub.get(club.id) ?? []
-      const payroll = squad.reduce((sum, player) => sum + player.salary, 0)
-      club.budget = Math.max(0, club.budget - payroll)
+      const payroll = squad.reduce((sum, player) => sum + Math.max(0, player.salary), 0)
+      const capacity = Math.max(8000, Number(club.stadium_capacity ?? 12000))
+      const attendanceRate = Math.max(0.35, Math.min(0.9, 0.45 + Number(club.reputation ?? 50) / 250))
+      const homeMatchesRevenue = Math.round(capacity * attendanceRate * 35 * 2)
+      const sponsorshipRevenue = Math.round(25_000 + Number(club.reputation ?? 50) * 1_200)
+      const operatingRevenue = homeMatchesRevenue + sponsorshipRevenue
       const profile = getClubEconomicProfile(club)
+      const monthlyExpense = Math.round(payroll * profile.wageMultiplier)
+      club.budget = Math.max(0, club.budget + operatingRevenue - monthlyExpense)
+
       const needsSale = club.budget < 500000 || squad.length > profile.reserveLimit
       if (needsSale && squad.length > 18) {
         const sale = [...squad]
