@@ -305,8 +305,8 @@ function GameApp() {
           .eq('competition_id', serieBCompetition.id)
         if (!(existingBFixtures?.length)) {
           const seasonYear = Number(String(activeSeason.name).match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
-          const serieBStartDate = `${seasonYear}-03-21`
-          const fixtureRows = buildLeagueFixtures(activeSeason.id, serieBStartDate, serieB, serieBCompetition.id)
+          const serieBStartDate = activeSeason.start_date ?? `${seasonYear}-01-01`
+          const fixtureRows = buildLeagueFixtures(activeSeason.id, serieBStartDate, serieB, serieBCompetition.id, 5)
           const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
           if (fixtureError) console.error('Não foi possível criar o calendário da Série B', fixtureError)
         }
@@ -1256,7 +1256,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     if (!(existingFixtures?.length)) {
       const fixtureRows = [
         ...buildLeagueFixtures(nextSeasonId, nextStartDate, activeClubs, leagueId),
-        ...buildLeagueFixtures(nextSeasonId, `${nextYear}-03-21`, serieBClubs, serieBId),
+        ...buildLeagueFixtures(nextSeasonId, nextStartDate, serieBClubs, serieBId, 5),
         ...buildCupFixtures(nextSeasonId, nextStartDate, activeClubs, cupId),
       ]
       const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
