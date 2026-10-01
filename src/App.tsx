@@ -36,7 +36,7 @@ import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, up
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
 import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, clubCanApproachManager, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
-import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
+import { calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 import { injuryDurationDays, recordCareerMatch, updatePlayerLifecycle, type PlayerLifecycleState } from './engine/playerLifecycle'
 
 const CAREER_KEY = 'futebol-manager:career'
