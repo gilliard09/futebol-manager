@@ -1137,7 +1137,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       })
       const candidateClubs = buildManagerOfferCandidates(
         managerPopularity,
-        Math.max(25, dismissalScore),
+        dismissalScore,
         clubs,
         career.club.id,
       )
@@ -1163,6 +1163,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
             message: club.name + ' está disposto a avaliar seu trabalho depois do encerramento do vínculo atual. A proposta ficará disponível por 14 dias.',
             status: 'pending',
           })))
+          await markManagerUnemployed('dismissed')
           await loadManagerCareer()
         })()
       }
