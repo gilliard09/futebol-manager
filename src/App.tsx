@@ -875,7 +875,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       stadium: commercial.stadium,
     }
     await saveCommercial(nextCommercial)
-    const finalBoard = resolveContractAtSeasonEnd(boardState)
+    const finalBoard = resolveContractAtSeasonEnd(boardState, career.season)
     saveManagement(finalBoard, fanState)
     if (finalBoard.managerStatus === 'active' && finalBoard.renewalOffered) {
       appendWorldNews([{
@@ -1005,8 +1005,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.removeItem(MARKET_NEGOTIATION_KEY + ':' + nextSeasonName)
     localStorage.setItem(MARKET_INTEREST_KEY + ':' + nextSeasonName, JSON.stringify([]))
     localStorage.setItem(MARKET_NEGOTIATION_KEY + ':' + nextSeasonName, JSON.stringify([]))
-    localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, nextBalance, career.club.strength ?? 50)))
-    localStorage.setItem(FANS_KEY + ':' + nextSeasonName, JSON.stringify(createFanState(nextSeasonName, career.club.reputation ?? 50, createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, financeBalance, career.club.strength ?? 50).expectation)))
+    const nextBoardBase = createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, nextBalance, career.club.strength ?? 50)
+    const nextBoard = {
+      ...nextBoardBase,
+      managerStatus: 'renewed' as const,
+      contractYears: boardState.contractYears ?? 1,
+      contractEndSeason: boardState.contractEndSeason,
+    }
+    localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(nextBoard))
+    localStorage.setItem(FANS_KEY + ':' + nextSeasonName, JSON.stringify(createFanState(nextSeasonName, career.club.reputation ?? 50, nextBoard.expectation)))
     localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify({
       sponsor: nextSponsor,
       stadium: carryStadiumToNextSeason(commercial.stadium, nextSeasonName),
@@ -1015,6 +1022,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setSeasonClosed(false)
     setSeasonCompletion(null)
     setSeasonAwards([])
+    setBoardState(nextBoard)
     setClock(createSeasonClock(nextStartDate, nextStartDate, 3))
     setPlayedMatches({})
     setTransferState({ playerClubOverrides: {}, records: [] })
