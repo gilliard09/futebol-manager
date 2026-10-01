@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildManagerOfferCandidates,
   clubCanApproachManager,
   initialManagerPopularity,
   managerPerformanceScore,
@@ -54,5 +55,22 @@ describe('manager career', () => {
     })
     expect(clubCanApproachManager(popularity, 60, score)).toBe(true)
     expect(clubCanApproachManager({ regional: 5, national: 0, international: 0 }, 40, 20)).toBe(false)
+  })
+
+  it('selects the strongest eligible clubs for manager offers', () => {
+    const candidates = buildManagerOfferCandidates(
+      { regional: 45, national: 25, international: 0 },
+      45,
+      [
+        { id: 'current', name: 'Clube atual', reputation: 80 },
+        { id: 'a', name: 'Clube A', reputation: 70 },
+        { id: 'b', name: 'Clube B', reputation: 55 },
+        { id: 'c', name: 'Clube C', reputation: 40 },
+        { id: 'd', name: 'Clube D', reputation: 20 },
+      ],
+      'current',
+      2,
+    )
+    expect(candidates.map(club => club.id)).toEqual(['a', 'b'])
   })
 })
