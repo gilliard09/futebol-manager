@@ -746,7 +746,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     if (serieBCompetition?.id) {
       const { data: bFixturesBefore } = await supabase
         .from('fixtures')
-        .select('id,home_club_id,away_club_id,home_score,away_score,status')
+        .select('id,round,home_club_id,away_club_id,home_score,away_score,status')
         .eq('season_id', seasonId)
         .eq('competition_id', serieBCompetition.id)
 
@@ -1983,8 +1983,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       const away = Number(strengthByClub[fixture.away_club_id] ?? 50)
       const seed = Math.abs(Math.sin(
         Number(fixture.round ?? 1) * 97 +
-        fixture.home_club_id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) -
-        fixture.away_club_id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0),
+        fixture.home_club_id.split('').reduce((sum: number, char: string) => sum + char.charCodeAt(0), 0) -
+        fixture.away_club_id.split('').reduce((sum: number, char: string) => sum + char.charCodeAt(0), 0),
       ))
       const homeScore = Math.max(0, Math.min(5, Math.round(seed * 3 + (home - away) / 22 + 0.55)))
       const awayScore = Math.max(0, Math.min(5, Math.round((1 - seed) * 2.5 + (away - home) / 24)))
