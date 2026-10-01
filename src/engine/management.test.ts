@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyFanResult, chooseBoardObjective, createBoardState, createFanState, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd } from './management'
+import { acceptManagerRenewal, applyFanResult, chooseBoardObjective, createBoardState, createFanState, evaluateBoard, getEconomicStatus, resolveContractAtSeasonEnd } from './management'
 
 describe('management systems', () => {
   it('creates a board objective from club profile', () => {
@@ -13,9 +13,13 @@ describe('management systems', () => {
     expect(next.confidence).toBeGreaterThan(state.confidence)
   })
 
-  it('can end or renew the manager contract', () => {
+  it('can offer, accept, or end the manager contract', () => {
     const state = createBoardState('s1', 'Temporada 2026', 60, 2_000_000, 60)
-    expect(resolveContractAtSeasonEnd({ ...state, confidence: 70 }).managerStatus).toBe('renewed')
+    const offered = resolveContractAtSeasonEnd({ ...state, confidence: 70 })
+
+    expect(offered.managerStatus).toBe('active')
+    expect(offered.renewalOffered).toBe(true)
+    expect(acceptManagerRenewal(offered, 'Temporada 2027').managerStatus).toBe('renewed')
     expect(resolveContractAtSeasonEnd({ ...state, confidence: 40 }).managerStatus).toBe('contract_ended')
   })
 
