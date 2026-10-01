@@ -33,6 +33,26 @@ describe('division system', () => {
     expect(fixtures.filter(item => item.round === 38)).toHaveLength(10)
   })
 
+  it('mantém o universo com 16 clubes na Série A e 20 na Série B após a troca', () => {
+    const top = Array.from({ length: 16 }, (_, index) => ({
+      id: `a-${index}`, name: `A${index}`, short_name: `A${index}`, city: 'Brasil', country: 'Brasil',
+      division: 1, budget: 0, reputation: 50,
+    }))
+    const second = Array.from({ length: 20 }, (_, index) => ({
+      id: `b-${index}`, name: `B${index}`, short_name: `B${index}`, city: 'Brasil', country: 'Brasil',
+      division: 2, budget: 0, reputation: 50,
+    }))
+    const result = resolveDivisionMovement(
+      rows(top.map(club => club.id)),
+      rows(second.map(club => club.id)),
+    )
+    const moved = swapDivisions([...top, ...second], result.promotedClubIds, result.relegatedClubIds)
+    expect(moved.filter(club => club.division === 1)).toHaveLength(16)
+    expect(moved.filter(club => club.division === 2)).toHaveLength(20)
+    expect(result.relegatedClubIds).toHaveLength(4)
+    expect(result.promotedClubIds).toHaveLength(4)
+  })
+
   it('move os clubes entre as divisões sem alterar os demais', () => {
     const clubs = [
       { id: 'a', name: 'A', short_name: 'A', city: 'A', country: 'Brasil', division: 1, budget: 0, reputation: 50 },
