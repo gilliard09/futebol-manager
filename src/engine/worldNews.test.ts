@@ -50,6 +50,8 @@ describe('world news', () => {
     expect(news.some(item => item.title === 'Mercado em movimento')).toBe(true)
     expect(news.some(item => item.title === 'Clube segurou uma peça importante')).toBe(true)
     expect(news.some(item => item.title === 'Jovem ganha espaço')).toBe(true)
+    expect(simulation.aiManagers).toEqual([])
+    expect(simulation.boardDecisions).toEqual([])
     expect(news.every(item => item.date === simulation.date)).toBe(true)
     expect(news.find(item => item.title === 'Mercado em movimento')?.priority).toBe(42)
   })
