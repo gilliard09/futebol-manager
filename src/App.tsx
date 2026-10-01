@@ -28,6 +28,7 @@ import { getCurrentClubId as getLoanClubId, type LoanRecord, type LoanState } fr
 import { getSquadAlerts } from './engine/roster'
 import { buildStandings, resolveCompletedKnockoutStage, getCompetitionStage, resolveTwoLegTie, choosePenaltyWinner, resolveSingleMatch } from './engine/competitions'
 import { buildCompetitionHistoryResult, buildSeasonCompletion } from './engine/seasonHistory'
+import { resolveBrazilianContinentalQualifications } from './engine/continentalQualification'
 import { buildCupPrizePayments, buildLeaguePrizePayments, type CompetitionPrizeConfig, type PrizePayment } from './engine/competitionPrizes'
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import type { AIClubManager } from './engine/aiClubManagement'
@@ -850,6 +851,64 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         if (divisionError) {
           console.error('Não foi possível atualizar a divisão do clube', clubId, divisionError)
         }
+      }
+
+      // Classificação continental brasileira: as vagas são definidas depois de
+      // resolver promoção/rebaixamento, para impedir que clubes da Série B ou rebaixados
+      // sejam enviados para a Libertadores ou Sul-Americana.
+      const continentalClubDivisions = Object.fromEntries(
+        clubs.map(club => [
+          club.id,
+          promoted.has(club.id) ? 1 : relegated.has(club.id) ? 2 : Number(club.division ?? 1),
+        ]),
+      ) as Record<string, number>
+
+      const continentalQualifications = resolveBrazilianContinentalQualifications({
+        leagueStandings,
+        cupChampionId: completion.cup.championClubId,
+        clubDivisions: continentalClubDivisions,
+        relegatedClubIds: [...relegated],
+      })
+
+      const libertadoresCompetitionId = competitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
+      const sudamericanaCompetitionId = competitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
+
+      if (libertadoresCompetitionId && sudamericanaCompetitionId) {
+        const targetCompetitionIds = [libertadoresCompetitionId, sudamericanaCompetitionId]
+        await supabase
+          .from('competition_qualifiers')
+          .delete()
+          .eq('season_id', seasonId)
+          .in('competition_id', targetCompetitionIds)
+
+        const qualifierRows = continentalQualifications.map(item => ({
+          season_id: seasonId,
+          competition_id: item.competition === 'libertadores' ? libertadoresCompetitionId : sudamericanaCompetitionId,
+          club_id: item.clubId,
+          source_competition_id: item.source === 'league' ? leagueId : item.source === 'cup' ? cupId : null,
+          source_position: item.sourcePosition,
+          qualification_type: item.source,
+          target_stage: item.targetStage,
+          slot_order: item.slotOrder,
+          status: 'qualified',
+          notes: item.notes,
+        }))
+
+        if (qualifierRows.length) {
+          const { error: qualifierError } = await supabase
+            .from('competition_qualifiers')
+            .insert(qualifierRows)
+          if (qualifierError) {
+            console.error('Não foi possível registrar as classificações continentais', qualifierError)
+          }
+        }
+
+        const brazilianContinentalIds = [...new Set(continentalQualifications.map(item => item.clubId))]
+        const continentalClubs = clubs.filter(club => brazilianContinentalIds.includes(club.id))
+        await Promise.all([
+          ensureCompetitionTeams(seasonId, libertadoresCompetitionId, continentalClubs.filter(club => continentalQualifications.some(item => item.clubId === club.id && item.competition === 'libertadores'))),
+          ensureCompetitionTeams(seasonId, sudamericanaCompetitionId, continentalClubs.filter(club => continentalQualifications.some(item => item.clubId === club.id && item.competition === 'sudamericana'))),
+        ])
       }
 
       const movementRows = [
