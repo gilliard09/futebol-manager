@@ -2,6 +2,7 @@ import type { Fixture } from '../types/game'
 
 export type ContinentalCompetition = 'libertadores' | 'sudamericana'
 export type ContinentalStage =
+  | 'libertadores_preliminary'
   | 'group_stage'
   | 'sudamericana_playoff'
   | 'round_of_16'
@@ -156,7 +157,6 @@ export function pairLibertadoresRoundOf16(winners: string[], runnersUp: string[]
 }
 
 export function pairSudamericanaPlayoffs(libertadoresThirds: string[], sudamericanaRunnersUp: string[]): ContinentalTie[] {
-  // Emparelhamento determinístico equivalente a um sorteio: evita depender de Math.random.
   const sortedThirds = [...libertadoresThirds].sort()
   const sortedRunners = [...sudamericanaRunnersUp].sort()
   return sortedRunners.map((runner, index) => ({
