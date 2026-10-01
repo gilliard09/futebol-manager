@@ -27,12 +27,7 @@ function eligibleSerieA(clubs: BrazilianClubForContinental[]) {
   return new Set(clubs.filter(club => club.division === 1).map(club => club.id))
 }
 
-function pickNext(
-  standings: StandingRow[],
-  used: Set<string>,
-  eligible: Set<string>,
-  startPosition: number,
-) {
+function pickNext(standings: StandingRow[], used: Set<string>, eligible: Set<string>, startPosition: number) {
   for (let index = Math.max(0, startPosition - 1); index < standings.length; index++) {
     const row = standings[index]
     if (eligible.has(row.id) && !used.has(row.id)) return row
@@ -43,69 +38,82 @@ function pickNext(
 /**
  * Resolve as vagas brasileiras para a temporada seguinte.
  *
- * Regra do jogo:
- * - Libertadores: 5 vagas via Brasil. 1º-4º pela liga + campeão da Copa.
- * - Se o campeão da Copa já estiver entre os quatro primeiros, a vaga da
- *   Copa roda para o próximo elegível da liga, mantendo cinco brasileiros.
- * - Rebaixados/Série B nunca entram.
- * - Sul-Americana: 6º-11º, preenchendo para baixo quando houver acúmulo
- *   com Libertadores ou inelegibilidade.
- * - Campeões continentais anteriores têm vaga continental própria. Se já
- *   estiverem classificados pela liga, a vaga nacional é liberada para o
- *   próximo clube elegível.
+ * Base do jogo:
+ * - Libertadores: 5 vagas nacionais, 1º-4º da Liga + campeão da Copa.
+ * - Se o campeão da Copa já estiver entre os 4 primeiros, a vaga da Copa
+ *   roda para o próximo clube elegível da Liga.
+ * - Clubes da Série B/rebaixados nunca podem receber vaga brasileira.
+ * - Sul-Americana: 6º-11º, com redistribuição para baixo em caso de acúmulo
+ *   com a Libertadores ou inelegibilidade.
+ * - Campeões continentais vigentes recebem uma vaga adicional se ainda não
+ *   estiverem classificados por uma vaga nacional.
  *
- * A posição do vice da Copa não cria uma vaga adicional: a única vaga
- * nacional da Copa é a do campeão.
+ * A vaga do vice da Copa não é criada separadamente: o próprio jogo possui
+ * uma única vaga nacional pela Copa, destinada ao campeão.
  */
 export function resolveBrazilianContinentalQualifications(input: BrazilianContinentalInput): ContinentalQualification[] {
   const eligible = eligibleSerieA(input.clubs)
   const result: ContinentalQualification[] = []
-  const libUsed = new Set<string>()
 
-  const addLib = (clubId: string, source: ContinentalQualification['source'], slot: number, note: string, sourcePosition?: number) => {
-    if (!eligible.has(clubId) || libUsed.has(clubId)) return false
-    libUsed.add(clubId)
+  const libBase = new Set<string>()
+  const addLibBase = (clubId: string, source: 'league' | 'copa', slot: number, note: string, sourcePosition?: number) => {
+    if (!eligible.has(clubId) || libBase.has(clubId)) return false
+    libBase.add(clubId)
     result.push({ clubId, competition: 'libertadores', source, sourcePosition, targetStage: 'group_stage', slot, note })
     return true
   }
 
-  // Título continental anterior ocupa uma vaga própria. Quando o campeão
-  // também se classifica pela liga, a vaga da liga é redistribuída abaixo.
-  if (input.previousLibertadoresChampionId) {
-    addLib(input.previousLibertadoresChampionId, 'continental_title', 0, 'Campeão vigente da Libertadores')
-  }
-  if (input.previousSudamericanaChampionId) {
-    addLib(input.previousSudamericanaChampionId, 'continental_title', 0, 'Campeão vigente da Sul-Americana')
-  }
-
   for (let position = 1; position <= 4; position++) {
     const row = input.leagueStandings[position - 1]
-    if (row) addLib(row.id, 'league', position, 'Classificação pelo Campeonato Brasileiro', position)
+    if (row) addLibBase(row.id, 'league', position, 'Classificação pelo Campeonato Brasileiro', position)
   }
 
   if (input.copaChampionId) {
-    addLib(input.copaChampionId, 'copa', 0, 'Campeão da Copa Nacional do Brasil')
+    addLibBase(input.copaChampionId, 'copa', 0, 'Campeão da Copa Nacional do Brasil')
   }
 
-  let nextLeaguePosition = 5
-  while (libUsed.size < 5) {
-    const row = pickNext(input.leagueStandings, libUsed, eligible, nextLeaguePosition)
+  // Completa as 5 vagas nacionais. Isso cobre tanto o caso em que o campeão
+  // da Copa está no G-4 quanto qualquer clube inelegível/rebaixado.
+  let cursor = 5
+  while (libBase.size < 5) {
+    const row = pickNext(input.leagueStandings, libBase, eligible, cursor)
     if (!row) break
-    addLib(row.id, 'league', row.id === input.leagueStandings[4]?.id ? 5 : 0, 'Vaga repassada por acúmulo ou inelegibilidade', row.id === input.leagueStandings[4]?.id ? 5 : undefined)
-    nextLeaguePosition = input.leagueStandings.findIndex(item => item.id === row.id) + 2
+    const position = input.leagueStandings.findIndex(item => item.id === row.id) + 1
+    addLibBase(row.id, 'league', position, 'Vaga nacional repassada pela classificação da Liga', position)
+    cursor = position + 1
   }
 
-  const sulaUsed = new Set(libUsed)
+  // Os campeões vigentes não consomem uma das 5 vagas nacionais. Se o clube
+  // já estiver entre os classificados, não duplicamos a vaga.
+  const continentalChampions = [
+    { id: input.previousLibertadoresChampionId, note: 'Campeão vigente da Libertadores' },
+    { id: input.previousSudamericanaChampionId, note: 'Campeão vigente da Sul-Americana' },
+  ]
+  for (const champion of continentalChampions) {
+    if (!champion.id || !eligible.has(champion.id) || libBase.has(champion.id)) continue
+    result.push({
+      clubId: champion.id,
+      competition: 'libertadores',
+      source: 'continental_title',
+      targetStage: 'group_stage',
+      slot: result.filter(item => item.competition === 'libertadores').length + 1,
+      note: champion.note,
+    })
+  }
+
+  const libIds = new Set(result.filter(item => item.competition === 'libertadores').map(item => item.clubId))
+  const sulaIds = new Set<string>()
+
   const addSula = (row: StandingRow) => {
-    if (!eligible.has(row.id) || sulaUsed.has(row.id)) return false
-    sulaUsed.add(row.id)
+    if (!eligible.has(row.id) || libIds.has(row.id) || sulaIds.has(row.id)) return false
+    sulaIds.add(row.id)
     result.push({
       clubId: row.id,
       competition: 'sudamericana',
       source: 'league',
-      sourcePosition: row === input.leagueStandings.find(item => item.id === row.id) ? input.leagueStandings.findIndex(item => item.id === row.id) + 1 : undefined,
+      sourcePosition: input.leagueStandings.findIndex(item => item.id === row.id) + 1,
       targetStage: 'group_stage',
-      slot: result.filter(item => item.competition === 'sudamericana').length + 1,
+      slot: sulaIds.size,
       note: 'Classificação pelo Campeonato Brasileiro; vaga preenchida para baixo em caso de acúmulo',
     })
     return true
@@ -116,9 +124,9 @@ export function resolveBrazilianContinentalQualifications(input: BrazilianContin
     if (row) addSula(row)
   }
 
-  let cursor = 12
-  while (result.filter(item => item.competition === 'sudamericana').length < 6) {
-    const row = pickNext(input.leagueStandings, sulaUsed, eligible, cursor)
+  cursor = 12
+  while (sulaIds.size < 6) {
+    const row = pickNext(input.leagueStandings, new Set([...libIds, ...sulaIds]), eligible, cursor)
     if (!row) break
     addSula(row)
     cursor = input.leagueStandings.findIndex(item => item.id === row.id) + 2
