@@ -1,4 +1,4 @@
-export type FinanceTransactionType = 'match_revenue' | 'salary' | 'training' | 'transfer_in' | 'transfer_out' | 'bonus' | 'prize' | 'sponsorship' | 'other'
+export type FinanceTransactionType = 'match_revenue' | 'salary' | 'staff_salary' | 'training' | 'transfer_in' | 'transfer_out' | 'bonus' | 'prize' | 'sponsorship' | 'fine' | 'stadium_maintenance' | 'other'
 
 export type FinanceTransaction = {
   id: string
