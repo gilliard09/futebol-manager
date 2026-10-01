@@ -1574,8 +1574,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const evolvedPlayerIds = new Set(results.flatMap(result => result.evolvedPlayerIds))
     const lifecycle = loadPlayerLifecycle()
     for (const player of playersForWorld) {
-      if (!lifecycle[player.id]) continue
-      lifecycle[player.id] = updatePlayerLifecycle(lifecycle[player.id], {
+      const currentLife = lifecycle[player.id] ?? updatePlayerLifecycle(undefined, {})
+      lifecycle[player.id] = updatePlayerLifecycle(currentLife, {
         coachRelationship: Number(player.coachRelationship ?? lifecycle[player.id].coachRelationship),
         dissatisfaction: Number(player.dissatisfaction ?? lifecycle[player.id].dissatisfaction),
         transferRequested: Boolean(player.transferRequested ?? lifecycle[player.id].transferRequested),
@@ -1585,8 +1585,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         careerAppearances: Number(player.careerAppearances ?? lifecycle[player.id].careerAppearances),
         careerStarts: Number(player.careerStarts ?? lifecycle[player.id].careerStarts),
         careerMinutes: Number(player.careerMinutes ?? lifecycle[player.id].careerMinutes),
-        careerRatingTotal: Number(player.careerAverageRating ?? 0) * Number(player.careerAppearances ?? lifecycle[player.id].careerRatingCount),
-        careerRatingCount: Number(player.careerAppearances ?? lifecycle[player.id].careerRatingCount),
+        careerRatingTotal: Number(player.careerAverageRating ?? 0) * Number(player.careerAppearances ?? currentLife.careerRatingCount),
+        careerRatingCount: Number(player.careerAppearances ?? currentLife.careerRatingCount),
         careerSeasons: Number(player.careerSeasons ?? lifecycle[player.id].careerSeasons),
         injuries: Number(player.injuries ?? lifecycle[player.id].injuries),
         longTermInjuries: Number(player.longTermInjuries ?? lifecycle[player.id].longTermInjuries),
