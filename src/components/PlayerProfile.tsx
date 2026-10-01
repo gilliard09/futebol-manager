@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { playerOverall } from '../engine/match'
+import { playerOverall } from '../engine/matchCore'
 import { addContractYears, calculateRenewalSalary, daysUntilContractEnd, getContractStatus } from '../engine/contracts'
 import type { Club, Player } from '../types/game'
 
@@ -99,6 +99,15 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
     const until = addContractYears(base, years)
     const saved = JSON.parse(localStorage.getItem('futebol-manager:contracts') ?? '{}')
     saved[player.id] = { contract_until: until, salary: renewalSalary, market_value: contract.market_value ?? 0 }
+    const { error } = await supabase
+      .from('club_players')
+      .update({ contract_until: until, salary: renewalSalary })
+      .eq('player_id', player.id)
+      .eq('club_id', club.id)
+    if (error) {
+      setRenewing(false)
+      return
+    }
     localStorage.setItem('futebol-manager:contracts', JSON.stringify(saved))
     setContract({ ...contract, contract_until: until, salary: renewalSalary })
     onContractChange?.(Number(contract.salary ?? 0), renewalSalary)
