@@ -145,6 +145,43 @@ function buildGroups(prefix: string): ContinentalGroup[] {
   }))
 }
 
+function buildGroupFixtures(
+  competitionId: string,
+  groups: ContinentalGroup[],
+  startDay: number,
+): SimFixture[] {
+  const rows: SimFixture[] = []
+  for (const group of groups) {
+    for (let leg = 0; leg < 2; leg++) {
+      const round = leg * 3 + 1
+      for (let i = 0; i < group.teams.length; i++) {
+        for (let j = i + 1; j < group.teams.length; j++) {
+          const home = leg === 0 ? group.teams[i] : group.teams[j]
+          const away = leg === 0 ? group.teams[j] : group.teams[i]
+          const date = new Date(Date.UTC(2026, 3, startDay + round - 1))
+          date.setUTCMinutes(rows.length % 8 * 30)
+          rows.push({
+            id: `group-${competitionId}-${rows.length}`,
+            competition_id: competitionId,
+            season_id: seasonId,
+            round,
+            scheduled_at: date.toISOString(),
+            status: 'completed',
+            home_club_id: home.id,
+            away_club_id: away.id,
+            home_score: 1,
+            away_score: 0,
+            winner_club_id: home.id,
+            home_club: { name: home.id, short_name: home.id },
+            away_club: { name: away.id, short_name: away.id },
+          })
+        }
+      }
+    }
+  }
+  return rows
+}
+
 function fixtureFromContinental(
   competitionId: string,
   index: number,
@@ -255,13 +292,11 @@ function simulateContinental(prefix: 'lib' | 'sul') {
   const competitionId = prefix === 'lib' ? 'libertadores' : 'sudamericana'
   const groups = buildGroups(prefix)
   const teams = groups.flatMap(group => group.teams)
-  const groupFixtures = buildContinentalGroupFixtures(
-    seasonId,
+  const groupFixtures = buildGroupFixtures(
     competitionId,
-    groups.map(group => group.teams),
-    2026,
+    groups,
     prefix === 'lib' ? 7 : 8,
-  ).map((item, index) => fixtureFromContinental(competitionId, index, item))
+  )
 
   const qualification = buildContinentalGroupQualification(
     groups,
