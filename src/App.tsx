@@ -37,6 +37,7 @@ import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, format
 import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
 import { initialManagerPopularity, updateManagerPopularity, managerPerformanceScore, offerLevelForPopularity, buildManagerOfferCandidates, clubCanApproachManager, managerContractEndSeason, managerDeparturePopularity, type ManagerPopularity } from './engine/managerCareer'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
+import { injuryDurationDays, recordCareerMatch, updatePlayerLifecycle, type PlayerLifecycleState } from './engine/playerLifecycle'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
@@ -63,10 +64,19 @@ const NEXT_BUDGET_KEY = 'futebol-manager:next-budget'
 const MANAGER_STATUS_KEY = 'futebol-manager:manager-status'
 const AI_MANAGERS_KEY = 'futebol-manager:ai-managers'
 const AI_BOARD_DECISIONS_KEY = 'futebol-manager:ai-board-decisions'
+const PLAYER_LIFECYCLE_KEY = 'futebol-manager:player-lifecycle'
 
 
 function marketInterestStorageKey(seasonId: string) {
   return `${MARKET_INTEREST_KEY}:${seasonId}`
+}
+
+function loadPlayerLifecycle(): Record<string, PlayerLifecycleState> {
+  try { return JSON.parse(localStorage.getItem(PLAYER_LIFECYCLE_KEY) ?? '{}') } catch { return {} }
+}
+
+function savePlayerLifecycle(value: Record<string, PlayerLifecycleState>) {
+  localStorage.setItem(PLAYER_LIFECYCLE_KEY, JSON.stringify(value))
 }
 
 function loadMarketInterest(seasonId: string): MarketInterest[] {
@@ -288,6 +298,7 @@ function GameApp() {
     localStorage.removeItem(MANAGER_STATUS_KEY)
     localStorage.removeItem(AI_MANAGERS_KEY)
     localStorage.removeItem(AI_BOARD_DECISIONS_KEY)
+    localStorage.removeItem(PLAYER_LIFECYCLE_KEY)
     localStorage.removeItem(FINANCE_HISTORY_KEY)
     localStorage.removeItem(NEXT_BUDGET_KEY)
     Object.keys(localStorage)
@@ -1322,11 +1333,14 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
       if (!active) return
       if (!squadResult.error) {
         const seasonStats = new Map((seasonStatsResult.data ?? []).map((row: any) => [row.player_id, row]))
+        const lifecycle = loadPlayerLifecycle()
         const loaded = (squadResult.data ?? []).filter((row: any) => (getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === career.club.id)).map((row: any) => {
           const player = normalizePlayer(row)
+          const life = lifecycle[player.id]
+          const withLifecycle = life ? { ...player, ...life, careerAverageRating: life.careerRatingCount ? Number((life.careerRatingTotal / life.careerRatingCount).toFixed(2)) : 0 } : player
           const stats = seasonStats.get(player.id)
           return {
-            ...player,
+            ...withLifecycle,
             seasonAppearances: Number(stats?.appearances ?? 0),
             seasonStarts: Number(stats?.starts ?? 0),
             seasonMinutes: Number(stats?.minutes ?? 0),
@@ -1475,8 +1489,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     const playersForWorld = (playerRows as any[]).map(row => {
       const player = Array.isArray(row.players) ? row.players[0] : row.players
       const stats = seasonStats.get(player.id)
+      const life = loadPlayerLifecycle()[player.id]
       return {
         ...player,
+        ...(life ? { ...life, careerAverageRating: life.careerRatingCount ? Number((life.careerRatingTotal / life.careerRatingCount).toFixed(2)) : 0 } : {}),
         clubId: row.club_id ?? '',
         injuredUntil: player.injured_until ?? null,
         suspendedUntil: player.suspended_until ?? null,
@@ -1556,6 +1572,26 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     results: WorldSimulationResult[],
   ) {
     const evolvedPlayerIds = new Set(results.flatMap(result => result.evolvedPlayerIds))
+    const lifecycle = loadPlayerLifecycle()
+    for (const player of playersForWorld) {
+      if (!lifecycle[player.id]) continue
+      lifecycle[player.id] = updatePlayerLifecycle(lifecycle[player.id], {
+        coachRelationship: Number(player.coachRelationship ?? lifecycle[player.id].coachRelationship),
+        dissatisfaction: Number(player.dissatisfaction ?? lifecycle[player.id].dissatisfaction),
+        transferRequested: Boolean(player.transferRequested ?? lifecycle[player.id].transferRequested),
+        transferRequestDate: player.transferRequestDate ?? lifecycle[player.id].transferRequestDate,
+        careerGoals: Number(player.careerGoals ?? lifecycle[player.id].careerGoals),
+        careerAssists: Number(player.careerAssists ?? lifecycle[player.id].careerAssists),
+        careerAppearances: Number(player.careerAppearances ?? lifecycle[player.id].careerAppearances),
+        careerStarts: Number(player.careerStarts ?? lifecycle[player.id].careerStarts),
+        careerMinutes: Number(player.careerMinutes ?? lifecycle[player.id].careerMinutes),
+        careerAverageRating: Number(player.careerAverageRating ?? lifecycle[player.id].careerAverageRating),
+        careerSeasons: Number(player.careerSeasons ?? lifecycle[player.id].careerSeasons),
+        injuries: Number(player.injuries ?? lifecycle[player.id].injuries),
+        longTermInjuries: Number(player.longTermInjuries ?? lifecycle[player.id].longTermInjuries),
+      })
+    }
+    savePlayerLifecycle(lifecycle)
     const transfers = results.flatMap(result => result.transfers)
     const renewals = results.flatMap(result => result.renewals)
     const newLoans = results.flatMap(result => result.loans ?? [])
@@ -1704,7 +1740,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         return stored.records ?? []
       } catch { return [] }
     })()
-    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans, previousAIManagers)
+    const result = simulateWorldDay(nextDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans, previousAIManagers, { personality: career.personality, style: career.style })
     localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
     localStorage.setItem(AI_MANAGERS_KEY, JSON.stringify(result.aiManagers))
     const previousDecisions: unknown[] = (() => {
@@ -1787,7 +1823,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           return [...(stored.records ?? []), ...results.flatMap(item => item.loans ?? [])]
         } catch { return results.flatMap(item => item.loans ?? []) }
       })()
-      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans, aiManagers)
+      const result = simulateWorldDay(currentDate, state.seasonId, state.worldClubs, state.playersForWorld, career.club.id, state.performanceByClub, previousMarketInterest, activeLoans, aiManagers, { personality: career.personality, style: career.style })
       aiManagers = result.aiManagers
       localStorage.setItem(marketInterestStorageKey(state.seasonId), JSON.stringify(result.marketInterest))
       localStorage.setItem(AI_MANAGERS_KEY, JSON.stringify(aiManagers))
@@ -2746,7 +2782,20 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           }
 
           if (event.type === 'injury') {
-            previous.injuredUntil = calculateInjuryReturnDate(matchDate)
+            const currentLife = loadPlayerLifecycle()[event.playerId]
+            const longTermRoll = eventHash(`${matchDate}:injury:${event.playerId}`) / 0xffffffff
+            const severity = longTermRoll < 0.12 ? 'long_term' : longTermRoll < 0.4 ? 'moderate' : 'minor'
+            const duration = injuryDurationDays(current, severity, (eventHash(`${matchDate}:injury-duration:${event.playerId}`) % 1000) / 1000)
+            previous.injuredUntil = addDays(matchDate, duration)
+            if (currentLife) {
+              const nextLife = updatePlayerLifecycle(currentLife, {
+                injuries: currentLife.injuries + 1,
+                longTermInjuries: currentLife.longTermInjuries + (severity === 'long_term' ? 1 : 0),
+              })
+              const allLifecycle = loadPlayerLifecycle()
+              allLifecycle[event.playerId] = nextLife
+              savePlayerLifecycle(allLifecycle)
+            }
           }
 
           availabilityUpdates.set(event.playerId, previous)
@@ -2847,6 +2896,23 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
               .upsert(rows, { onConflict: 'season_id,player_id' })
             if (statsError) console.error('Não foi possível salvar as estatísticas dos jogadores', statsError)
           }
+
+          // Estatísticas de carreira atravessam temporadas e ficam no save local para
+          // que aposentadorias, transferências e novos talentos não apaguem o legado.
+          const careerLifecycle = loadPlayerLifecycle()
+          for (const match of Object.values(matchesToPersist)) {
+            for (const rating of match.playerRatings ?? []) {
+              const current = careerLifecycle[rating.playerId] ?? updatePlayerLifecycle(undefined, {})
+              careerLifecycle[rating.playerId] = recordCareerMatch(current, {
+                minutes: rating.minutes,
+                goals: rating.goals,
+                assists: rating.assists,
+                rating: rating.rating,
+                starts: rating.started ? 1 : 0,
+              })
+            }
+          }
+          savePlayerLifecycle(careerLifecycle)
         }
       }
 
