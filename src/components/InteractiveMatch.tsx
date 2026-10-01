@@ -13,6 +13,7 @@ import {
   type InteractiveTeam,
 } from '../engine/interactiveMatch'
 import { getAiCoachProfile, playerOverall, selectStartingLineup } from '../engine/matchCore'
+import { playerPositionLabel } from '../engine/playerPositions'
 import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
 import { playMatchSound } from '../engine/matchAudio'
