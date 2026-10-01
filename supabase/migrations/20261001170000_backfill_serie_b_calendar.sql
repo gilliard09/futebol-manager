@@ -107,7 +107,7 @@ begin
     l.round_no,
     (
       coalesce((select start_date from public.seasons where id = v_season_id), current_date)
-      + ((9 + (l.round_no - 1) * 7)::integer * interval '1 day')
+      + ((9 + (l.round_no - 1) * 5)::integer * interval '1 day')
       + interval '19 hours'
     )::timestamptz,
     'scheduled',
