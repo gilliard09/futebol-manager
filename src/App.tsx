@@ -1626,7 +1626,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
         const groupFixtures = [
           ...buildContinentalGroupFixtures(nextSeasonId, libertadoresId, libDraw.groups, nextYear),
-          ...buildContinentalGroupFixtures(nextSeasonId, sudamericanaId, sulaDraw.groups, nextYear),
+          ...buildContinentalGroupFixtures(nextSeasonId, sudamericanaId, sulaDraw.groups, nextYear, 8),
         ].map(fixture => ({
           competition_id: fixture.competitionId,
           season_id: fixture.seasonId,
