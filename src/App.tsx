@@ -56,6 +56,9 @@ const SEASON_NAME = `Temporada ${INITIAL_SEASON_YEAR}`
 const seasonName = (year: number) => `Temporada ${year}`
 const seasonStart = (season: string) => `${Number(season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)}-01-01`
 const SEASON_START = seasonStart(SEASON_NAME)
+const leagueStartDate = (year: number) => `${year}-01-28`
+const cupStartDate = (year: number) => `${year}-02-18`
+const continentalGroupStartDate = (year: number) => `${year}-04-07`
 const TRANSFERS_KEY = 'futebol-manager:transfers'
 const LOANS_KEY = 'futebol-manager:loans'
 const WORLD_NEWS_KEY = 'futebol-manager:world-news'
@@ -381,9 +384,9 @@ function GameApp() {
     await ensureCompetitionTeams(careerSeason.id, cupId, [...firstDivision, ...secondDivision])
 
     const fixtureRows = [
-      ...buildLeagueFixtures(careerSeason.id, year + '-01-01', firstDivision, leagueId),
-      ...buildLeagueFixtures(careerSeason.id, year + '-01-01', secondDivision, serieBId, 5),
-      ...buildCupFixtures(careerSeason.id, year + '-01-01', [...firstDivision, ...secondDivision], cupId),
+      ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), firstDivision, leagueId),
+      ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5),
+      ...buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId),
     ]
     const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
     if (fixtureError) {
@@ -1354,6 +1357,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     if (!authUser.user) return
     const nextSeasonName = seasonName(nextYear) + ' · ' + authUser.user.id.slice(0, 8)
     const nextStartDate = `${nextYear}-01-01`
+    const nextLeagueStartDate = leagueStartDate(nextYear)
+    const nextCupStartDate = cupStartDate(nextYear)
 
     const { data: existingSeason } = await supabase
       .from('seasons')
@@ -1663,9 +1668,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     if (!(existingFixtures?.length)) {
       const fixtureRows = [
-        ...buildLeagueFixtures(nextSeasonId, nextStartDate, activeClubs, leagueId),
-        ...buildLeagueFixtures(nextSeasonId, nextStartDate, serieBClubs, serieBId, 5),
-        ...buildCupFixtures(nextSeasonId, nextStartDate, [...activeClubs, ...serieBClubs], cupId),
+        ...buildLeagueFixtures(nextSeasonId, nextLeagueStartDate, activeClubs, leagueId),
+        ...buildLeagueFixtures(nextSeasonId, nextLeagueStartDate, serieBClubs, serieBId, 5),
+        ...buildCupFixtures(nextSeasonId, nextCupStartDate, [...activeClubs, ...serieBClubs], cupId),
       ]
       const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
       if (fixtureError) {
