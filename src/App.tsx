@@ -1777,7 +1777,18 @@ function Dashboard({ career, clubs, newCareer, onNextSeason, onCareerUpdate }: {
         }
       }
       if (record.kind === 'sale') {
-        await supabase.from('clubs').update({ budget: finalBalance }).eq('id', career.club.id)
+        await Promise.all([
+          supabase.from('clubs').update({ budget: finalBalance }).eq('id', career.club.id),
+          supabase.from('clubs').select('budget').eq('id', record.toClubId).maybeSingle().then(async ({ data }) => {
+            if (!data) return
+            return supabase.from('clubs').update({ budget: Math.max(0, Number(data.budget ?? 0) - record.fee) }).eq('id', record.toClubId)
+          }),
+        ])
+      } else if (record.fromClubId && record.fromClubId !== 'free-agent') {
+        const { data: seller } = await supabase.from('clubs').select('budget').eq('id', record.fromClubId).maybeSingle()
+        if (seller) {
+          await supabase.from('clubs').update({ budget: Number(seller.budget ?? 0) + record.fee }).eq('id', record.fromClubId)
+        }
       }
     })()
     goToView('overview')
