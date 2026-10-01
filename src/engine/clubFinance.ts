@@ -113,29 +113,6 @@ export function calculateFineAndOperationalCost(
   return disciplinary + medical + registration + crisisCost
 }
 
-export function calculateVariableCompetitionPrize(
-  position: number,
-  competition: 'league' | 'cup',
-  options: { champion?: boolean; runnerUp?: boolean; semifinal?: boolean; reputation?: number } = {},
-) {
-  const reputationFactor = 0.85 + Math.max(0, Math.min(100, options.reputation ?? 50)) / 500
-  let base = 0
-  if (competition === 'league') {
-    if (position === 1 || options.champion) base = 3_000_000
-    else if (position === 2 || options.runnerUp) base = 1_500_000
-    else if (position <= 4) base = 750_000
-    else if (position <= 8) base = 400_000
-    else if (position <= 12) base = 200_000
-    else base = 100_000
-  } else {
-    if (options.champion) base = 2_000_000
-    else if (options.runnerUp) base = 1_000_000
-    else if (options.semifinal) base = 500_000
-    else base = 150_000
-  }
-  return Math.round((base * reputationFactor) / 50_000) * 50_000
-}
-
 export function calculateNextSeasonBudget(
   closingBalance: number,
   seasonRevenue: number,
