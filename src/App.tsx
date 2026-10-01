@@ -13,6 +13,8 @@ import BoardScreen from './components/BoardScreen'
 import ContractsScreen from './components/ContractsScreen'
 import CompetitionCenter from './components/CompetitionCenter'
 import PressCenter from './components/PressCenter'
+import SeasonEndScreen, { type SeasonAward } from './components/SeasonEndScreen'
+import HistoryScreen from './components/HistoryScreen'
 import { TRAINING_FOCUSES, type TrainingFocus, trainSquad, recoverPlayers, applyMatchFatigue } from './engine/training'
 import { calculateMonthlyPayroll } from './engine/economy'
 import { applyTransaction , calculateMonthlySalaryExpense, createTransaction , calculateMatchRevenueFromAttendance, summarizeFinance, type FinanceTransaction } from './engine/finance'
@@ -28,6 +30,7 @@ import InteractiveMatch from './components/InteractiveMatch'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
+import { buildCupFixtures, buildLeagueFixtures } from './engine/seasonSchedule'
 import { calculateInjuryReturnDate, calculateSuspensionReturnDate, isPlayerAvailable, shouldSuspendForYellowAccumulation, suspensionMatchesForRed } from './engine/discipline'
 
 const CAREER_KEY = 'futebol-manager:career'
@@ -290,7 +293,7 @@ function ClubList({ clubs, selected, loading, error, select, back, confirm }: { 
   return <main className="min-h-screen"><Top label="ESCOLHA SEU CLUBE" back={back} /><section className="mx-auto max-w-5xl px-6 py-12 md:px-10"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">02 / 02</span><h1 className="mt-3 text-4xl font-bold tracking-[-0.03em] md:text-5xl">Onde começa sua história?</h1><p className="mt-4 max-w-xl leading-7 text-white/45">Escolha um dos clubes disponíveis para iniciar a temporada 2026.</p>{selected && <div className="mt-6 inline-block rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm"><span className="text-white/35">Selecionado</span><p className="font-semibold text-emerald-300">{selected.name}</p></div>}{loading && <div className="py-20 text-center text-sm text-white/35">Carregando clubes...</div>}{error && <div className="mt-10 rounded-xl border border-red-400/15 bg-red-400/5 p-5 text-sm text-red-200">Não foi possível carregar os clubes. {error}</div>}{!loading && !error && <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{clubs.map(club => <button key={club.id} onClick={() => select(club)} className={`group rounded-2xl border p-5 text-left transition ${selected?.id === club.id ? 'border-emerald-400/50 bg-emerald-400/8' : 'border-white/6 bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.045]'}`}><div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5">{club.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <span className={selected?.id === club.id ? 'text-emerald-700' : 'text-slate-500'}>{club.short_name.slice(0, 3)}</span>}</div><ChevronRight size={17} className="text-white/15 group-hover:text-white/45" /></div><h2 className="mt-5 font-semibold">{club.name}</h2><div className="mt-2 flex items-center gap-2 text-xs text-white/35"><MapPin size={13} />{club.city}</div><div className="mt-5 flex items-center justify-between border-t border-white/6 pt-4 text-xs"><span className="text-white/30">Capital inicial</span><span className="font-semibold text-emerald-300/80">{money(club.budget)}</span></div></button>)}</div>}<div className="mt-10 flex justify-end"><button disabled={!selected} onClick={confirm} className="flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">Assumir o clube <ArrowRight size={17} /></button></div></section></main>
 }
 
-type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
+type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'history' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
 
 function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
@@ -302,7 +305,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   })
   const location = useLocation()
   const navigate = useNavigate()
-  const dashboardViews: DashboardView[] = ['overview', 'board', 'contracts', 'calendar', 'news', 'squad', 'tactics', 'finance', 'stadium', 'trophies', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
+  const dashboardViews: DashboardView[] = ['overview', 'board', 'contracts', 'calendar', 'news', 'squad', 'tactics', 'finance', 'stadium', 'trophies', 'history', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
   const pathView = location.pathname.split('/')[2] as DashboardView | undefined
   const initialView = pathView && dashboardViews.includes(pathView) ? pathView : 'overview'
   const [view, setView] = useState<DashboardView>(initialView)
@@ -332,6 +335,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
   const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
   const [seasonClosed, setSeasonClosed] = useState(false)
   const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
+  const [seasonAwards, setSeasonAwards] = useState<SeasonAward[]>([])
+  const [historyRows, setHistoryRows] = useState<Array<{ season_id: string; season_name: string; competition_name: string; champion_club_id: string | null; runner_up_club_id: string | null; top_scorer_player_id: string | null; top_scorer_goals: number }>>([])
+  const [historyPlayers, setHistoryPlayers] = useState<Player[]>([])
   const [worldNews, setWorldNews] = useState<WorldNews[]>(() => {
     try { return JSON.parse(localStorage.getItem(WORLD_NEWS_KEY) ?? '[]') } catch { return [] }
   })
@@ -385,6 +391,33 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setFanState(nextFans)
     localStorage.setItem(`${FANS_KEY}:${career.season}`, JSON.stringify(nextFans))
   }, [career.season])
+
+  async function loadCareerHistory() {
+    const { data: rows } = await supabase
+      .from('competition_history')
+      .select('season_id,champion_club_id,runner_up_club_id,top_scorer_player_id,top_scorer_goals,seasons!inner(name),competitions!inner(name)')
+      .order('season_id', { ascending: false })
+
+    const normalized = (rows ?? []).map((row: any) => ({
+      season_id: String(row.season_id),
+      season_name: String(row.seasons?.name ?? row.season_id),
+      competition_name: String(row.competitions?.name ?? 'Competição'),
+      champion_club_id: row.champion_club_id ?? null,
+      runner_up_club_id: row.runner_up_club_id ?? null,
+      top_scorer_player_id: row.top_scorer_player_id ?? null,
+      top_scorer_goals: Number(row.top_scorer_goals ?? 0),
+    }))
+    setHistoryRows(normalized)
+
+    const playerIds = [...new Set(normalized.map(row => row.top_scorer_player_id).filter(Boolean))]
+    if (playerIds.length) {
+      const { data: historicalPlayers } = await supabase
+        .from('players')
+        .select('id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale')
+        .in('id', playerIds)
+      setHistoryPlayers((historicalPlayers ?? []) as Player[])
+    }
+  }
 
   async function finalizeSeasonIfComplete(seasonId: string, matches: Record<string, PlayedMatch>) {
     const { data: competitions } = await supabase.from('competitions').select('id,name').in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
@@ -599,6 +632,34 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
         ))
       }
     }
+    const { data: seasonStats } = await supabase
+      .from('player_season_stats')
+      .select('player_id,club_id,goals,assists,minutes,avg_rating')
+      .eq('season_id', seasonId)
+
+    const topScorer = [...(seasonStats ?? [])]
+      .sort((a: any, b: any) => Number(b.goals ?? 0) - Number(a.goals ?? 0) || Number(b.assists ?? 0) - Number(a.assists ?? 0))
+      .find((row: any) => Number(row.goals ?? 0) > 0) ?? null
+
+    const playerOfSeason = [...(seasonStats ?? [])]
+      .filter((row: any) => Number(row.minutes ?? 0) >= 900 && Number(row.avg_rating ?? 0) > 0)
+      .sort((a: any, b: any) => Number(b.avg_rating ?? 0) - Number(a.avg_rating ?? 0) || Number(b.minutes ?? 0) - Number(a.minutes ?? 0))[0] ?? null
+
+    const awardRows = [
+      { season_id: seasonId, award_type: 'league_champion', club_id: completion.league.championClubId, player_id: null, value: 3_000_000 },
+      { season_id: seasonId, award_type: 'cup_champion', club_id: completion.cup.championClubId, player_id: null, value: 2_000_000 },
+      { season_id: seasonId, award_type: 'top_scorer', club_id: topScorer?.club_id ?? null, player_id: topScorer?.player_id ?? completion.league.topScorerPlayerId, value: Number(topScorer?.goals ?? completion.league.topScorerGoals ?? 0) },
+      { season_id: seasonId, award_type: 'player_of_season', club_id: playerOfSeason?.club_id ?? null, player_id: playerOfSeason?.player_id ?? null, value: Number(playerOfSeason?.avg_rating ?? 0) },
+    ]
+    const { error: awardsError } = await supabase
+      .from('season_awards')
+      .upsert(awardRows, { onConflict: 'season_id,award_type' })
+    if (awardsError) {
+      console.error('Não foi possível salvar as premiações da temporada', awardsError)
+    } else {
+      setSeasonAwards(awardRows.map(({ season_id, award_type, club_id, player_id, value }) => ({ season_id, award_type, club_id, player_id, value })))
+    }
+
     const nextCommercial = {
       sponsor: {
         ...sponsorResolution.nextSponsor,
@@ -632,6 +693,124 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     }
     setSeasonClosed(true)
     setSeasonCompletion(completion)
+  }
+
+  async function startNextSeason() {
+    if (!seasonClosed || !databaseSeasonId || !seasonCompletion) return
+    if (boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended') return
+
+    const currentYear = Number(career.season.match(/\\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
+    const nextYear = currentYear + 1
+    const nextSeasonName = seasonName(nextYear)
+    const nextStartDate = `${nextYear}-01-01`
+
+    const { data: existingSeason } = await supabase
+      .from('seasons')
+      .select('id,status')
+      .eq('name', nextSeasonName)
+      .maybeSingle()
+
+    let nextSeasonId = existingSeason?.id as string | undefined
+    if (!nextSeasonId) {
+      const { data: createdSeason, error: createSeasonError } = await supabase
+        .from('seasons')
+        .insert({ name: nextSeasonName, status: 'active', start_date: nextStartDate, end_date: null })
+        .select('id')
+        .single()
+      if (createSeasonError || !createdSeason) {
+        console.error('Não foi possível criar a próxima temporada', createSeasonError)
+        return
+      }
+      nextSeasonId = createdSeason.id
+    }
+
+    const { data: competitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil'])
+    const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
+    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+    if (!leagueId || !cupId) return
+
+    const { data: existingFixtures } = await supabase
+      .from('fixtures')
+      .select('id')
+      .eq('season_id', nextSeasonId)
+
+    if (!(existingFixtures?.length)) {
+      const activeClubs = clubs.filter(club => Number(club.division ?? 1) === 1).slice(0, 16)
+      if (activeClubs.length < 16) {
+        console.error('A próxima temporada precisa de 16 clubes da divisão principal')
+        return
+      }
+      const fixtureRows = [
+        ...buildLeagueFixtures(nextSeasonId, nextStartDate, activeClubs, leagueId),
+        ...buildCupFixtures(nextSeasonId, nextStartDate, activeClubs, cupId),
+      ]
+      const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
+      if (fixtureError) {
+        console.error('Não foi possível criar o calendário da próxima temporada', fixtureError)
+        return
+      }
+    }
+
+    // Contratos encerrados no intervalo entre temporadas viram jogadores livres.
+    await supabase
+      .from('club_players')
+      .update({ club_id: null, salary: 0, contract_until: null })
+      .lte('contract_until', nextStartDate)
+
+    // Cartões, suspensões e lesões não atravessam uma temporada.
+    await supabase
+      .from('players')
+      .update({ injured_until: null, suspended_until: null, yellow_cards: 0, red_cards: 0 })
+      .not('id', 'is', null)
+
+    const nextSponsor = { ...chooseSponsor(career.club.reputation ?? 50), seasonId: nextSeasonName }
+    const sponsorTransaction = createTransaction(
+      nextStartDate,
+      'sponsorship',
+      nextSponsor.name,
+      nextSponsor.upfront,
+      undefined,
+      `sponsor:upfront:${nextSeasonName}`,
+    )
+    if (!financeTransactions.some(item => item.eventId === sponsorTransaction.eventId)) {
+      const nextBalance = addFinanceTransaction(sponsorTransaction) ?? financeBalance
+      setFinanceBalance(nextBalance)
+      const updatedCareer = { ...career, club: { ...career.club, budget: nextBalance }, season: nextSeasonName }
+      localStorage.setItem(CAREER_KEY, JSON.stringify(updatedCareer))
+      onCareerUpdate(updatedCareer)
+    } else {
+      const updatedCareer = { ...career, season: nextSeasonName }
+      localStorage.setItem(CAREER_KEY, JSON.stringify(updatedCareer))
+      onCareerUpdate(updatedCareer)
+    }
+
+    localStorage.removeItem(MATCHES_KEY)
+    localStorage.removeItem(CONTRACTS_KEY)
+    localStorage.removeItem(TRAINING_KEY)
+    localStorage.removeItem(CLOCK_KEY)
+    localStorage.removeItem(TRANSFERS_KEY)
+    localStorage.removeItem(MARKET_INTEREST_KEY + ':' + nextSeasonName)
+    localStorage.removeItem(MARKET_NEGOTIATION_KEY + ':' + nextSeasonName)
+    localStorage.setItem(MARKET_INTEREST_KEY + ':' + nextSeasonName, JSON.stringify([]))
+    localStorage.setItem(MARKET_NEGOTIATION_KEY + ':' + nextSeasonName, JSON.stringify([]))
+    localStorage.setItem(BOARD_KEY + ':' + nextSeasonName, JSON.stringify(createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, financeBalance, career.club.strength ?? 50)))
+    localStorage.setItem(FANS_KEY + ':' + nextSeasonName, JSON.stringify(createFanState(nextSeasonName, career.club.reputation ?? 50, createBoardState(nextSeasonName, nextSeasonName, career.club.reputation ?? 50, financeBalance, career.club.strength ?? 50).expectation)))
+    localStorage.setItem(COMMERCIAL_KEY + ':' + nextSeasonName, JSON.stringify({
+      sponsor: nextSponsor,
+      stadium: carryStadiumToNextSeason(commercial.stadium, nextSeasonName),
+    }))
+
+    setSeasonClosed(false)
+    setSeasonCompletion(null)
+    setSeasonAwards([])
+    setClock(createSeasonClock(nextStartDate, nextStartDate, 3))
+    setPlayedMatches({})
+    setTransferState({ playerClubOverrides: {}, records: [] })
+    setView('overview')
+    navigate('/dashboard')
   }
 
   function saveFinance(nextBalance: number, nextTransactions: FinanceTransaction[]) {
@@ -750,6 +929,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     let active = true
     async function loadDashboard() {
       setLoading(true)
+      await loadCareerHistory()
       const { data: currentSeasonRow } = await supabase.from('seasons').select('id,status').eq('name', career.season).maybeSingle()
       const currentSeasonId = currentSeasonRow?.id ?? null
       if (currentSeasonId) {
@@ -793,6 +973,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
           .eq('season_id', currentSeasonId)
         const leagueHistory = (completedHistory ?? []).find((row: any) => row.competitions?.name === 'Liga Nacional do Brasil')
         const cupHistory = (completedHistory ?? []).find((row: any) => row.competitions?.name === 'Copa Nacional do Brasil')
+        const { data: loadedAwards } = await supabase
+          .from('season_awards')
+          .select('award_type,club_id,player_id,value')
+          .eq('season_id', currentSeasonId)
+        setSeasonAwards((loadedAwards ?? []) as SeasonAward[])
+
         if (leagueHistory && cupHistory) {
           setSeasonClosed(true)
           setSeasonCompletion({
@@ -1727,6 +1913,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     setPendingEvent(null)
   }
 
+  if (seasonClosed && seasonCompletion) {
+    return <SeasonEndScreen
+      completion={seasonCompletion}
+      clubs={clubs}
+      players={[...players, ...historyPlayers]}
+      awards={seasonAwards}
+      currentClubId={career.club.id}
+      nextSeasonName={seasonName(Number(career.season.match(/\\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR) + 1)}
+      onNextSeason={startNextSeason}
+    />
+  }
   if (view === 'board') return <BoardScreen club={career.club} board={boardState} fans={fanState} balance={financeBalance} monthlyPayroll={salaryTotal} back={() => goToView('overview')} />
   if (view === 'contracts') return <ContractsScreen players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
   if (view === 'calendar') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} back={() => goToView('overview')} />
@@ -1741,7 +1938,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate }: { career: Manag
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
     onCareerUpdate(nextCareer)
   }} back={() => goToView('overview')} />
-  if (view === 'trophies') return <GameSection title="Sala de Troféus" eyebrow="História" icon={<Trophy size={22} />} description="Os títulos e campanhas que constroem a história do clube aparecerão aqui." back={() => goToView('overview')} />
+  if (view === 'trophies' || view === 'history') return <HistoryScreen rows={historyRows} clubs={clubs} players={[...players, ...historyPlayers]} back={() => goToView('overview')} />
   if (view === 'legacy') return <GameSection title="Conquistas & Legado" eyebrow="História" icon={<Medal size={22} />} description="Registros de carreira, marcas, conquistas e legado do treinador." back={() => goToView('overview')} />
   if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
   if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
