@@ -17,6 +17,7 @@ import type {
 
 export type InteractiveTeam = 'home' | 'away'
 export type InteractiveTactic = 'balanced' | 'offensive' | 'defensive'
+export type TacticalInstruction = 'normal' | 'press' | 'hold' | 'overlap' | 'protect' | 'direct'
 
 export type InteractiveTeamState = {
   lineup: LineupPlayer[]
@@ -29,6 +30,9 @@ export type InteractiveTeamState = {
   substitutions: number
   yellowCards: Map<string, number>
   removed: Set<string>
+  sectorInstructions: Record<string, TacticalInstruction>
+  playerInstructions: Record<string, TacticalInstruction>
+  risk: number
 }
 
 export type InteractiveMatchState = {
@@ -150,6 +154,9 @@ export function createInteractiveMatch(
     substitutions: 0,
     yellowCards: new Map(),
     removed: new Set(),
+    sectorInstructions: { defense: 'normal', midfield: 'normal', attack: 'normal' },
+    playerInstructions: {},
+    risk: 50,
   }
   const away: InteractiveTeamState = {
     lineup: awayLineup,
@@ -162,6 +169,9 @@ export function createInteractiveMatch(
     substitutions: 0,
     yellowCards: new Map(),
     removed: new Set(),
+    sectorInstructions: { defense: 'normal', midfield: 'normal', attack: 'normal' },
+    playerInstructions: {},
+    risk: 50,
   }
   recalculateMetrics(home)
   recalculateMetrics(away)
@@ -193,6 +203,9 @@ function cloneTeam(team: InteractiveTeamState): InteractiveTeamState {
     metrics: { ...team.metrics },
     yellowCards: new Map(team.yellowCards),
     removed: new Set(team.removed),
+    sectorInstructions: { ...team.sectorInstructions },
+    playerInstructions: { ...team.playerInstructions },
+    risk: team.risk,
   }
 }
 
@@ -231,7 +244,14 @@ function simulateTeamMinute(
   const homeAdvantage = teamName === 'home' ? 3.5 : 0
   const attackEdge = own.metrics.attack + homeAdvantage - opponent.metrics.defense
   const tacticalBoost = own.tactic === 'offensive' ? 0.34 : own.tactic === 'defensive' ? -0.2 : 0
-  const chanceProbability = clamp(0.045 * (0.9 + attackEdge / 65 + tacticalBoost + stats.possession / 300), 0.008, 0.105)
+  const attackInstruction = own.sectorInstructions.attack
+  const defenseInstruction = own.sectorInstructions.defense
+  const midfieldInstruction = own.sectorInstructions.midfield
+  const riskBoost = (own.risk - 50) / 180
+  const instructionBoost = (attackInstruction === 'press' || attackInstruction === 'direct' ? 0.08 : attackInstruction === 'protect' ? -0.06 : 0)
+    + (midfieldInstruction === 'press' ? 0.04 : midfieldInstruction === 'hold' ? 0.03 : 0)
+  const fatiguePenalty = average(own.lineup.map(item => clamp((item.player.fatigue ?? 0) + state.minute * 0.45, 0, 100))) / 500
+  const chanceProbability = clamp(0.045 * (0.9 + attackEdge / 65 + tacticalBoost + stats.possession / 300 + riskBoost + instructionBoost - fatiguePenalty), 0.006, 0.115)
   if (state.rng() > chanceProbability || own.lineup.length < 7) return
 
   stats.chances += 1
@@ -246,7 +266,9 @@ function simulateTeamMinute(
     pushEvent(state, { minute: state.minute, type: 'corner', team: teamName, player: playerName, text: 'A defesa desvia e é escanteio.' })
   }
 
-  const shotQuality = clamp(50 + (attackerQuality - opponent.metrics.defense) * 0.65 + (attacker?.player.mental ?? 50) * 0.15 + state.rng() * 22 - 11)
+  const playerInstruction = attacker ? own.playerInstructions[attacker.player.id] : 'normal'
+  const instructionEffect = playerInstruction === 'direct' ? 4 : playerInstruction === 'press' ? 2 : playerInstruction === 'protect' ? -4 : playerInstruction === 'hold' ? 1 : playerInstruction === 'overlap' ? 3 : 0
+  const shotQuality = clamp(50 + (attackerQuality - opponent.metrics.defense) * 0.65 + (attacker?.player.mental ?? 50) * 0.15 + instructionEffect + state.rng() * 22 - 11)
   stats.xg += clamp(0.12 + (shotQuality - 50) / 180 + (attacker?.player.mental ?? 50) / 700, 0.04, 0.62)
   const onTarget = shotQuality > 52 || state.rng() < 0.22
   if (!onTarget) {
@@ -274,7 +296,9 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
   const team = teamName === 'home' ? state.home : state.away
   const stats = teamName === 'home' ? state.homeStats : state.awayStats
 
-  if (random() < 0.17) {
+  const defensiveInstruction = team.sectorInstructions.defense
+  const foulRisk = defensiveInstruction === 'press' ? 0.012 : 0
+  if (random() < 0.17 + foulRisk) {
     stats.tackles += 1
     const tackler = chooseWeighted(team.lineup, ['CB', 'LB', 'RB', 'DM', 'CM'], random)
     if (tackler) pushEvent(state, { minute: state.minute, type: 'tackle', team: teamName, player: tackler.player.first_name + ' ' + tackler.player.last_name, text: tackler.player.first_name + ' ' + tackler.player.last_name + ' ganha a disputa e faz o desarme.' })
@@ -336,15 +360,19 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
 }
 
 function aiTacticalAdjustment(state: InteractiveMatchState, teamName: InteractiveTeam) {
-  if (![55, 70].includes(state.minute)) return
+  if (![35, 55, 70, 80].includes(state.minute)) return
   const team = teamName === 'home' ? state.home : state.away
   const scoreDiff = teamName === 'home' ? state.homeScore - state.awayScore : state.awayScore - state.homeScore
   if (scoreDiff < 0 && team.tactic !== 'offensive') {
     team.tactic = 'offensive'
+    team.risk = Math.min(90, team.risk + 15)
+    team.sectorInstructions.attack = 'direct'
     recalculateMetrics(team)
     pushEvent(state, { minute: state.minute, type: 'tactical_change', team: teamName, player: 'Comissão técnica', text: 'A IA aumenta a pressão e adota uma postura ofensiva.' })
   } else if (scoreDiff > 0 && state.minute >= 70 && team.tactic !== 'defensive') {
     team.tactic = 'defensive'
+    team.risk = Math.max(20, team.risk - 15)
+    team.sectorInstructions.defense = 'protect'
     recalculateMetrics(team)
     pushEvent(state, { minute: state.minute, type: 'tactical_change', team: teamName, player: 'Comissão técnica', text: 'A IA protege a vantagem e fecha mais a equipe.' })
   }
@@ -396,6 +424,32 @@ function reassignFormation(team: InteractiveTeamState, formation: Formation) {
   }).filter(Boolean) as LineupPlayer[]
   team.lineup = lineup
 }
+export function changeInteractiveInstruction(state: InteractiveMatchState, teamName: InteractiveTeam, sector: 'defense' | 'midfield' | 'attack', instruction: TacticalInstruction) {
+  const next = cloneState(state)
+  const team = teamName === 'home' ? next.home : next.away
+  team.sectorInstructions[sector] = instruction
+  recalculateMetrics(team)
+  next.events.push({ minute: next.minute, type: 'tactical_change', team: teamName, player: 'Comissão técnica', text: 'Ajuste no setor ' + sector + ': ' + instruction + '.' })
+  return next
+}
+
+export function changeInteractivePlayerInstruction(state: InteractiveMatchState, teamName: InteractiveTeam, playerId: string, instruction: TacticalInstruction) {
+  const next = cloneState(state)
+  const team = teamName === 'home' ? next.home : next.away
+  if (!team.lineup.some(item => item.player.id === playerId)) return state
+  team.playerInstructions[playerId] = instruction
+  next.events.push({ minute: next.minute, type: 'tactical_change', team: teamName, player: team.lineup.find(item => item.player.id === playerId)?.player.first_name + ' ' + team.lineup.find(item => item.player.id === playerId)?.player.last_name, playerId, text: 'Instrução individual alterada para ' + instruction + '.' })
+  return next
+}
+
+export function changeInteractiveRisk(state: InteractiveMatchState, teamName: InteractiveTeam, risk: number) {
+  const next = cloneState(state)
+  const team = teamName === 'home' ? next.home : next.away
+  team.risk = clamp(risk, 10, 95)
+  next.events.push({ minute: next.minute, type: 'tactical_change', team: teamName, player: 'Comissão técnica', text: 'Nível de risco ajustado para ' + Math.round(team.risk) + '/100.' })
+  return next
+}
+
 export function makeInteractiveSubstitution(
   state: InteractiveMatchState,
   teamName: InteractiveTeam,
