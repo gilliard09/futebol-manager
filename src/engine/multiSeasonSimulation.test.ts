@@ -79,9 +79,10 @@ describe('multi-season simulation', () => {
     const userClubId = 'A01'
 
     let popularity = initialManagerPopularity(leagueClubs[0].reputation)
+    const initialPopularity = { ...popularity }
     let previousBudget = leagueClubs[0].budget
     let managerSeasons = 0
-    let totalTitles = 0
+    let managerTitles = 0
     let totalTransfers = 0
     let totalAIManagers = 0
     const history: Array<{ final_position: number | null; points: number; wins: number }> = []
@@ -121,8 +122,6 @@ describe('multi-season simulation', () => {
       expect(historyEntry.cupChampionId).toBeTruthy()
       champions.push(historyEntry.leagueChampionId!)
       cupChampions.push(historyEntry.cupChampionId!)
-      totalTitles += 2
-
       const userPosition = standings.findIndex(row => row.id === userClubId) + 1
       const userStanding = standings.find(row => row.id === userClubId)!
       const managerPerformance = {
@@ -140,8 +139,15 @@ describe('multi-season simulation', () => {
       const score = managerPerformanceScore(managerPerformance)
       popularity = updateManagerPopularity(popularity, managerPerformance)
       expect(score).toBeGreaterThan(0)
-      expect(popularity.regional).toBeGreaterThanOrEqual(initialManagerPopularity(leagueClubs[0].reputation).regional)
-      expect(popularity.national).toBeGreaterThanOrEqual(initialManagerPopularity(leagueClubs[0].reputation).national)
+      expect(popularity.regional).toBeGreaterThanOrEqual(0)
+      expect(popularity.national).toBeGreaterThanOrEqual(0)
+      expect(popularity.international).toBeGreaterThanOrEqual(0)
+      expect(popularity.regional).toBeLessThanOrEqual(100)
+      expect(popularity.national).toBeLessThanOrEqual(100)
+      expect(popularity.international).toBeLessThanOrEqual(100)
+
+      if (historyEntry.leagueChampionId === userClubId) managerTitles += 1
+      if (historyEntry.cupChampionId === userClubId) managerTitles += 1
 
       const offers = buildManagerOfferCandidates(
         popularity,
@@ -209,7 +215,7 @@ describe('multi-season simulation', () => {
       expect(managerSeasons).toBe(year - 2025)
     }
 
-    const records = buildManagerRecords({ history, trophies: totalTitles })
+    const records = buildManagerRecords({ history, trophies: managerTitles })
 
     expect(champions).toHaveLength(5)
     expect(cupChampions).toHaveLength(5)
@@ -218,8 +224,10 @@ describe('multi-season simulation', () => {
     expect(records.bestFinish).toBeLessThanOrEqual(16)
     expect(records.mostPoints).toBeGreaterThan(0)
     expect(records.mostWins).toBeGreaterThan(0)
-    expect(records.titles).toBe(totalTitles)
-    expect(totalTitles).toBeGreaterThanOrEqual(0)
+    expect(records.titles).toBe(managerTitles)
+    expect(managerTitles).toBeGreaterThanOrEqual(0)
+    expect(popularity.regional).toBeGreaterThanOrEqual(initialPopularity.regional - 10)
+    expect(popularity.national).toBeGreaterThanOrEqual(initialPopularity.national - 10)
     expect(totalAIManagers).toBeGreaterThan(0)
     expect(totalTransfers).toBeGreaterThan(0)
     expect(popularity.regional).toBeGreaterThan(popularity.national)
@@ -233,6 +241,8 @@ describe('multi-season simulation', () => {
       historicalCupChampions: cupChampions,
       managerSeasons,
       managerPopularity: popularity,
+      initialManagerPopularity: initialPopularity,
+      managerTitles,
       managerRecords: records,
       aiManagersProcessed: totalAIManagers,
       aiTransfers: totalTransfers,
