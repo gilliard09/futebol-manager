@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ArrowRight, GripVertical, SlidersHorizontal } from 'lucide-react'
 import type { Formation, Player } from '../types/game'
 import type { InteractiveMatchState, InteractiveTactic, InteractiveTeam } from '../engine/interactiveMatch'
@@ -54,23 +54,28 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
   const [dragged, setDragged] = useState<{ kind: 'starter' | 'bench'; id: string } | null>(null)
   const [dragOverId, setDragOverId] = useState('')
   const [selectedOutgoing, setSelectedOutgoing] = useState('')
+  const boardRef = useRef<HTMLDivElement>(null)
+  const draggedRef = useRef<{ kind: 'starter' | 'bench'; id: string } | null>(null)
 
   const beginDrag = (kind: 'starter' | 'bench', id: string) => {
+    draggedRef.current = { kind, id }
     setDragged({ kind, id })
     if (kind === 'starter') setSelectedOutgoing(id)
   }
 
   const finishDrag = () => {
+    draggedRef.current = null
     setDragged(null)
     setDragOverId('')
   }
 
   const handleDrop = (outgoingId: string) => {
-    if (!dragged || dragged.kind !== 'bench' || team.substitutions >= 5) {
+    const activeDrag = draggedRef.current ?? dragged
+    if (!activeDrag || activeDrag.kind !== 'bench' || team.substitutions >= 5) {
       finishDrag()
       return
     }
-    onSubstitution(outgoingId, dragged.id)
+    onSubstitution(outgoingId, activeDrag.id)
     setSelectedOutgoing('')
     finishDrag()
   }
@@ -95,7 +100,22 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
 
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(280px,1fr)_minmax(240px,0.72fr)]">
       <div className="rounded-2xl border border-white/8 bg-[#0e2f25] p-2.5">
-        <div className="relative mx-auto aspect-[4/5] max-w-[440px] overflow-hidden rounded-xl border border-white/10 bg-[#145139]">
+        <div ref={boardRef} className="relative mx-auto aspect-[4/5] max-w-[440px] overflow-hidden rounded-xl border border-white/10 bg-[#145139] touch-none select-none"
+            onPointerMove={event => {
+              const active = draggedRef.current
+              if (!active || active.kind !== 'bench' || !boardRef.current) return
+              const target = Array.from(boardRef.current.querySelectorAll<HTMLElement>('[data-player-target]')).find(node => {
+                const rect = node.getBoundingClientRect()
+                return event.clientX >= rect.left - 18 && event.clientX <= rect.right + 18 && event.clientY >= rect.top - 18 && event.clientY <= rect.bottom + 18
+              })
+              setDragOverId(target?.dataset.playerTarget ?? '')
+            }}
+            onPointerUp={() => {
+              const active = draggedRef.current
+              if (active?.kind === 'bench' && dragOverId) handleDrop(dragOverId)
+              else finishDrag()
+            }}
+            onPointerCancel={finishDrag}>
           <div className="absolute inset-3 rounded-lg border border-white/30" />
           <div className="absolute left-1/2 top-1/2 h-px w-[calc(100%-24px)] -translate-x-1/2 bg-white/20" />
           <div className="absolute left-1/2 top-1/2 h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
@@ -107,7 +127,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
             const isTarget = dragOverId === item.player.id
             return <div
               key={item.player.id}
-              className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
+              data-player-target={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center"
               style={{ left: pos.x + '%', top: pos.y + '%' }}
               onDragOver={event => {
                 if (dragged?.kind === 'bench') {
@@ -123,6 +143,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
             >
               <div
                 draggable
+                onPointerDown={event => { if (event.pointerType === 'touch') { event.preventDefault(); setSelectedOutgoing(item.player.id) } }}
                 onDragStart={() => beginDrag('starter', item.player.id)}
                 onDragEnd={finishDrag}
                 onClick={() => setSelectedOutgoing(selectedOutgoing === item.player.id ? '' : item.player.id)}
@@ -154,6 +175,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
               key={player.id}
               draggable={team.substitutions < 5}
               disabled={team.substitutions >= 5}
+              onPointerDown={event => { if (event.pointerType === 'touch' && team.substitutions < 5) { event.preventDefault(); beginDrag('bench', player.id) } }}
               onDragStart={() => beginDrag('bench', player.id)}
               onDragEnd={finishDrag}
               onClick={() => handleBenchClick(player.id)}
