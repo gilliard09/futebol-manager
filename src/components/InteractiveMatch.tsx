@@ -587,10 +587,30 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       {phase === 'live' && session && pendingIncident && <div className="fixed inset-0 z-40 overflow-y-auto bg-[#0a0f1a]/98 px-4 py-6"><div className="mx-auto max-w-4xl"><div className="mb-4 flex items-center justify-between"><div><p className="label-mono text-red-300/70">{pendingIncident === 'injury' ? 'LESÃO · SUBSTITUIÇÃO OBRIGATÓRIA' : 'EXPULSÃO'}</p><h2 className="mt-1 font-display text-2xl font-bold">{incidentEvent?.player ?? 'Ajuste sua equipe'}</h2><p className="mt-1 text-sm text-white/45">{incidentEvent?.text ?? 'Você pode substituir o jogador ou reorganizar a equipe.'}</p></div><span className="font-mono text-xs text-white/30">{session.minute}'</span></div><MatchTacticsBoard session={session} userTeam={userTeam} onSubstitution={(outgoingId, incomingId) => { applySubstitution(outgoingId, incomingId); setSelectedOutgoing(''); setPendingIncident(null); setHighlightEvent(null); setPaused(false) }} onTactic={applyTactic} onInstruction={applyInstruction} onPlayerInstruction={applyPlayerInstruction} onRisk={applyRisk} forcedOutgoingId={pendingIncident === 'injury' ? incidentEvent?.playerId : undefined} />{pendingIncident === 'red_card' || !incidentEvent?.playerId || !user?.bench.length || (user?.substitutions ?? 0) >= 5 ? <button onClick={returnFromIncident} className="mt-4 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao jogo <ArrowRight size={16} className="inline ml-1" /></button> : <p className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-center text-xs font-semibold text-amber-200">Escolha um reserva acima para substituir o lesionado e voltar ao jogo.</p>}</div></div>}
       {phase === 'postgame' && session && result && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
+        <section className="rounded-3xl border border-white/8 bg-[#131b2a] p-5 md:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="label-mono text-emerald-300/60">FIM DE JOGO</p>
+              <h2 className="mt-2 font-display text-3xl font-black">{userResult}</h2>
+              <p className="mt-1 text-sm text-white/40">{teamName(fixture, userTeam)} · nota média {managerScore.toFixed(1)}</p>
+            </div>
+            <div className="font-mono text-4xl font-black tabular-nums">
+              {userIsHome ? result.homeScore : result.awayScore}
+              <span className="mx-2 text-white/20">–</span>
+              {userIsHome ? result.awayScore : result.homeScore}
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Nota média</p><p className="mt-1 font-mono text-xl font-bold">{managerScore.toFixed(1)}</p></div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Substituições</p><p className="mt-1 font-mono text-xl font-bold">{usedSubstitutions}/5</p></div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Ajustes</p><p className="mt-1 font-mono text-xl font-bold">{tacticalChanges}</p></div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Diretoria</p><p className="mt-1 font-mono text-xl font-bold">{boardConfidence}%</p></div>
+          </div>
+        </section>
         <div className="flex rounded-xl border border-white/6 bg-[#131b2a] p-1">
+          <button onClick={() => setPostgameTab('manager')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'manager' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Avaliação</button>
           <button onClick={() => setPostgameTab('events')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'events' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Lances</button>
-          <button onClick={() => setPostgameTab('stats')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'stats' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Estatísticas</button>
-          <button onClick={() => setPostgameTab('manager')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'manager' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Relatório</button>
+          <button onClick={() => setPostgameTab('stats')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'stats' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Dados</button>
         </div>
         {postgameTab === 'events' && <section className="space-y-4">
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><div className="max-h-[560px] space-y-2 overflow-y-auto">{result.events.slice().reverse().map((event, index) => <div key={event.minute + '-' + index} className="flex gap-3 rounded-xl border border-white/5 bg-black/10 px-3 py-3"><span className="w-8 font-mono text-xs font-bold text-white/30">{event.minute}'</span><div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div></div>)}</div></div>
