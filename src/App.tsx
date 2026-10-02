@@ -4793,26 +4793,31 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const groups: Array<{ label: string; items: Array<{ key: DashboardView; label: string; icon: typeof Settings }> }> = [
-    { label: 'Hoje', items: [{ key: 'overview', label: 'Início', icon: House }] },
-    {
-      label: 'Clube',
-      items: [
-        { key: 'board', label: 'Diretoria', icon: Building2 },
-        { key: 'contracts', label: 'Contratos', icon: Handshake },
-        { key: 'calendar', label: 'Calendário', icon: CalendarDays },
-        { key: 'news', label: 'Notícias', icon: Newspaper },
-        { key: 'squad', label: 'Elenco', icon: Users },
-        { key: 'tactics', label: 'Táticas', icon: Shield },
-        { key: 'finance', label: 'Finanças', icon: WalletCards },
-        { key: 'stadium', label: 'Estádio', icon: Building2 },
-        { key: 'trophies', label: 'Sala de Troféus', icon: Trophy },
-        { key: 'legacy', label: 'Carreira do Técnico', icon: Medal },
-      ],
-    },
-    { label: 'Mercado', items: [{ key: 'market', label: 'Mercado', icon: ShoppingBag }] },
-    { label: 'Mundo', items: [{ key: 'stats', label: 'Estatísticas', icon: BarChart3 }] },
+    { label: 'Central', items: [
+      { key: 'overview', label: 'Início', icon: House },
+      { key: 'calendar', label: 'Partidas', icon: CalendarDays },
+      { key: 'squad', label: 'Meu Clube', icon: Shield },
+      { key: 'legacy', label: 'Carreira', icon: Medal },
+    ] },
+    { label: 'Gestão', items: [
+      { key: 'board', label: 'Diretoria', icon: Building2 },
+      { key: 'contracts', label: 'Contratos', icon: Handshake },
+      { key: 'tactics', label: 'Escalação e tática', icon: Shield },
+      { key: 'training', label: 'Treinamento', icon: Dumbbell },
+      { key: 'market', label: 'Mercado', icon: ShoppingBag },
+      { key: 'loans', label: 'Empréstimos', icon: Handshake },
+      { key: 'finance', label: 'Finanças', icon: WalletCards },
+      { key: 'stadium', label: 'Estádio', icon: Building2 },
+    ] },
+    { label: 'Mundo', items: [
+      { key: 'competitions', label: 'Competições', icon: Trophy },
+      { key: 'news', label: 'Notícias', icon: Newspaper },
+      { key: 'stats', label: 'Estatísticas', icon: BarChart3 },
+      { key: 'trophies', label: 'Sala de Troféus', icon: Trophy },
+      { key: 'history', label: 'Histórico', icon: Medal },
+      { key: 'press', label: 'Imprensa', icon: Newspaper },
+    ] },
   ] as const
-
   const extras = [
     { key: 'loans' as DashboardView, label: 'Empréstimos', icon: Handshake },
     { key: 'training' as DashboardView, label: 'Treinamento', icon: Dumbbell },
