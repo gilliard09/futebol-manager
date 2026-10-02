@@ -476,28 +476,21 @@ function GameApp() {
 
       // A tentativa anterior pode ter criado a temporada e falhado depois.
       // Reutilizamos a temporada do mesmo usuário/ano para tornar a criação idempotente.
-      let careerSeason: { id: string } | null = null
-      let careerSeasonError: { message: string } | null = null
-      const { data: existingSeason, error: existingSeasonError } = await supabase
+      const { data: careerSeason, error: careerSeasonError } = await supabase
         .from('seasons')
+        .upsert(
+          {
+            owner_id: authUser.user.id,
+            name: displaySeasonName,
+            year,
+            status: 'active',
+            start_date: year + '-01-01',
+            end_date: null,
+          },
+          { onConflict: 'owner_id,year' },
+        )
         .select('id')
-        .eq('owner_id', authUser.user.id)
-        .eq('year', year)
-        .maybeSingle()
-
-      if (existingSeasonError) {
-        careerSeasonError = existingSeasonError
-      } else if (existingSeason) {
-        careerSeason = existingSeason
-      } else {
-        const { data: createdSeason, error: createSeasonError } = await supabase
-          .from('seasons')
-          .insert({ owner_id: authUser.user.id, name: displaySeasonName, year, status: 'active', start_date: year + '-01-01', end_date: null })
-          .select('id')
-          .single()
-        careerSeason = createdSeason
-        careerSeasonError = createSeasonError
-      }
+        .single()
 
       if (careerSeasonError || !careerSeason) {
         setError(careerSeasonError?.message ?? 'Não foi possível criar a temporada da carreira.')
