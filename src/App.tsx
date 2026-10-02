@@ -4862,10 +4862,15 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     </aside>
 
     <div className="min-h-screen lg:pl-[248px]">
-      <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur sm:px-6">
-        <button onClick={() => setMobileMenuOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
+      <header
+        className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/95 px-3 pb-2 backdrop-blur sm:px-6"
+        style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}
+      >
         <div className="hidden min-w-0 lg:block"><p className="truncate text-sm font-semibold text-white/75">{activeLabel}</p></div>
-        <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
+          <button onClick={() => setMobileMenuOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
+        </div>
       </header>
       <div className="pb-4 lg:pb-0">{children}</div>
     </div>
