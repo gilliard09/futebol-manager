@@ -185,6 +185,24 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       ]
     : []
 
+  const clubCompetitionFixtures = useMemo(() => fixtures
+    .filter(item => item.home_club_id === currentClubId || item.away_club_id === currentClubId)
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at)), [fixtures, currentClubId])
+
+  const clubCompletedFixtures = clubCompetitionFixtures.filter(item => item.status === 'completed')
+  const clubForm = clubCompletedFixtures.slice(-5).map(item => {
+    const isHome = item.home_club_id === currentClubId
+    const scored = isHome ? Number(item.home_score ?? 0) : Number(item.away_score ?? 0)
+    const conceded = isHome ? Number(item.away_score ?? 0) : Number(item.home_score ?? 0)
+    return {
+      result: scored > conceded ? 'V' : scored < conceded ? 'D' : 'E',
+      opponent: isHome ? item.away_club?.short_name ?? 'Adversário' : item.home_club?.short_name ?? 'Adversário',
+    } as const
+  })
+
+  const nextClubFixture = clubCompetitionFixtures.find(item => item.status === 'scheduled') ?? null
+  const clubStanding = table.find(item => item.id === currentClubId) ?? null
+
   const history = useMemo(() => {
     const completed = fixtures.filter(item => item.status === 'completed')
     const seasonFinished = fixtures.length > 0 && completed.length === fixtures.length
@@ -237,10 +255,53 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       {loading ? <div className="py-20 text-center text-sm text-white/35">Carregando competição...</div> : <>
         <div className="mt-8 grid gap-3 md:grid-cols-4">
           <Info label="Competição" value={competition} />
-          <Info label="Partidas do seu clube" value={String(fixtures.filter(x => x.home_club_id === currentClubId || x.away_club_id === currentClubId).length)} />
-          <Info label="Realizadas pelo seu clube" value={String(fixtures.filter(x => (x.home_club_id === currentClubId || x.away_club_id === currentClubId) && x.status === 'completed').length)} />
+          <Info label="Partidas do seu clube" value={String(clubCompetitionFixtures.length)} />
+          <Info label="Realizadas pelo seu clube" value={String(clubCompletedFixtures.length)} />
           <Info label={competition === 'Liga Nacional do Brasil' ? 'Sua posição' : 'Fase atual'} value={competition === 'Liga Nacional do Brasil' ? (position ? `#${position}` : '—') : currentStage} />
         </div>
+
+        <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/55">Seu clube</p>
+              <h2 className="mt-2 text-2xl font-bold">Situação na competição</h2>
+              <p className="mt-2 text-sm text-white/30">Acompanhe a campanha do seu time sem sair da visão da temporada.</p>
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-white/6 bg-black/10 px-3 py-2">
+              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-white p-1">
+                {clubs.find(item => item.id === currentClubId)?.logo_url
+                  ? <img src={clubs.find(item => item.id === currentClubId)?.logo_url} alt="" className="h-full w-full object-contain" />
+                  : <span className="text-[8px] font-black text-slate-700">{(clubs.find(item => item.id === currentClubId)?.short_name ?? 'CLB').slice(0, 3).toUpperCase()}</span>}
+              </span>
+              <span className="max-w-[150px] truncate text-sm font-bold">{clubs.find(item => item.id === currentClubId)?.short_name ?? 'Seu clube'}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-white/25">{competition === 'Copa Nacional do Brasil' ? 'Fase' : 'Classificação'}</p>
+              <p className="mt-2 text-2xl font-black text-emerald-300">{competition === 'Copa Nacional do Brasil' ? currentStage : clubStanding ? `#${position}` : '—'}</p>
+              {competition !== 'Copa Nacional do Brasil' && <p className="mt-1 text-[10px] text-white/25">{clubStanding?.points ?? 0} pontos</p>}
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-white/25">Forma recente</p>
+              <div className="mt-2 flex items-center gap-1.5">
+                {clubForm.length ? clubForm.map((item, index) => <span key={index} title={item.opponent} className={`flex h-7 w-7 items-center justify-center rounded-lg text-[10px] font-black ${item.result === 'V' ? 'bg-emerald-400/15 text-emerald-300' : item.result === 'E' ? 'bg-white/8 text-white/50' : 'bg-red-400/10 text-red-300'}`}>{item.result}</span>) : <span className="text-sm text-white/30">Sem partidas</span>}
+              </div>
+              <p className="mt-2 text-[10px] text-white/20">Últimos {clubForm.length} jogos</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-white/25">Campanha</p>
+              <p className="mt-2 text-2xl font-black">{clubCompletedFixtures.length}</p>
+              <p className="mt-1 text-[10px] text-white/25">jogos realizados</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/10 p-4">
+              <p className="text-[10px] uppercase tracking-[0.14em] text-white/25">Próximo jogo</p>
+              <p className="mt-2 truncate text-sm font-bold">{nextClubFixture ? (nextClubFixture.home_club_id === currentClubId ? nextClubFixture.away_club?.short_name : nextClubFixture.home_club?.short_name) ?? 'Adversário' : 'Competição encerrada'}</p>
+              <p className="mt-1 text-[10px] text-white/25">{nextClubFixture ? dateLabel(nextClubFixture.scheduled_at) : '—'}</p>
+            </div>
+          </div>
+        </section>
 
         {competition === 'Copa Nacional do Brasil' && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">Caminho do título</p><h2 className="mt-2 text-2xl font-bold">Chaveamento</h2></div><Trophy className="text-emerald-300/50" /></div>
