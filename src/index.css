@@ -27,14 +27,36 @@
 }
 
 html {
-  background: #0a0f1a;
+  background: #0b0f19;
+  overscroll-behavior: contain;
 }
 
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
-  background: #0a0f1a;
+  min-height: 100dvh;
+  background: #0b0f19;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+button,
+a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.club-logo-fallback::after {
+  content: 'FM';
+  display: block;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #334155;
 }
 
 button,
@@ -57,8 +79,41 @@ option {
   font-variant-numeric: tabular-nums;
 }
 
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
 .safe-bottom {
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.pwa-bottom-space {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.045);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.06), transparent);
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@media (max-width: 1023px) {
+  .mobile-thumb-action {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
 }
 
 .match-gradient {
