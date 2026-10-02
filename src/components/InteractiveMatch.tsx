@@ -29,6 +29,9 @@ type Props = {
   formation: Formation
   coachStyle: ManagerProfile['style']
   coachPersonality: ManagerProfile['personality']
+  boardConfidence?: number
+  leaguePosition?: number | null
+  leaguePoints?: number | null
   back: (result: MatchResult) => void
   cancel: () => void
 }
@@ -174,13 +177,13 @@ function Bench({ session, userTeam, selectedOutgoing, onSelectIncoming }: { sess
   </section>
 }
 
-export default function InteractiveMatch({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, back, cancel }: Props) {
+export default function InteractiveMatch({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, boardConfidence = 0, leaguePosition = null, leaguePoints = null, back, cancel }: Props) {
   const userIsHome = fixture.home_club_id === userClubId
   const userTeam: InteractiveTeam = userIsHome ? 'home' : 'away'
   const [phase, setPhase] = useState<'pregame' | 'live' | 'halftime' | 'postgame'>('pregame')
   const [paused, setPaused] = useState(false)
   const [session, setSession] = useState<InteractiveMatchState | null>(null)
-  const [postgameTab, setPostgameTab] = useState<'events' | 'stats'>('events')
+  const [postgameTab, setPostgameTab] = useState<'events' | 'stats' | 'manager'>('events')
   const [lastEventCount, setLastEventCount] = useState(0)
   const [selectedOutgoing, setSelectedOutgoing] = useState('')
   const [eventFilter, setEventFilter] = useState<'all' | 'goal' | 'discipline' | 'injury' | 'substitution' | 'chance' | 'corner' | 'save'>('all')
@@ -286,6 +289,24 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     return selectStartingLineup(awayPlayers, userIsHome ? coach.formation : formation, userIsHome ? coach.style : coachStyle, userIsHome ? coach.personality : coachPersonality, homePlayers, userIsHome ? {} : savedLineup, 1)
   }, [homePlayers, awayPlayers, formation, userIsHome, savedLineup, coachStyle, coachPersonality, fixture.away_club_id])
   const user = session ? (userTeam === 'home' ? session.home : session.away) : null
+  const userSquad = userIsHome ? homePlayers : awayPlayers
+  const averageCondition = userSquad.length
+    ? Math.round(userSquad.reduce((sum, player) => sum + (100 - (player.fatigue ?? 0)), 0) / userSquad.length)
+    : 0
+  const averageMorale = userSquad.length
+    ? Math.round(userSquad.reduce((sum, player) => sum + (player.morale ?? 0), 0) / userSquad.length)
+    : 0
+  const userResult = result
+    ? (userIsHome
+      ? result.homeScore > result.awayScore ? 'VITÓRIA' : result.homeScore < result.awayScore ? 'DERROTA' : 'EMPATE'
+      : result.awayScore > result.homeScore ? 'VITÓRIA' : result.awayScore < result.homeScore ? 'DERROTA' : 'EMPATE')
+    : null
+  const userRatingRows = result?.playerRatings.filter(player => player.team === userTeam) ?? []
+  const managerScore = userRatingRows.length
+    ? Math.round(userRatingRows.reduce((sum, player) => sum + player.rating, 0) / userRatingRows.length * 10) / 10
+    : 0
+  const usedSubstitutions = user?.substitutions ?? 0
+  const tacticalChanges = result?.events.filter(event => event.team === userTeam && event.type === 'tactical_change').length ?? 0
 
   const applyTactic = (nextTactic: InteractiveTactic, nextFormation?: Formation) => {
     if (!session) return
@@ -395,7 +416,12 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Adversário OVR</p><p className="mt-2 font-mono text-3xl font-bold">{Math.round((userIsHome ? awayPlayers : homePlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? awayPlayers : homePlayers).length))}</p></div>
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Estratégia</p><p className="mt-2 text-sm font-bold">{tactic === 'offensive' ? 'Pressão ofensiva' : tactic === 'defensive' ? 'Bloco defensivo' : 'Equilíbrio'}</p><p className="mt-1 text-xs text-white/30">A IA usará sua própria configuração.</p></div>
         </div>}
-        <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Começar partida <Play size={17} /></button>
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Condição média</p><p className="mt-2 font-mono text-2xl font-bold">{averageCondition}%</p><p className="mt-1 text-[10px] text-white/30">Quanto maior, mais preparado o elenco.</p></div>
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Moral média</p><p className="mt-2 font-mono text-2xl font-bold">{averageMorale}%</p><p className="mt-1 text-[10px] text-white/30">Confiança do grupo antes do jogo.</p></div>
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Sua decisão</p><p className="mt-2 text-sm font-bold">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><p className="mt-1 text-[10px] text-white/30">A configuração será levada para o motor da partida.</p></div>
+        </section>
+        <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Confirmar escalação e começar <Play size={17} /></button>
       </section>}
 
 
@@ -460,10 +486,41 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         <div className="flex rounded-xl border border-white/6 bg-[#131b2a] p-1">
           <button onClick={() => setPostgameTab('events')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'events' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Lances</button>
           <button onClick={() => setPostgameTab('stats')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'stats' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Estatísticas</button>
+          <button onClick={() => setPostgameTab('manager')} className={`flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${postgameTab === 'manager' ? 'bg-white/8 text-white' : 'text-white/35'}`}>Relatório</button>
         </div>
         {postgameTab === 'events' && <section className="space-y-4">
           <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><div className="max-h-[560px] space-y-2 overflow-y-auto">{result.events.slice().reverse().map((event, index) => <div key={event.minute + '-' + index} className="flex gap-3 rounded-xl border border-white/5 bg-black/10 px-3 py-3"><span className="w-8 font-mono text-xs font-bold text-white/30">{event.minute}'</span><div><p className="text-sm font-semibold">{event.player}</p><p className="text-xs text-white/35">{event.text}</p></div></div>)}</div></div>
           <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-wider text-white/25">Notas dos jogadores</p><div className="mt-4 grid gap-2 md:grid-cols-2">{result.playerRatings.sort((a,b) => b.rating-a.rating).map(player => <div key={player.playerId + player.team} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3"><div><p className="text-sm font-semibold">{player.name}</p><p className="text-xs text-white/30">{player.team === 'home' ? teamName(fixture, 'home') : teamName(fixture, 'away')} · {playerPositionLabel(player.position)}</p></div><span className="rounded-lg bg-emerald-400/10 px-2.5 py-1.5 font-mono text-xs font-bold text-emerald-300">{player.rating.toFixed(1)}</span></div>)}</div></section>
+        </section>}
+        {postgameTab === 'manager' && <section className="space-y-4">
+          <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5">
+            <p className="label-mono text-emerald-300/60">RELATÓRIO DO TREINADOR</p>
+            <div className="mt-2 flex items-end justify-between gap-4">
+              <div><h3 className="font-display text-2xl font-bold">{userResult}</h3><p className="mt-1 text-xs text-white/35">{teamName(fixture, userTeam)} · nota média {managerScore.toFixed(1)}</p></div>
+              <span className="font-mono text-3xl font-black text-emerald-300">{userIsHome ? result.homeScore : result.awayScore}–{userIsHome ? result.awayScore : result.homeScore}</span>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Substituições</p><p className="mt-1 font-mono text-xl font-bold">{usedSubstitutions}/5</p></div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Ajustes táticos</p><p className="mt-1 font-mono text-xl font-bold">{tacticalChanges}</p></div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Condição atual</p><p className="mt-1 font-mono text-xl font-bold">{averageCondition}%</p></div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Moral atual</p><p className="mt-1 font-mono text-xl font-bold">{averageMorale}%</p></div>
+            </div>
+          </section>
+          <section className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="label-mono text-white/25">Diretoria</p><p className="mt-2 text-sm font-bold">{boardConfidence}% de confiança</p><p className="mt-1 text-xs leading-5 text-white/35">{userResult === 'VITÓRIA' ? 'O resultado tende a aliviar a pressão.' : userResult === 'DERROTA' ? 'O resultado aumenta a cobrança sobre o trabalho.' : 'O empate mantém a avaliação dependente do contexto da temporada.'}</p></div>
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="label-mono text-white/25">Tabela</p><p className="mt-2 text-sm font-bold">{leaguePosition ? leaguePosition + 'º lugar' : 'Posição não disponível'}</p><p className="mt-1 text-xs leading-5 text-white/35">{leaguePoints != null ? leaguePoints + ' pontos antes desta partida.' : 'A classificação será atualizada ao retornar ao clube.'}</p></div>
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="label-mono text-white/25">Próximo impacto</p><p className="mt-2 text-sm font-bold">Condição e moral</p><p className="mt-1 text-xs leading-5 text-white/35">A atuação será aplicada ao elenco ao finalizar o relatório. Cartões e lesões também afetam a disponibilidade.</p></div>
+          </section>
+          <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5">
+            <p className="label-mono text-white/25">AVALIAÇÃO INDIVIDUAL</p>
+            <div className="mt-4 space-y-2">
+              {[...userRatingRows].sort((a,b) => b.rating - a.rating).map(player => <div key={player.playerId} className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3">
+                <div className="min-w-0"><p className="truncate text-sm font-semibold">{player.name}</p><p className="mt-1 text-[10px] text-white/30">{playerPositionLabel(player.position)} · {player.minutes}'{player.goals ? ' · ' + player.goals + 'G' : ''}{player.assists ? ' · ' + player.assists + 'A' : ''}</p></div>
+                <span className={`shrink-0 rounded-lg px-2.5 py-1.5 font-mono text-xs font-bold ${player.rating >= 7 ? 'bg-emerald-400/10 text-emerald-300' : player.rating < 5.8 ? 'bg-red-400/10 text-red-300' : 'bg-white/5 text-white/60'}`}>{player.rating.toFixed(1)}</span>
+              </div>)}
+            </div>
+          </section>
+          <button onClick={() => back(result)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Aplicar resultado e voltar ao clube <ArrowLeft size={16} /></button>
         </section>}
         {postgameTab === 'stats' && <section className="space-y-4">
           <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5">
