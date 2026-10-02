@@ -2742,7 +2742,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     const { data: simClubs } = await supabase
       .from('clubs')
-      .select('id,strength,reputation')
+      .select('id,strength,reputation,division,country')
     const strengthByClub = Object.fromEntries((simClubs ?? []).map(club => [
       club.id,
       Number(club.strength ?? club.reputation ?? 50),
