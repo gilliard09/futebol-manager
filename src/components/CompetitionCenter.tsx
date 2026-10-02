@@ -415,7 +415,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {([
               ['goals', 'Artilheiro', 'Gols'],
-              ['assists', 'Assistências', 'Assist.'],
+              ['assists', 'Líder de assistências', 'Assist.'],
               ['averageRating', 'Melhor média', 'Média'],
               ['appearances', 'Mais jogos', 'Jogos'],
             ] as const).map(([key, label, shortLabel]) => {
