@@ -3289,11 +3289,22 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   async function advanceOneDay(fromClock = clock) {
     if (boardState.managerStatus !== 'active' && boardState.managerStatus !== 'renewed') return false
     if (!fromClock || !canAdvanceDay(fromClock, nextMatchDate)) return false
+
     const nextClock = advanceSeasonDay(fromClock)
-    const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
-    await simulateOtherDivisionMatches(nextClock.currentDate)
-    await simulateContinentalUntil(nextClock.currentDate)
-    if (worldResult?.event) setPendingEvent(worldResult.event)
+    // O relógio é a fonte da verdade da navegação. Atualizamos primeiro para que
+    // uma falha em uma simulação secundária nunca impeça o usuário de avançar.
+    setClock(nextClock)
+    localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(nextClock))
+
+    try {
+      const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
+      await simulateOtherDivisionMatches(nextClock.currentDate)
+      await simulateContinentalUntil(nextClock.currentDate)
+      if (worldResult?.event) setPendingEvent(worldResult.event)
+    } catch (simulationError) {
+      console.error('Falha ao processar a simulação do dia; o relógio foi avançado mesmo assim.', simulationError)
+    }
+
     const nextPlayers = recoverPlayers(players, 8)
     if (nextClock.currentDate.slice(0, 7) !== fromClock.currentDate.slice(0, 7)) {
       const salaryExpense = calculateMonthlySalaryExpense(salaryTotal)
@@ -3318,11 +3329,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
       onCareerUpdate(nextCareer)
     }
-    setClock(nextClock)
+
     setPlayers(nextPlayers)
     const savedTraining = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...savedTraining, players: Object.fromEntries(nextPlayers.map(player => [player.id, player])) }))
-    localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(nextClock))
     return true
   }
 
@@ -3339,12 +3349,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   async function advanceToNextMatch() {
     if (boardState.managerStatus !== 'active' && boardState.managerStatus !== 'renewed') return
     if (!clock || !nextMatchDate || clock.currentDate >= nextMatchDate || advancingDays) return
+
     setAdvancingDays(true)
     try {
       const advanceResult = await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
       const targetDate = advanceResult?.date ?? nextMatchDate
-      await simulateContinentalUntil(targetDate)
-      if (advanceResult?.event) setPendingEvent(advanceResult.event)
 
       let current = clock
       let nextPlayers = players
@@ -3376,11 +3385,19 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       }
 
       setClock(current)
+      localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(current))
+
+      try {
+        await simulateContinentalUntil(targetDate)
+        if (advanceResult?.event) setPendingEvent(advanceResult.event)
+      } catch (simulationError) {
+        console.error('Falha ao processar as competições durante o avanço até a partida.', simulationError)
+      }
+
       setPlayers(nextPlayers)
       setFinanceBalance(nextBalance)
       setFinanceTransactions(nextTransactions)
 
-      localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(current))
       localStorage.setItem(FINANCE_KEY, JSON.stringify(nextTransactions))
       localStorage.setItem(CAREER_KEY, JSON.stringify({ ...career, club: { ...career.club, budget: nextBalance } }))
       localStorage.setItem(TRAINING_KEY, JSON.stringify({
@@ -3388,6 +3405,8 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         players: Object.fromEntries(nextPlayers.map(player => [player.id, player])),
       }))
       onCareerUpdate({ ...career, club: { ...career.club, budget: nextBalance } })
+    } catch (simulationError) {
+      console.error('Falha ao avançar até o dia da partida.', simulationError)
     } finally {
       setAdvancingDays(false)
     }
