@@ -4216,7 +4216,6 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         const userRatings = (userMatch?.playerRatings ?? [])
           .filter(player => player.team === (activeMatchFixture.home_club_id === career.club.id ? 'home' : 'away'))
           .sort((a, b) => b.rating - a.rating)
-          .slice(0, 3)
           .map(player => {
             const current = matchPlayers.get(player.playerId)
             const next = playerStateUpdates.get(player.playerId)
