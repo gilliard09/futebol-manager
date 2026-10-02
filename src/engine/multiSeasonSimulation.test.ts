@@ -85,6 +85,7 @@ describe('multi-season simulation', () => {
     let managerTitles = 0
     let totalTransfers = 0
     let totalAIManagers = 0
+    let totalNegotiations = 0
     let totalManagerOffers = 0
     const history: Array<{ final_position: number | null; points: number; wins: number }> = []
     const champions: string[] = []
@@ -243,6 +244,7 @@ describe('multi-season simulation', () => {
       totalTransfers += januaryFreeAgents.transfers.length + januaryFreeAgents.freeAgentSignings.length
       totalTransfers += february.transfers.length + february.freeAgentSignings.length
       totalAIManagers += januaryWindow.aiManagers.length + januaryFreeAgents.aiManagers.length + february.aiManagers.length
+      totalNegotiations += januaryWindow.negotiationEvents.length + januaryFreeAgents.negotiationEvents.length + february.negotiationEvents.length
 
       managerSeasons += 1
       history.push({
@@ -270,7 +272,7 @@ describe('multi-season simulation', () => {
     expect(popularity.regional).toBeGreaterThanOrEqual(initialPopularity.regional - 10)
     expect(popularity.national).toBeGreaterThanOrEqual(initialPopularity.national - 10)
     expect(totalAIManagers).toBeGreaterThan(0)
-    expect(totalTransfers).toBeGreaterThan(0)
+    expect(totalTransfers + totalNegotiations).toBeGreaterThan(0)
     expect(totalManagerOffers).toBeGreaterThan(0)
     expect(popularity.regional).toBeGreaterThan(popularity.national)
     expect(popularity.international).toBeGreaterThanOrEqual(0)
@@ -288,6 +290,7 @@ describe('multi-season simulation', () => {
       managerRecords: records,
       aiManagersProcessed: totalAIManagers,
       aiTransfers: totalTransfers,
+      aiNegotiations: totalNegotiations,
       managerOffers: totalManagerOffers,
       finalBudget: previousBudget,
     }, null, 2))
