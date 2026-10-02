@@ -63,7 +63,7 @@ function player(id: string, clubId: string, age = 22, position: Player['position
 
 function completeLeagueFixtures(year: number, clubs: Club[]): Fixture[] {
   const seasonId = 'season-' + year
-  return buildLeagueFixtures(seasonId, year + '-01-28', clubs, 'liga').map((fixture, index) => {
+  return buildLeagueFixtures(seasonId, year + '-01-28', clubs, 'liga').map((fixture, index): Fixture => {
     const homeClub = clubs.find(clubItem => clubItem.id === fixture.home_club_id)!
     const awayClub = clubs.find(clubItem => clubItem.id === fixture.away_club_id)!
     const userIsHome = fixture.home_club_id === 'A01'
@@ -76,6 +76,8 @@ function completeLeagueFixtures(year: number, clubs: Club[]): Fixture[] {
         home_score: userIsHome ? 2 : 0,
         away_score: userIsHome ? 0 : 2,
         winner_club_id: 'A01',
+        home_club: homeClub,
+        away_club: awayClub,
       }
     }
 
