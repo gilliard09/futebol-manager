@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, BarChart3, House, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BarChart3, House, Banknote, Building2, CalendarDays, ChevronRight, CircleUserRound, Dumbbell, MapPin, Medal, Newspaper, Settings, Shield, ShoppingBag, Trophy, Users, WalletCards, Handshake, type LucideIcon } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player } from './types/game'
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup } from './engine/matchCore'
@@ -5314,14 +5314,16 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
       </section>
 
       <section className="mt-4 grid gap-2 sm:grid-cols-4">
-        {[
-          ['Elenco', 'squad' as DashboardView, Users],
-          ['Escalação', 'tactics' as DashboardView, Shield],
-          ['Finanças', 'finance' as DashboardView, WalletCards],
-          ['Diretoria', 'board' as DashboardView, Building2],
-        ].map(([label, view, Icon]) => <button key={label} onClick={() => onNavigate(view as DashboardView)} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.04]">
-          <span className="flex items-center gap-2 text-xs font-semibold text-white/55"><Icon size={15} />{label}</span><ChevronRight size={14} className="text-white/20" />
-        </button>)}
+        {([
+          { label: 'Elenco', view: 'squad', Icon: Users },
+          { label: 'Escalação', view: 'tactics', Icon: Shield },
+          { label: 'Finanças', view: 'finance', Icon: WalletCards },
+          { label: 'Diretoria', view: 'board', Icon: Building2 },
+        ] satisfies Array<{ label: string; view: DashboardView; Icon: LucideIcon }>).map(({ label, view, Icon }) => (
+          <button key={label} onClick={() => onNavigate(view)} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.04]">
+            <span className="flex items-center gap-2 text-xs font-semibold text-white/55"><Icon size={15} />{label}</span><ChevronRight size={14} className="text-white/20" />
+          </button>
+        ))}
       </section>
     </section>
     {selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} today={today} onContractChange={onContractChange} close={() => setSelectedPlayer(null)} />}
