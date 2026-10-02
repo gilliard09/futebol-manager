@@ -187,11 +187,11 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
   const [phase, setPhase] = useState<'pregame' | 'live' | 'halftime' | 'postgame'>('pregame')
   const [paused, setPaused] = useState(false)
   const [session, setSession] = useState<InteractiveMatchState | null>(null)
-  const [postgameTab, setPostgameTab] = useState<'events' | 'stats' | 'manager'>('events')
   const [lastEventCount, setLastEventCount] = useState(0)
   const [selectedOutgoing, setSelectedOutgoing] = useState('')
-  const [eventFilter, setEventFilter] = useState<'all' | 'goal' | 'discipline' | 'injury' | 'substitution' | 'chance' | 'corner' | 'save'>('all')
-  const [pregameTab, setPregameTab] = useState<'preview' | 'lineup' | 'confrontation'>('preview')
+  const [showPregameDetails, setShowPregameDetails] = useState(false)
+  const [livePanel, setLivePanel] = useState<'plan' | 'reading' | 'squad' | null>(null)
+  const [postgameDetails, setPostgameDetails] = useState<'events' | 'stats' | 'ratings' | null>(null)
   const [highlightEvent, setHighlightEvent] = useState<MatchEvent | null>(null)
   const [handledHighlightKey, setHandledHighlightKey] = useState('')
   const [pendingIncident, setPendingIncident] = useState<'injury' | 'red_card' | null>(null)
@@ -243,7 +243,6 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       playMatchSound('whistle')
       setPaused(true)
       setPhase('postgame')
-      setPostgameTab('events')
     }
   }, [session, phase, lastEventCount])
 
