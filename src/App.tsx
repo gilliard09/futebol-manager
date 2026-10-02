@@ -4694,6 +4694,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} cancel={() => { setActiveMatchFixture(null); goToView('overview') }} />
   }
 
+  const currentStandingIndex = Math.max(0, table.findIndex(team => team.id === career.club.id))
+  const currentStanding = table[currentStandingIndex]
+  const position = currentStanding ? currentStandingIndex + 1 : null
+  const goalDifference = currentStanding ? currentStanding.gf - currentStanding.ga : 0
+  const dashboardTable = (() => {
+    const top = table.slice(0, 6)
+    if (!currentStanding || top.some(team => team.id === career.club.id)) return top
+    return [...top, currentStanding]
+  })()
+  const managerLevel = Math.max(1, Math.floor(Number(career.careerPoints ?? 0) / 100) + 1)
+
   return <GameShell
     career={career}
     activeView={view}
