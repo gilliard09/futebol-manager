@@ -4713,7 +4713,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
                   <div className="text-right"><p className="label-mono text-white/50">Partida</p><p className="mt-1 text-sm font-bold tabular-nums">{nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'}</p></div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-                  <button onClick={() => { void restOneDay() }} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary" title={matchReady ? 'O dia da partida chegou. Jogue a partida para continuar.' : 'Avançar um dia'}>{advancingDays ? 'Avançando...' : matchReady ? 'Dia da partida' : 'Avançar dia'}</button>
+                  <button onClick={() => { if (matchReady && nextFixture) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { void restOneDay() } }} disabled={advancingDays || (!matchReady && (!clock || !canAdvanceDay(clock, nextMatchDate)))} className={`game-button ${matchReady ? 'bg-emerald-400 text-[#06100c] shadow-[0_0_24px_rgba(52,211,153,0.18)] hover:bg-emerald-300' : 'game-button-secondary'}`} title={matchReady ? 'Jogar a partida de hoje' : 'Avançar um dia'}>{advancingDays ? 'Avançando...' : matchReady ? 'Jogar partida' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
                   <button onClick={() => goToView('squad')} className="game-button game-button-secondary">Elenco</button>
                   <button onClick={openOpponentSquad} disabled={!opponent || opponentLoading} className="game-button game-button-secondary">{opponentLoading ? 'Carregando...' : 'Ver adversário'}</button>
@@ -4887,7 +4887,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, advanceLabel,
       >
         <div className="min-w-0"><p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/55">Você está no comando</p><p className="truncate text-sm font-semibold text-white/80">{activeLabel}</p></div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => { void onAdvanceDay() }} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> {advanceLabel}</button>
+          <button onClick={() => { void onAdvanceDay() }} disabled={!canAdvance} className={`hidden items-center gap-2 lg:flex game-button ${advanceLabel === 'Jogar partida' ? 'bg-emerald-400 text-[#06100c] shadow-[0_0_24px_rgba(52,211,153,0.18)] hover:bg-emerald-300' : 'game-button-primary'} disabled:cursor-not-allowed disabled:opacity-30`}><CalendarDays size={14} /> {advanceLabel}</button>
           <button onClick={() => setMobileMenuOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
         </div>
       </header>
