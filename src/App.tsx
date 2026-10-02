@@ -4043,7 +4043,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   }} back={() => goToView('overview')} />
   if (view === 'squad') return viewOpponent
     ? <OpponentSquad players={opponentPlayers} club={opponent ?? null} today={clock?.currentDate ?? SEASON_START} back={() => { setViewOpponent(false); goToView('overview') }} />
-    : <Squad players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('overview')} />
+    : <ClubManagementHub
+        players={players}
+        club={career.club}
+        today={clock?.currentDate ?? SEASON_START}
+        nextFixture={nextFixture}
+        balance={financeBalance}
+        salaryTotal={salaryTotal}
+        board={boardState}
+        onNavigate={goToView}
+        onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)}
+      />
   if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => goToView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? SEASON_START, 'training', 'Treinamento do elenco', -cost, undefined, `training:${nextFixture?.id ?? (clock?.currentDate ?? 'unknown')}`); const nextBalance = addFinanceTransaction(transaction) ?? financeBalance; const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); goToView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} back={() => goToView('overview')} />
   if (view === 'match' && activeMatchFixture) {
