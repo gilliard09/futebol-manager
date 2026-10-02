@@ -632,7 +632,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
                     ))}
                   </div>
                 </div>
-                <span className={` hidden sm:blocktext-right text-sm font-bold sm:text-sm ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
+                <span className={` hidden text-right text-sm font-bold sm:text-sm ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
                 <span className={` hidden sm:blocktext-right text-sm font-bold sm:text-sm ${statsMetric === 'assists' ? 'text-emerald-300' : ''}`}>{player.assists}</span>
                 <span className={`hidden text-right text-sm font-bold sm:block ${statsMetric === 'appearances' ? 'text-emerald-300' : ''}`}>{player.appearances}</span>
                 <span className={`hidden text-right text-sm font-bold sm:block ${statsMetric === 'averageRating' ? 'text-emerald-300' : ''}`}>{player.averageRating.toFixed(1)}</span>
