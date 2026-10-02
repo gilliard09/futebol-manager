@@ -412,37 +412,113 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
     <section className="mx-auto max-w-6xl px-4 py-5 md:px-8">
       {phase === 'pregame' && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={0} awayScore={0} minute={0} finished={false} />
+
+        <section className="rounded-3xl border border-white/8 bg-[#131b2a] p-5 md:p-6">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="label-mono text-emerald-300/60">PRÉ-JOGO · SUA DECISÃO</p>
+              <h2 className="mt-2 font-display text-2xl font-bold md:text-3xl">Prepare sua equipe</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-white/40">
+                Confira o contexto da partida, ajuste sua escalação e entre em campo com um plano definido.
+              </p>
+            </div>
+            <button onClick={() => setPregameTab('lineup')} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-xs font-bold text-emerald-300 hover:bg-emerald-400/15">
+              Preparar escalação <ArrowRight size={15} />
+            </button>
+          </div>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-4">
+            <div className="rounded-xl border border-white/5 bg-black/10 px-3 py-3">
+              <p className="label-mono text-white/25">Competição</p>
+              <p className="mt-1 truncate text-xs font-bold">{fixture.competition_name ?? 'Competição'}</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/10 px-3 py-3">
+              <p className="label-mono text-white/25">Rodada</p>
+              <p className="mt-1 text-xs font-bold">{fixture.round}</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/10 px-3 py-3">
+              <p className="label-mono text-white/25">Mando</p>
+              <p className="mt-1 text-xs font-bold">{userIsHome ? 'Casa' : 'Fora'}</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-black/10 px-3 py-3">
+              <p className="label-mono text-white/25">Estádio</p>
+              <p className="mt-1 truncate text-xs font-bold">{fixture.home_club?.stadium ?? 'Não informado'}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
+            <p className="label-mono text-white/25">CONDIÇÃO</p>
+            <p className="mt-2 font-mono text-2xl font-bold">{averageCondition}%</p>
+            <p className="mt-1 text-[10px] text-white/30">Preparo físico médio do elenco.</p>
+          </div>
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
+            <p className="label-mono text-white/25">MORAL</p>
+            <p className="mt-2 font-mono text-2xl font-bold">{averageMorale}%</p>
+            <p className="mt-1 text-[10px] text-white/30">Confiança do grupo antes do jogo.</p>
+          </div>
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
+            <p className="label-mono text-white/25">PLANO</p>
+            <p className="mt-2 text-sm font-bold">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p>
+            <p className="mt-1 text-[10px] text-white/30">Sua configuração para o início.</p>
+          </div>
+        </section>
+
         <div className="flex overflow-x-auto rounded-xl border border-white/6 bg-[#131b2a] p-1">
-          {([['preview','Prévia'],['lineup','Escalação'],['confrontation','Confronto']] as const).map(([id,label]) => <button key={id} onClick={() => setPregameTab(id)} className={`min-w-[110px] flex-1 rounded-lg px-4 py-3 text-xs font-bold uppercase tracking-wider ${pregameTab === id ? 'bg-white/8 text-white' : 'text-white/35'}`}>{label}</button>)}
+          {([['preview','Contexto'],['lineup','Escalação'],['confrontation','Confronto']] as const).map(([id,label]) => <button key={id} onClick={() => setPregameTab(id)} className={`min-w-[110px] flex-1 rounded-lg px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider ${pregameTab === id ? 'bg-white/8 text-white' : 'text-white/35'}`}>{label}</button>)}
         </div>
-        {pregameTab === 'preview' && <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Competição</p><p className="mt-2 text-sm font-bold">{fixture.competition_name ?? 'Competição'}</p><p className="mt-1 text-xs text-white/30">Rodada {fixture.round}</p></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Data</p><p className="mt-2 text-sm font-bold">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</p><p className="mt-1 text-xs text-white/30">{fixture.home_club?.stadium ?? 'Estádio não informado'}</p></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Mando</p><p className="mt-2 text-sm font-bold">{userIsHome ? 'Você joga em casa' : 'Você joga fora'}</p><p className="mt-1 text-xs text-white/30">{userIsHome ? teamName(fixture,'home') : teamName(fixture,'away')}</p></div>
+
+        {pregameTab === 'preview' && <div className="grid gap-3 md:grid-cols-2">
+          <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5">
+            <p className="label-mono text-white/25">LEITURA DA PARTIDA</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-white/25">Sua equipe</p>
+                <p className="mt-1 text-sm font-bold">{teamName(fixture, userTeam)}</p>
+                <p className="mt-1 text-[10px] text-white/30">{Math.round((userIsHome ? homePlayers : awayPlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? homePlayers : awayPlayers).length))} OVR médio</p>
+              </div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-white/25">Adversário</p>
+                <p className="mt-1 text-sm font-bold">{teamName(fixture, userTeam === 'home' ? 'away' : 'home')}</p>
+                <p className="mt-1 text-[10px] text-white/30">{Math.round((userIsHome ? awayPlayers : homePlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? awayPlayers : homePlayers).length))} OVR médio</p>
+              </div>
+            </div>
+            <p className="mt-4 text-xs leading-5 text-white/35">
+              O adversário entra com a própria formação e estratégia. Suas decisões de escalação e plano tático serão levadas para o motor da partida.
+            </p>
+          </section>
+          <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-5">
+            <p className="label-mono text-white/25">CONTEXTO</p>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3"><span className="text-xs text-white/35">Data</span><span className="text-xs font-bold">{formatSeasonDate(toDateKey(fixture.scheduled_at))}</span></div>
+              <div className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3"><span className="text-xs text-white/35">Local</span><span className="max-w-[60%] truncate text-right text-xs font-bold">{fixture.home_club?.stadium ?? 'Estádio não informado'}</span></div>
+              <div className="flex items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3"><span className="text-xs text-white/35">Mando</span><span className="text-xs font-bold">{userIsHome ? 'Você joga em casa' : 'Você joga fora'}</span></div>
+            </div>
+          </section>
         </div>}
+
         {pregameTab === 'lineup' && <div className="space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
             <ProjectedPitch lineup={userIsHome ? previewHomeLineup : previewAwayLineup} team={userTeam} formation={formation} compact />
             <ProjectedPitch lineup={userIsHome ? previewAwayLineup : previewHomeLineup} team={userTeam === 'home' ? 'away' : 'home'} formation={userTeam === 'home' ? getAiCoachProfile(fixture.away_club_id).formation : getAiCoachProfile(fixture.home_club_id).formation} compact />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? previewHomeLineup : previewAwayLineup).map(item => <div key={item.player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(item.player)}</p><p className="mt-1 text-[9px] text-white/30">{item.role} · OVR {playerOverall(item.player)}</p></div>)}</div></div>
-            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Adversário</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam === 'home' ? 'away' : 'home')}</p><p className="mt-1 text-xs text-white/30">Escalação controlada pela IA do clube.</p></div>
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="label-mono text-white/25">SUA EQUIPE</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? previewHomeLineup : previewAwayLineup).map(item => <div key={item.player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(item.player)}</p><p className="mt-1 text-[9px] text-white/30">{item.role} · OVR {playerOverall(item.player)}</p></div>)}</div></div>
+            <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="label-mono text-white/25">ADVERSÁRIO</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam === 'home' ? 'away' : 'home')}</p><p className="mt-1 text-xs text-white/30">Escalação controlada pela IA do clube.</p></div>
           </div>
         </div>}
-        {pregameTab === 'confrontation' && <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Seu OVR</p><p className="mt-2 font-mono text-3xl font-bold">{Math.round((userIsHome ? homePlayers : awayPlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? homePlayers : awayPlayers).length))}</p></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Adversário OVR</p><p className="mt-2 font-mono text-3xl font-bold">{Math.round((userIsHome ? awayPlayers : homePlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? awayPlayers : homePlayers).length))}</p></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] uppercase tracking-[0.18em] text-white/30">Estratégia</p><p className="mt-2 text-sm font-bold">{tactic === 'offensive' ? 'Pressão ofensiva' : tactic === 'defensive' ? 'Bloco defensivo' : 'Equilíbrio'}</p><p className="mt-1 text-xs text-white/30">A IA usará sua própria configuração.</p></div>
-        </div>}
-        <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Condição média</p><p className="mt-2 font-mono text-2xl font-bold">{averageCondition}%</p><p className="mt-1 text-[10px] text-white/30">Quanto maior, mais preparado o elenco.</p></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Moral média</p><p className="mt-2 font-mono text-2xl font-bold">{averageMorale}%</p><p className="mt-1 text-[10px] text-white/30">Confiança do grupo antes do jogo.</p></div>
-          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Sua decisão</p><p className="mt-2 text-sm font-bold">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><p className="mt-1 text-[10px] text-white/30">A configuração será levada para o motor da partida.</p></div>
-        </section>
-        <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Confirmar escalação e começar <Play size={17} /></button>
-      </section>}
 
+        {pregameTab === 'confrontation' && <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="label-mono text-white/25">SEU OVR</p><p className="mt-2 font-mono text-3xl font-bold">{Math.round((userIsHome ? homePlayers : awayPlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? homePlayers : awayPlayers).length))}</p></div>
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="label-mono text-white/25">ADVERSÁRIO OVR</p><p className="mt-2 font-mono text-3xl font-bold">{Math.round((userIsHome ? awayPlayers : homePlayers).reduce((sum,p) => sum + playerOverall(p),0) / Math.max(1,(userIsHome ? awayPlayers : homePlayers).length))}</p></div>
+          <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="label-mono text-white/25">ESTRATÉGIA</p><p className="mt-2 text-sm font-bold">{tactic === 'offensive' ? 'Pressão ofensiva' : tactic === 'defensive' ? 'Bloco defensivo' : 'Equilíbrio'}</p><p className="mt-1 text-xs text-white/30">A IA usará sua própria configuração.</p></div>
+        </div>}
+
+        <button onClick={start} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c] shadow-lg shadow-emerald-950/20">
+          <Play size={17} /> Confirmar escalação e começar
+        </button>
+      </section>}
 
       {phase === 'halftime' && session && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={45} finished={false} />
