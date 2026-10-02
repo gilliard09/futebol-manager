@@ -463,82 +463,109 @@ function GameApp() {
     if (careerCreating) return
     setCareerCreating(true)
     try {
-    if (!selectedClub || !canContinue) return
-    const { data: authUser } = await supabase.auth.getUser()
-    if (!authUser.user) { navigate('/login'); return }
+      if (!selectedClub || !canContinue) return
+      const { data: authUser } = await supabase.auth.getUser()
+      if (!authUser.user) { navigate('/login'); return }
 
-    const { data: activeSeason } = await supabase.from('seasons').select('name,start_date').eq('status', 'active').order('start_date', { ascending: false }).limit(1).maybeSingle()
-    const baseSeasonName = activeSeason?.name ?? SEASON_NAME
-    const year = Number(baseSeasonName.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
-    const displaySeasonName = seasonName(year)
-    const contractStartSeason = displaySeasonName
-    const contractEndSeason = managerContractEndSeason(displaySeasonName, 1)
+      const { data: activeSeason } = await supabase.from('seasons').select('name,start_date').eq('status', 'active').order('start_date', { ascending: false }).limit(1).maybeSingle()
+      const baseSeasonName = activeSeason?.name ?? SEASON_NAME
+      const year = Number(baseSeasonName.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)
+      const displaySeasonName = seasonName(year)
+      const contractStartSeason = displaySeasonName
+      const contractEndSeason = managerContractEndSeason(displaySeasonName, 1)
 
-    const uniqueSeasonName = displaySeasonName + ' · ' + authUser.user.id.slice(0, 8)
-    const { data: careerSeason, error: careerSeasonError } = await supabase
-      .from('seasons')
-      .insert({ owner_id: authUser.user.id, name: uniqueSeasonName, year, status: 'active', start_date: year + '-01-01', end_date: null })
-      .select('id')
-      .single()
-    if (careerSeasonError || !careerSeason) {
-      setError(careerSeasonError?.message ?? 'Não foi possível criar a temporada da carreira.')
-      return
-    }
+      // A tentativa anterior pode ter criado a temporada e falhado depois.
+      // Reutilizamos a temporada do mesmo usuário/ano para tornar a criação idempotente.
+      let careerSeason: { id: string } | null = null
+      let careerSeasonError: { message: string } | null = null
+      const { data: existingSeason, error: existingSeasonError } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('owner_id', authUser.user.id)
+        .eq('year', year)
+        .maybeSingle()
 
-    const { data: competitions } = await supabase
-      .from('competitions')
-      .select('id,name')
-      .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil', SERIE_B_NAME])
-    const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
-    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
-    const serieBId = competitions?.find(item => item.name === SERIE_B_NAME)?.id
-    if (!leagueId || !cupId || !serieBId) { setError('As competições nacionais não estão configuradas.'); return }
+      if (existingSeasonError) {
+        careerSeasonError = existingSeasonError
+      } else if (existingSeason) {
+        careerSeason = existingSeason
+      } else {
+        const { data: createdSeason, error: createSeasonError } = await supabase
+          .from('seasons')
+          .insert({ owner_id: authUser.user.id, name: displaySeasonName, year, status: 'active', start_date: year + '-01-01', end_date: null })
+          .select('id')
+          .single()
+        careerSeason = createdSeason
+        careerSeasonError = createSeasonError
+      }
 
-    const firstDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
-    const secondDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 2)
-    await ensureCompetitionTeams(careerSeason.id, leagueId, firstDivision)
-    await ensureCompetitionTeams(careerSeason.id, serieBId, secondDivision)
-    await ensureCompetitionTeams(careerSeason.id, cupId, [...firstDivision, ...secondDivision])
-
-    const fixtureRows = [
-      ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), firstDivision, leagueId),
-      ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5),
-      ...buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId),
-    ]
-
-    const { data: continentalCompetitions } = await supabase
-      .from('competitions')
-      .select('id,name')
-      .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
-    const libertadoresId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
-    const sudamericanaId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
-    const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
-    if (fixtureError) {
-      await supabase.from('seasons').delete().eq('id', careerSeason.id)
-      setError(fixtureError.message)
-      return
-    }
-
-    if (libertadoresId && sudamericanaId) {
-      try {
-        await initializeFirstSeasonContinentalCalendar(careerSeason.id, year, clubs, libertadoresId, sudamericanaId)
-      } catch (continentalError) {
-        await supabase.from('seasons').delete().eq('id', careerSeason.id)
-        setError(continentalError instanceof Error ? continentalError.message : 'Não foi possível criar o calendário continental.')
+      if (careerSeasonError || !careerSeason) {
+        setError(careerSeasonError?.message ?? 'Não foi possível criar a temporada da carreira.')
         return
       }
-    }
 
-    const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: uniqueSeasonName, seasonId: careerSeason.id, careerStatus: 'active', contractStartSeason, contractEndSeason }
-    localStorage.setItem(CAREER_KEY, JSON.stringify(next))
-    localStorage.setItem(MANAGER_STATUS_KEY, 'active')
-    const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
-    await supabase.from('manager_profiles').upsert({
-      owner_id: authUser.user.id, manager_name: next.name, nationality: next.nationality, birth_date: next.birthDate || null,
-      style: next.style, personality: next.personality, regional_popularity: popularity.regional, national_popularity: popularity.national,
-      international_popularity: popularity.international, current_club_id: next.club.id, current_season_id: careerSeason.id,
-    }, { onConflict: 'owner_id' })
+      const { data: existingFixture } = await supabase
+        .from('fixtures')
+        .select('id')
+        .eq('season_id', careerSeason.id)
+        .limit(1)
+        .maybeSingle()
+      const seasonAlreadyInitialized = Boolean(existingFixture)
 
+      const { data: competitions } = await supabase
+        .from('competitions')
+        .select('id,name')
+        .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil', SERIE_B_NAME])
+      const leagueId = competitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
+      const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+      const serieBId = competitions?.find(item => item.name === SERIE_B_NAME)?.id
+      if (!leagueId || !cupId || !serieBId) { setError('As competições nacionais não estão configuradas.'); return }
+
+      const firstDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
+      const secondDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 2)
+
+      if (!seasonAlreadyInitialized) {
+        await ensureCompetitionTeams(careerSeason.id, leagueId, firstDivision)
+        await ensureCompetitionTeams(careerSeason.id, serieBId, secondDivision)
+        await ensureCompetitionTeams(careerSeason.id, cupId, [...firstDivision, ...secondDivision])
+
+        const fixtureRows = [
+          ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), firstDivision, leagueId),
+          ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5),
+          ...buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId),
+        ]
+
+        const { data: continentalCompetitions } = await supabase
+          .from('competitions')
+          .select('id,name')
+          .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
+        const libertadoresId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
+        const sudamericanaId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
+        const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
+        if (fixtureError) {
+          setError(fixtureError.message)
+          return
+        }
+
+        if (libertadoresId && sudamericanaId) {
+          try {
+            await initializeFirstSeasonContinentalCalendar(careerSeason.id, year, clubs, libertadoresId, sudamericanaId)
+          } catch (continentalError) {
+            setError(continentalError instanceof Error ? continentalError.message : 'Não foi possível criar o calendário continental.')
+            return
+          }
+        }
+      }
+
+      const next: ManagerProfile = { name: managerName.trim(), nationality, birthDate, style: managerStyle, personality: managerPersonality, club: { ...selectedClub, budget: Math.max(0, Number(selectedClub.budget ?? 0)) }, season: displaySeasonName, seasonId: careerSeason.id, careerStatus: 'active', contractStartSeason, contractEndSeason }
+      localStorage.setItem(CAREER_KEY, JSON.stringify(next))
+      localStorage.setItem(MANAGER_STATUS_KEY, 'active')
+      const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
+      await supabase.from('manager_profiles').upsert({
+        owner_id: authUser.user.id, manager_name: next.name, nationality: next.nationality, birth_date: next.birthDate || null,
+        style: next.style, personality: next.personality, regional_popularity: popularity.regional, national_popularity: popularity.national,
+        international_popularity: popularity.international, current_club_id: next.club.id, current_season_id: careerSeason.id,
+      }, { onConflict: 'owner_id' })
     } finally {
       setCareerCreating(false)
     }
