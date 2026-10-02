@@ -23,11 +23,9 @@ function PwaUpdatePrompt() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
 
-    let registration: ServiceWorkerRegistration | null = null
     const onControllerChange = () => window.location.reload()
 
     navigator.serviceWorker.ready.then(current => {
-      registration = current
       if (current.waiting && navigator.serviceWorker.controller) setWaiting(current.waiting)
       current.addEventListener('updatefound', () => {
         const worker = current.installing
@@ -40,9 +38,17 @@ function PwaUpdatePrompt() {
 
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
     return () => {
-      registration = null
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
     }
+  }, [])
+
+  useEffect(() => {
+    const onPointerUp = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.game-button-primary')) navigator.vibrate?.(8)
+    }
+    document.addEventListener('pointerup', onPointerUp)
+    return () => document.removeEventListener('pointerup', onPointerUp)
   }, [])
 
   if (!waiting) return null
