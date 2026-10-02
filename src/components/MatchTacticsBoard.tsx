@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { ArrowRight, GripVertical, SlidersHorizontal } from 'lucide-react'
+import { ArrowRight, GripVertical, SlidersHorizontal, Activity } from 'lucide-react'
 import type { Formation, Player } from '../types/game'
-import type { InteractiveMatchState, InteractiveTactic, InteractiveTeam } from '../engine/interactiveMatch'
+import type { InteractiveMatchState, InteractiveTactic, InteractiveTeam, TacticalInstruction } from '../engine/interactiveMatch'
 import { playerOverall } from '../engine/matchCore'
 import { playerPositionLabel } from '../engine/playerPositions'
 
@@ -10,6 +10,9 @@ type Props = {
   userTeam: InteractiveTeam
   onSubstitution: (outgoingId: string, incomingId: string) => void
   onTactic: (tactic: InteractiveTactic, formation?: Formation) => void
+  onInstruction?: (sector: 'defense' | 'midfield' | 'attack', instruction: TacticalInstruction) => void
+  onPlayerInstruction?: (playerId: string, instruction: TacticalInstruction) => void
+  onRisk?: (risk: number) => void
   compact?: boolean
 }
 
@@ -49,7 +52,22 @@ function shortName(player: Player) {
   return player.last_name
 }
 
-export default function MatchTacticsBoard({ session, userTeam, onSubstitution, onTactic, compact = false }: Props) {
+function playerStamina(player: Player, minute: number, started: boolean) {
+  const extra = started ? minute * 0.45 : Math.max(0, minute - 1) * 0.28
+  return Math.max(0, Math.min(100, Math.round(100 - ((player.fatigue ?? 0) + extra))))
+}
+
+const instructionOptions: TacticalInstruction[] = ['normal', 'press', 'hold', 'overlap', 'protect', 'direct']
+const instructionLabel: Record<TacticalInstruction, string> = {
+  normal: 'Normal',
+  press: 'Pressionar',
+  hold: 'Segurar',
+  overlap: 'Apoiar',
+  protect: 'Proteger',
+  direct: 'Direto',
+}
+
+export default function MatchTacticsBoard({ session, userTeam, onSubstitution, onTactic, onInstruction, onPlayerInstruction, onRisk, compact = false }: Props) {
   const team = userTeam === 'home' ? session.home : session.away
   const [dragged, setDragged] = useState<{ kind: 'starter' | 'bench'; id: string } | null>(null)
   const [dragOverId, setDragOverId] = useState('')
@@ -184,12 +202,27 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[9px] font-black">{player.first_name[0]}{player.last_name[0]}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-bold">{name(player)}</span>
-                <span className="mt-0.5 block text-[8px] uppercase tracking-wider text-white/35">{playerPositionLabel(player.position)} · OVR {playerOverall(player)}</span>
+                <span className="mt-0.5 block text-[8px] uppercase tracking-wider text-white/35">{playerPositionLabel(player.position)} · OVR {playerOverall(player)} · Fôlego {playerStamina(player, session.minute, false)}%</span>
               </span>
               <ArrowRight size={13} className="text-white/20" />
             </button>)}
           </div>
         </div>
+
+        {onInstruction && <div className="rounded-2xl border border-white/6 bg-black/10 p-3">
+          <div className="flex items-center gap-2"><SlidersHorizontal size={14} className="text-white/25" /><p className="label-mono text-white/30">Plano de jogo</p></div>
+          <p className="mt-1 text-[9px] text-white/30">Defina como cada setor deve reagir. A IA responde às suas escolhas.</p>
+          <div className="mt-3 space-y-2">
+            {(['defense','midfield','attack'] as const).map(sector => <div key={sector} className="rounded-xl border border-white/5 bg-[#131b2a] p-2">
+              <div className="mb-1 flex items-center justify-between"><span className="text-[9px] font-bold uppercase tracking-wider text-white/35">{sector === 'defense' ? 'Defesa' : sector === 'midfield' ? 'Meio' : 'Ataque'}</span><span className="text-[8px] text-emerald-300/60">{instructionLabel[team.sectorInstructions[sector]]}</span></div>
+              <div className="grid grid-cols-3 gap-1">{instructionOptions.map(value => <button key={value} onClick={() => onInstruction(sector, value)} className={team.sectorInstructions[sector] === value ? 'rounded-md bg-emerald-400/15 px-1 py-1.5 text-[8px] font-bold text-emerald-300' : 'rounded-md border border-white/5 px-1 py-1.5 text-[8px] text-white/30'}>{instructionLabel[value]}</button>)}</div>
+            </div>)}
+          </div>
+          {onRisk && <div className="mt-3 rounded-xl border border-white/5 bg-[#131b2a] p-2">
+            <div className="flex justify-between"><span className="text-[9px] font-bold uppercase tracking-wider text-white/35">Risco</span><span className="font-mono text-[9px] text-white/50">{Math.round(team.risk)}/100</span></div>
+            <input aria-label="Risco da equipe" className="mt-2 w-full accent-emerald-400" type="range" min="10" max="95" value={team.risk} onChange={event => onRisk(Number(event.target.value))} />
+          </div>}
+        </div>}
 
         <div className="rounded-2xl border border-white/6 bg-black/10 p-3">
           <div className="flex items-center gap-2"><SlidersHorizontal size={14} className="text-white/25" /><p className="label-mono text-white/30">Formação</p></div>
