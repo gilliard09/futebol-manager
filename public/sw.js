@@ -1,7 +1,9 @@
-const CACHE_NAME = 'futebol-manager-v2'
+const CACHE_NAME = 'futebol-manager-v3'
 const APP_SHELL = [
   '/',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
+  '/icons/icon-192.svg',
+  '/icons/icon-512.svg'
 ]
 
 const isSameOrigin = request => new URL(request.url).origin === self.location.origin
@@ -12,6 +14,10 @@ self.addEventListener('install', event => {
       .then(cache => cache.addAll(APP_SHELL))
       .then(() => self.skipWaiting())
   )
+})
+
+self.addEventListener('message', event => {
+  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('activate', event => {
