@@ -155,6 +155,26 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       return (value(b) as number) - (value(a) as number) || b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name)
     }).slice(0, 10)
   }, [stats, statsScope, statsMetric, currentClubId])
+  const seasonLeaders = useMemo(() => {
+    const eligible = stats.filter(player => player.appearances > 0)
+    const by = (metric: 'goals' | 'assists' | 'averageRating' | 'appearances') =>
+      [...eligible].sort((a, b) => {
+        const primary = b[metric] - a[metric]
+        if (primary !== 0) return primary
+        if (metric !== 'goals') {
+          const goals = b.goals - a.goals
+          if (goals !== 0) return goals
+        }
+        return a.name.localeCompare(b.name)
+      })[0] ?? null
+
+    return {
+      goals: by('goals'),
+      assists: by('assists'),
+      averageRating: by('averageRating'),
+      appearances: by('appearances'),
+    }
+  }, [stats])
   const currentStage = competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(round, rounds.length, true) : `Rodada ${round}`
   const stageRounds = competition === 'Copa Nacional do Brasil'
     ? [
@@ -392,7 +412,36 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
               ].map(([value, label]) => <button key={value} onClick={() => setStatsScope(value as 'all' | 'club')} className={`rounded-lg px-3 py-2 text-xs font-bold ${statsScope === value ? 'bg-emerald-400 text-[#06100c]' : 'text-white/40'}`}>{label}</button>)}
             </div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {([
+              ['goals', 'Artilheiro', 'Gols'],
+              ['assists', 'Assistências', 'Assist.'],
+              ['averageRating', 'Melhor média', 'Média'],
+              ['appearances', 'Mais jogos', 'Jogos'],
+            ] as const).map(([key, label, shortLabel]) => {
+              const leader = seasonLeaders[key]
+              const value = leader
+                ? key === 'averageRating'
+                  ? leader.averageRating.toFixed(1)
+                  : String(leader[key])
+                : '—'
+              const club = leader ? clubs.find(item => item.id === leader.clubId) : null
+              return <button key={key} onClick={() => setStatsMetric(key)} className={`rounded-xl border p-4 text-left transition ${statsMetric === key ? 'border-emerald-400/25 bg-emerald-400/[0.06]' : 'border-white/5 bg-black/10 hover:border-white/10'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/30">{label}</p>
+                    <p className="mt-2 truncate text-sm font-bold">{leader?.name ?? 'Sem dados'}</p>
+                    <p className="mt-1 truncate text-[10px] text-white/25">{club?.short_name ?? '—'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-black tabular-nums text-emerald-300">{value}</p>
+                    <p className="mt-0.5 text-[9px] uppercase text-white/20">{shortLabel}</p>
+                  </div>
+                </div>
+              </button>
+            })}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
             {[
               ['goals', 'Gols'],
               ['assists', 'Assistências'],
