@@ -4365,6 +4365,85 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
             if (statsError) console.error('Não foi possível salvar as estatísticas dos jogadores', statsError)
           }
 
+          // A competição mantém sua própria linha estatística. Isso evita misturar
+          // Brasileirão, Série B e Copa nas telas de cada competição.
+          const competitionAggregates = new Map<string, {
+            clubId: string
+            appearances: number
+            starts: number
+            minutes: number
+            goals: number
+            assists: number
+            ratingTotal: number
+            ratingCount: number
+          }>()
+          for (const match of Object.values(matchesToPersist)) {
+            if (match.competition_id !== activeMatchFixture.competition_id) continue
+            for (const rating of match.playerRatings ?? []) {
+              const clubId = rating.team === 'home' ? match.home_club_id : match.away_club_id
+              const current = competitionAggregates.get(rating.playerId) ?? {
+                clubId,
+                appearances: 0,
+                starts: 0,
+                minutes: 0,
+                goals: 0,
+                assists: 0,
+                ratingTotal: 0,
+                ratingCount: 0,
+              }
+              current.clubId = clubId
+              current.appearances += 1
+              if (rating.started) current.starts += 1
+              current.minutes += rating.minutes
+              current.goals += rating.goals
+              current.assists += rating.assists
+              current.ratingTotal += rating.rating
+              current.ratingCount += 1
+              competitionAggregates.set(rating.playerId, current)
+            }
+          }
+
+          if (competitionAggregates.size) {
+            const competitionPlayerIds = [...competitionAggregates.keys()]
+            const { data: existingCompetitionStats } = await supabase
+              .from('player_competition_stats')
+              .select('player_id,club_id,appearances,starts,minutes,goals,assists,avg_rating')
+              .eq('season_id', seasonId)
+              .eq('competition_id', activeMatchFixture.competition_id)
+              .in('player_id', competitionPlayerIds)
+            const existingCompetition = new Map((existingCompetitionStats ?? []).map((row: any) => [row.player_id, row]))
+            const competitionRows = [...competitionAggregates.entries()].map(([playerId, current]) => {
+              const previous = existingCompetition.get(playerId)
+              const previousAppearances = Number(previous?.appearances ?? 0)
+              const previousStarts = Number(previous?.starts ?? 0)
+              const previousMinutes = Number(previous?.minutes ?? 0)
+              const previousGoals = Number(previous?.goals ?? 0)
+              const previousAssists = Number(previous?.assists ?? 0)
+              const previousRating = Number(previous?.avg_rating ?? 0)
+              const totalAppearances = previousAppearances + current.appearances
+              const weightedRating = previousAppearances > 0
+                ? ((previousRating * previousAppearances) + current.ratingTotal) / Math.max(1, totalAppearances)
+                : current.ratingTotal / Math.max(1, current.ratingCount)
+              return {
+                season_id: seasonId,
+                competition_id: activeMatchFixture.competition_id,
+                player_id: playerId,
+                club_id: current.clubId,
+                appearances: totalAppearances,
+                starts: previousStarts + current.starts,
+                minutes: previousMinutes + current.minutes,
+                goals: previousGoals + current.goals,
+                assists: previousAssists + current.assists,
+                avg_rating: Number(weightedRating.toFixed(2)),
+                updated_at: new Date().toISOString(),
+              }
+            })
+            const { error: competitionStatsError } = await supabase
+              .from('player_competition_stats')
+              .upsert(competitionRows, { onConflict: 'season_id,competition_id,player_id' })
+            if (competitionStatsError) console.error('Não foi possível salvar as estatísticas da competição', competitionStatsError)
+          }
+
           // Estatísticas de carreira atravessam temporadas e ficam no save local para
           // que aposentadorias, transferências e novos talentos não apaguem o legado.
           const careerLifecycle = loadPlayerLifecycle()
