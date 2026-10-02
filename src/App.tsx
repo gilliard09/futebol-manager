@@ -2154,6 +2154,17 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
             const { error: repairError } = await supabase.from('fixtures').insert(repairRows)
             if (repairError) console.error('Não foi possível reparar o calendário nacional da temporada', repairError)
           }
+
+          // Carreiras que já estavam avançadas precisam ter os jogos nacionais
+          // anteriores à data salva no relógio resolvidos antes de carregar o painel.
+          const savedClock = localStorage.getItem(seasonStorageKey(CLOCK_KEY, career.seasonId))
+          let repairTargetDate: string | null = null
+          try {
+            repairTargetDate = savedClock ? JSON.parse(savedClock).currentDate ?? null : null
+          } catch {}
+          if (repairTargetDate) {
+            await simulateOtherNationalMatchesUntil(repairTargetDate, currentSeasonId, career.club.id)
+          }
         }
 
         const { data: sessionData } = await supabase.auth.getSession()
@@ -2717,34 +2728,37 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     return news
   }
 
-  async function simulateOtherDivisionMatches(targetDate: string) {
-    const { data: competition } = await supabase
-      .from('competitions')
-      .select('id')
-      .eq('name', SERIE_B_NAME)
-      .maybeSingle()
-    if (!competition?.id) return
+  async function simulateOtherNationalMatchesUntil(targetDate: string, seasonId = databaseSeasonId, currentClubId = career.club.id) {
+    if (!seasonId) return
 
-    const { data: bClubs } = await supabase
+    const { data: competitions } = await supabase
+      .from('competitions')
+      .select('id,name')
+      .in('name', [SERIE_B_NAME, 'Copa Nacional do Brasil'])
+    const serieBId = competitions?.find(item => item.name === SERIE_B_NAME)?.id
+    const cupId = competitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+    const competitionIds = [serieBId, cupId].filter(Boolean) as string[]
+    if (!competitionIds.length) return
+
+    const { data: simClubs } = await supabase
       .from('clubs')
       .select('id,strength,reputation')
-      .eq('division', 2)
-    const strengthByClub = Object.fromEntries((bClubs ?? []).map(club => [
+    const strengthByClub = Object.fromEntries((simClubs ?? []).map(club => [
       club.id,
       Number(club.strength ?? club.reputation ?? 50),
     ]))
 
     const { data: pending } = await supabase
       .from('fixtures')
-      .select('id,round,home_club_id,away_club_id')
-      .eq('season_id', databaseSeasonId ?? '')
-      .eq('competition_id', competition.id)
+      .select('id,round,competition_id,home_club_id,away_club_id')
+      .eq('season_id', seasonId)
+      .in('competition_id', competitionIds)
       .eq('status', 'scheduled')
       .lte('scheduled_at', targetDate)
       .order('scheduled_at')
 
     const aiFixtures = (pending ?? []).filter(fixture =>
-      fixture.home_club_id !== career.club.id && fixture.away_club_id !== career.club.id,
+      fixture.home_club_id !== currentClubId && fixture.away_club_id !== currentClubId,
     )
 
     await Promise.all(aiFixtures.map(async fixture => {
@@ -2757,16 +2771,63 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       ))
       const homeScore = Math.max(0, Math.min(5, Math.round(seed * 3 + (home - away) / 22 + 0.55)))
       const awayScore = Math.max(0, Math.min(5, Math.round((1 - seed) * 2.5 + (away - home) / 24)))
+      const isCup = fixture.competition_id === cupId
+      const winner = homeScore > awayScore
+        ? fixture.home_club_id
+        : awayScore > homeScore
+          ? fixture.away_club_id
+          : isCup
+            ? choosePenaltyWinner(fixture.home_club_id, fixture.away_club_id, fixture.id)
+            : null
+
       await supabase
         .from('fixtures')
         .update({
           status: 'completed',
           home_score: homeScore,
           away_score: awayScore,
-          winner_club_id: homeScore > awayScore ? fixture.home_club_id : awayScore > homeScore ? fixture.away_club_id : null,
+          winner_club_id: winner,
         })
         .eq('id', fixture.id)
     }))
+
+    if (cupId) {
+      const cupClubs = (simClubs ?? [])
+        .filter(club => club.country === 'Brasil' && Number(club.division ?? 1) <= 2)
+        .map(club => club.id)
+      for (const currentRound of [1, 2, 4, 6, 8]) {
+        const { data: cupRows } = await supabase
+          .from('fixtures')
+          .select('id,season_id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,winner_club_id')
+          .eq('season_id', seasonId)
+          .eq('competition_id', cupId)
+          .order('round')
+          .order('scheduled_at')
+        const cupFixtures = (cupRows ?? []).map(normalizeFixture)
+        if (!cupFixtures.some(fixture => fixture.round === currentRound)) continue
+        const generated = resolveCompletedKnockoutStage(cupFixtures, currentRound, cupClubs)
+        if (!generated?.length) continue
+        const existing = new Set(cupFixtures.map(fixture => `${fixture.round}:${fixture.home_club_id}:${fixture.away_club_id}`))
+        const rows = generated
+          .filter(fixture => !existing.has(`${fixture.round}:${fixture.homeClubId}:${fixture.awayClubId}`))
+          .map(fixture => ({
+            season_id: seasonId,
+            competition_id: cupId,
+            round: fixture.round,
+            scheduled_at: fixture.scheduledAt,
+            status: 'scheduled' as const,
+            home_club_id: fixture.homeClubId,
+            away_club_id: fixture.awayClubId,
+            home_score: null,
+            away_score: null,
+            winner_club_id: null,
+          }))
+        if (rows.length) {
+          const { error } = await supabase.from('fixtures').insert(rows)
+          if (error) console.error('Não foi possível criar a próxima fase da Copa durante a simulação automática', error)
+        }
+      }
+    }
   }
 
   async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
@@ -3372,7 +3433,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     try {
       const worldResult = await simulateWorldUntilMatch(fromClock.currentDate, nextClock.currentDate)
-      await simulateOtherDivisionMatches(nextClock.currentDate)
+      await simulateOtherNationalMatchesUntil(nextClock.currentDate, databaseSeasonId, career.club.id)
       await simulateContinentalUntil(nextClock.currentDate)
       if (worldResult?.event) setPendingEvent(worldResult.event)
     } catch (simulationError) {
