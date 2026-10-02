@@ -10,7 +10,7 @@ import {
   updateManagerPopularity,
 } from './managerCareer'
 import { simulateWorldDay, type WorldClub, type WorldPlayer } from './worldSimulation'
-import type { Club, Player } from '../types/game'
+import type { Club, Fixture, Player } from '../types/game'
 
 function club(id: string, division = 1, strength = 75): WorldClub {
   return {
@@ -61,9 +61,11 @@ function player(id: string, clubId: string, age = 22, position: Player['position
   }
 }
 
-function completeLeagueFixtures(year: number, clubs: Club[]) {
+function completeLeagueFixtures(year: number, clubs: Club[]): Fixture[] {
   const seasonId = 'season-' + year
   return buildLeagueFixtures(seasonId, year + '-01-28', clubs, 'liga').map((fixture, index) => {
+    const homeClub = clubs.find(clubItem => clubItem.id === fixture.home_club_id)!
+    const awayClub = clubs.find(clubItem => clubItem.id === fixture.away_club_id)!
     const userIsHome = fixture.home_club_id === 'A01'
     const userIsAway = fixture.away_club_id === 'A01'
 
@@ -83,6 +85,8 @@ function completeLeagueFixtures(year: number, clubs: Club[]) {
       home_score: index % 3 === 0 ? 2 : 1,
       away_score: index % 3 === 1 ? 1 : 0,
       winner_club_id: fixture.home_club_id,
+      home_club: homeClub,
+      away_club: awayClub,
     }
   })
 }
