@@ -695,7 +695,7 @@ function ClubList({ clubs, selected, loading, creating, error, select, back, con
   return <main className="min-h-screen"><Top label="ESCOLHA SEU CLUBE" back={back} /><section className="mx-auto max-w-5xl px-6 py-12 md:px-10"><span className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">02 / 02</span><h1 className="mt-3 text-4xl font-bold tracking-[-0.03em] md:text-5xl">Onde começa sua história?</h1><p className="mt-4 max-w-xl leading-7 text-white/45">Escolha um dos clubes disponíveis para iniciar a temporada atual.</p>{selected && <div className="mt-6 inline-block rounded-xl border border-emerald-400/15 bg-emerald-400/5 px-4 py-3 text-sm"><span className="text-white/35">Selecionado</span><p className="font-semibold text-emerald-300">{selected.name}</p></div>}{loading && <div className="py-20 text-center text-sm text-white/35">Carregando clubes...</div>}{error && <div className="mt-10 rounded-xl border border-red-400/15 bg-red-400/5 p-5 text-sm text-red-200">Não foi possível carregar os clubes. {error}</div>}{!loading && !error && <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{clubs.map(club => <button key={club.id} onClick={() => select(club)} className={`group rounded-2xl border p-5 text-left transition ${selected?.id === club.id ? 'border-emerald-400/50 bg-emerald-400/8' : 'border-white/6 bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.045]'}`}><div className="flex items-start justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5">{club.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <span className={selected?.id === club.id ? 'text-emerald-700' : 'text-slate-500'}>{club.short_name.slice(0, 3)}</span>}</div><ChevronRight size={17} className="text-white/15 group-hover:text-white/45" /></div><h2 className="mt-5 font-semibold">{club.name}</h2><div className="mt-2 flex items-center gap-2 text-xs text-white/35"><MapPin size={13} />{club.city}</div><div className="mt-5 flex items-center justify-between border-t border-white/6 pt-4 text-xs"><span className="text-white/30">Capital inicial</span><span className="font-semibold text-emerald-300/80">{money(club.budget)}</span></div></button>)}</div>}<div className="mt-10 flex justify-end"><button disabled={!selected || creating} onClick={confirm} className="flex items-center gap-3 rounded-xl bg-emerald-400 px-6 py-3.5 text-sm font-bold text-[#06100c] hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-30">{creating ? 'Criando carreira...' : 'Assumir o clube'} {!creating && <ArrowRight size={17} />}</button></div></section></main>
 }
 
-type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'history' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
+type DashboardView = 'overview' | 'board' | 'contracts' | 'calendar' | 'news' | 'squad' | 'squad-detail' | 'tactics' | 'finance' | 'stadium' | 'trophies' | 'history' | 'legacy' | 'market' | 'stats' | 'settings' | 'match' | 'training' | 'loans' | 'competitions' | 'press'
 
 function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: { career: ManagerProfile; clubs: Club[]; newCareer: () => void; onCareerUpdate: (career: ManagerProfile) => void; onClubsUpdate: (clubs: Club[]) => void }) {
   const [players, setPlayers] = useState<Player[]>([])
@@ -4054,6 +4054,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         onNavigate={goToView}
         onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)}
       />
+  if (view === 'squad-detail') return <Squad players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} onContractChange={(oldSalary, newSalary) => setSalaryTotal(previous => previous - oldSalary + newSalary)} back={() => goToView('squad')} />
   if (view === 'training') return <Training players={players} club={{ ...career.club, budget: financeBalance }} salaryTotal={salaryTotal} nextFixture={nextFixture} back={() => goToView('overview')} onComplete={(nextPlayers, nextCareer, cost) => { setPlayers(nextPlayers); const transaction = createTransaction(clock?.currentDate ?? SEASON_START, 'training', 'Treinamento do elenco', -cost, undefined, `training:${nextFixture?.id ?? (clock?.currentDate ?? 'unknown')}`); const nextBalance = addFinanceTransaction(transaction) ?? financeBalance; const finalCareer = { ...nextCareer, club: { ...nextCareer.club, budget: nextBalance } }; saveFinance(nextBalance, [...financeTransactions, transaction]); localStorage.setItem(CAREER_KEY, JSON.stringify(finalCareer)); onCareerUpdate(finalCareer); goToView('overview') }} />
   if (view === 'tactics') return <Tactics players={players} club={career.club} today={clock?.currentDate ?? SEASON_START} back={() => goToView('overview')} />
   if (view === 'match' && activeMatchFixture) {
@@ -5247,7 +5248,7 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
         {[
           { label: 'ELENCO', value: String(players.length), detail: `GER médio ${averageOverall}`, icon: <Users size={16} />, view: 'squad' as DashboardView },
           { label: 'CONDIÇÃO', value: `${Math.max(0, 100 - averageFatigue)}%`, detail: averageFatigue >= 60 ? 'Elenco desgastado' : 'Carga controlada', icon: <Dumbbell size={16} />, view: 'training' as DashboardView },
-          { label: 'MORAL', value: `${averageMorale}`, detail: averageMorale >= 70 ? 'Ambiente positivo' : 'Atenção ao vestiário', icon: <CircleUserRound size={16} />, view: 'squad' as DashboardView },
+          { label: 'MORAL', value: `${averageMorale}`, detail: averageMorale >= 70 ? 'Ambiente positivo' : 'Atenção ao vestiário', icon: <CircleUserRound size={16} />, view: 'squad-detail' as DashboardView },
           { label: 'CAIXA', value: money(balance), detail: `Folha ${money(salaryTotal)}/mês`, icon: <WalletCards size={16} />, view: 'finance' as DashboardView },
         ].map(item => <button key={item.label} onClick={() => onNavigate(item.view)} className="rounded-xl border border-white/[0.06] bg-[#0d131e] p-4 text-left transition hover:bg-white/[0.035]">
           <div className="flex items-center gap-2 text-white/30">{item.icon}<span className="label-mono">{item.label}</span></div>
@@ -5260,7 +5261,7 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
         <div className="rounded-2xl border border-white/[0.06] bg-[#0d131e]">
           <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4 sm:px-5">
             <div><p className="label-mono text-white/25">Preparação do elenco</p><h2 className="mt-1 text-lg font-bold">Quem está pronto para jogar?</h2></div>
-            <button onClick={() => onNavigate('squad')} className="text-xs font-semibold text-emerald-300">Ver elenco</button>
+            <button onClick={() => onNavigate('squad-detail')} className="text-xs font-semibold text-emerald-300">Ver elenco</button>
           </div>
           <div className="grid gap-2 p-3 sm:p-4">
             {tiredPlayers.map(player => {
@@ -5286,7 +5287,7 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
               <span className={player.morale < 50 ? 'text-sm font-bold text-red-300' : 'text-sm font-bold text-amber-200'}>{player.morale}</span>
             </button>)}
           </div>
-          <div className="border-t border-white/[0.05] px-4 py-3 sm:px-5"><button onClick={() => onNavigate('squad')} className="flex w-full items-center justify-between text-xs font-semibold text-white/45 hover:text-white"><span>Gerenciar elenco e jogadores</span><ChevronRight size={15} /></button></div>
+          <div className="border-t border-white/[0.05] px-4 py-3 sm:px-5"><button onClick={() => onNavigate('squad-detail')} className="flex w-full items-center justify-between text-xs font-semibold text-white/45 hover:text-white"><span>Gerenciar elenco e jogadores</span><ChevronRight size={15} /></button></div>
         </div>
       </section>
 
@@ -5315,7 +5316,7 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
 
       <section className="mt-4 grid gap-2 sm:grid-cols-4">
         {([
-          { label: 'Elenco', view: 'squad', Icon: Users },
+          { label: 'Elenco', view: 'squad-detail', Icon: Users },
           { label: 'Escalação', view: 'tactics', Icon: Shield },
           { label: 'Finanças', view: 'finance', Icon: WalletCards },
           { label: 'Diretoria', view: 'board', Icon: Building2 },
