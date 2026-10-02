@@ -2131,6 +2131,37 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       const currentSeasonId = currentSeasonRow?.id ?? null
       if (currentSeasonId) {
         setDatabaseSeasonId(currentSeasonId)
+
+        // Repara carreiras antigas que foram criadas antes da Série B e da Copa
+        // entrarem no calendário nacional. Só cria uma competição se ela realmente
+        // não tiver nenhuma fixture nessa temporada, evitando duplicações.
+        const { data: nationalCompetitions } = await supabase
+          .from('competitions')
+          .select('id,name')
+          .in('name', ['Liga Nacional do Brasil', 'Copa Nacional do Brasil', SERIE_B_NAME])
+        const repairLeagueId = nationalCompetitions?.find(item => item.name === 'Liga Nacional do Brasil')?.id
+        const repairCupId = nationalCompetitions?.find(item => item.name === 'Copa Nacional do Brasil')?.id
+        const repairSerieBId = nationalCompetitions?.find(item => item.name === SERIE_B_NAME)?.id
+        if (repairLeagueId && repairCupId && repairSerieBId) {
+          const { data: existingNational } = await supabase
+            .from('fixtures')
+            .select('competition_id')
+            .eq('season_id', currentSeasonId)
+            .in('competition_id', [repairLeagueId, repairCupId, repairSerieBId])
+          const existingIds = new Set((existingNational ?? []).map(row => String(row.competition_id)))
+          const firstDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
+          const secondDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 2)
+          const repairRows = [
+            ...(existingIds.has(repairLeagueId) ? [] : buildLeagueFixtures(currentSeasonId, leagueStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), firstDivision, repairLeagueId)),
+            ...(existingIds.has(repairSerieBId) ? [] : buildLeagueFixtures(currentSeasonId, leagueStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), secondDivision, repairSerieBId, 5)),
+            ...(existingIds.has(repairCupId) ? [] : buildCupFixtures(currentSeasonId, cupStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), [...firstDivision, ...secondDivision], repairCupId)),
+          ]
+          if (repairRows.length) {
+            const { error: repairError } = await supabase.from('fixtures').insert(repairRows)
+            if (repairError) console.error('Não foi possível reparar o calendário nacional da temporada', repairError)
+          }
+        }
+
         const { data: sessionData } = await supabase.auth.getSession()
 
         if (sessionData.session) {
