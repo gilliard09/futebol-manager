@@ -422,7 +422,10 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
                 Confira o contexto da partida, ajuste sua escalação e entre em campo com um plano definido.
               </p>
             </div>
-            <button onClick={() => setPregameTab('lineup')} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-xs font-bold text-emerald-300 hover:bg-emerald-400/15">
+            <button type="button" onClick={() => {
+              setPregameTab('lineup')
+              window.setTimeout(() => document.getElementById('pregame-lineup')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0)
+            }} className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-xs font-bold text-emerald-300 hover:bg-emerald-400/15">
               Preparar escalação <ArrowRight size={15} />
             </button>
           </div>
@@ -498,7 +501,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           </section>
         </div>}
 
-        {pregameTab === 'lineup' && <div className="space-y-3">
+        {pregameTab === 'lineup' && <div id="pregame-lineup" className="scroll-mt-24 space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
             <ProjectedPitch lineup={userIsHome ? previewHomeLineup : previewAwayLineup} team={userTeam} formation={formation} compact />
             <ProjectedPitch lineup={userIsHome ? previewAwayLineup : previewHomeLineup} team={userTeam === 'home' ? 'away' : 'home'} formation={userTeam === 'home' ? getAiCoachProfile(fixture.away_club_id).formation : getAiCoachProfile(fixture.home_club_id).formation} compact />
