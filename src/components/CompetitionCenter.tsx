@@ -41,6 +41,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [seasonHistory, setSeasonHistory] = useState<Array<{ season: string; year: number; leagueChampion: string; serieBChampion: string; cupChampion: string; status: string }>>([])
   const [clubHistory, setClubHistory] = useState<Array<{ season: string; competition: string; position: number; points: number; division: number }>>([])
   const [competitionRecords, setCompetitionRecords] = useState<Array<{ record_type: string; value: number; description: string; club_id: string | null }>>([])
+  const [competitionStats, setCompetitionStats] = useState<Array<{ playerId: string; name: string; clubId: string; goals: number; assists: number; appearances: number; averageRating: number }>>([])
   const roundNavRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -125,6 +126,41 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
     return () => { active = false }
   }, [competition, seasonName, careerSeasonId, currentClubId])
 
+  useEffect(() => {
+    let active = true
+    if (!seasonId) {
+      setCompetitionStats([])
+      return
+    }
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('player_competition_stats')
+        .select('player_id,club_id,appearances,goals,assists,avg_rating,players!inner(first_name,last_name)')
+        .eq('season_id', seasonId)
+        .eq('competition_id', fixtures[0]?.competition_id ?? '')
+        .order('goals', { ascending: false })
+        .order('assists', { ascending: false })
+      if (!active) return
+      if (error || !data?.length) {
+        setCompetitionStats([])
+        return
+      }
+      setCompetitionStats(data.map((row: any) => {
+        const player = Array.isArray(row.players) ? row.players[0] : row.players
+        return {
+          playerId: row.player_id,
+          name: [player?.first_name, player?.last_name].filter(Boolean).join(' ') || 'Jogador',
+          clubId: row.club_id,
+          goals: Number(row.goals ?? 0),
+          assists: Number(row.assists ?? 0),
+          appearances: Number(row.appearances ?? 0),
+          averageRating: Number(row.avg_rating ?? 0),
+        }
+      }))
+    })()
+    return () => { active = false }
+  }, [seasonId, fixtures, competition])
+
   const brazilianFirstDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 1)
   const brazilianSecondDivision = clubs.filter(c => c.country === 'Brasil' && Number(c.division ?? 1) === 2)
 
@@ -147,7 +183,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       ? BRAZIL_SERIE_B_RULES
       : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
-  const stats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId ?? undefined), [playedMatches, competitionId, seasonId])
+  const localStats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId ?? undefined), [playedMatches, competitionId, seasonId])
+  const stats = competitionStats.length ? competitionStats : localStats
   const filteredStats = useMemo(() => {
     const scoped = statsScope === 'club' ? stats.filter(player => player.clubId === currentClubId) : stats
     return [...scoped].sort((a, b) => {
@@ -574,20 +611,29 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             </div>
             {filteredStats.map((player, index) => {
               const club = clubs.find(item => item.id === player.clubId)
-              return <div key={player.playerId} className="grid grid-cols-[28px_minmax(0,1fr)_48px_56px] items-center gap-2 border-t border-white/5 px-3 py-3 sm:grid-cols-[28px_minmax(0,1fr)_64px_72px_64px_64px] sm:gap-2 sm:px-4">
+              return <div key={player.playerId} className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-2 border-t border-white/5 px-3 py-3 sm:grid-cols-[28px_minmax(0,1fr)_64px_72px_64px_64px] sm:items-center sm:gap-2 sm:px-4">
                 <span className="text-xs text-white/30">{index + 1}</span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{player.name}</p>
                   <p className="mt-0.5 truncate text-[10px] text-white/30">{club?.short_name ?? 'Clube'}</p>
-                  <div className="mt-2 grid grid-cols-4 gap-2 sm:hidden">
-                    <span><b className="block text-[9px] uppercase text-white/20">Gols</b><b className="text-xs">{player.goals}</b></span>
-                    <span><b className="block text-[9px] uppercase text-white/20">Assist.</b><b className="text-xs">{player.assists}</b></span>
-                    <span><b className="block text-[9px] uppercase text-white/20">Jogos</b><b className="text-xs">{player.appearances}</b></span>
-                    <span><b className="block text-[9px] uppercase text-white/20">Média</b><b className="text-xs">{player.averageRating.toFixed(1)}</b></span>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 sm:hidden">
+                    {[
+                      ['Gols', player.goals],
+                      ['Assist.', player.assists],
+                      ['Jogos', player.appearances],
+                      ['Média', player.averageRating.toFixed(1)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="min-w-0 rounded-md border border-white/5 bg-white/[0.02] px-2 py-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[8px] font-bold uppercase tracking-wide text-white/20">{label}</span>
+                          <span className="shrink-0 text-xs font-black tabular-nums text-white/75">{value}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <span className={`text-right text-sm font-bold sm:text-sm ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
-                <span className={`text-right text-sm font-bold sm:text-sm ${statsMetric === 'assists' ? 'text-emerald-300' : ''}`}>{player.assists}</span>
+                <span className={` hidden sm:blocktext-right text-sm font-bold sm:text-sm ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
+                <span className={` hidden sm:blocktext-right text-sm font-bold sm:text-sm ${statsMetric === 'assists' ? 'text-emerald-300' : ''}`}>{player.assists}</span>
                 <span className={`hidden text-right text-sm font-bold sm:block ${statsMetric === 'appearances' ? 'text-emerald-300' : ''}`}>{player.appearances}</span>
                 <span className={`hidden text-right text-sm font-bold sm:block ${statsMetric === 'averageRating' ? 'text-emerald-300' : ''}`}>{player.averageRating.toFixed(1)}</span>
               </div>
