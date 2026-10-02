@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw, Square, Goal, HeartPulse, CreditCard, Users, Zap, SlidersHorizontal } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Play, RotateCcw, Goal, HeartPulse, CreditCard, Users, Activity, SlidersHorizontal } from 'lucide-react'
 import type { Fixture, Formation, LineupPlayer, ManagerProfile, Player } from '../types/game'
 import {
   advanceInteractiveMinute,
@@ -38,12 +38,6 @@ type Props = {
   leaguePoints?: number | null
   back: (result: MatchResult) => void
   cancel: () => void
-}
-
-function addDaysLocal(date: string, days: number) {
-  const value = new Date(date + 'T00:00:00Z')
-  value.setUTCDate(value.getUTCDate() + days)
-  return value.toISOString().slice(0, 10)
 }
 
 function playerName(player: Player) {
@@ -164,21 +158,6 @@ function ProjectedPitch({ lineup, team, formation, compact = false }: { lineup: 
       })}
     </div>
   </div>
-}
-
-function Bench({ session, userTeam, selectedOutgoing, onSelectIncoming }: { session: InteractiveMatchState; userTeam: InteractiveTeam; selectedOutgoing: string; onSelectIncoming: (id: string) => void }) {
-  const team = userTeam === 'home' ? session.home : session.away
-  return <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
-    <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-1 text-sm font-semibold">Escolha quem entra</p></div><span className="font-mono text-xs font-bold text-white/35">{team.substitutions}/5</span></div>
-    <div className="mt-4 grid gap-2 sm:grid-cols-2">
-      {team.bench.slice(0, 9).map(player => <button key={player.id} disabled={team.substitutions >= 5 || !selectedOutgoing} onClick={() => onSelectIncoming(player.id)} className="flex items-center gap-3 rounded-xl border border-white/6 bg-black/10 p-3 text-left transition hover:border-emerald-400/25 disabled:cursor-not-allowed disabled:opacity-30">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[9px] font-black">{player.first_name[0]}{player.last_name[0]}</span>
-        <span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{playerName(player)}</span><span className="mt-0.5 block text-[9px] uppercase tracking-wider text-white/25">{playerPositionLabel(player.position)} · OVR {playerOverall(player)}</span></span>
-        <ArrowRight size={14} className="text-white/20" />
-      </button>)}
-    </div>
-    {selectedOutgoing && <p className="mt-3 rounded-lg bg-emerald-400/8 px-3 py-2 text-[10px] font-bold text-emerald-300">Jogador de saída selecionado. Escolha um reserva.</p>}
-  </section>
 }
 
 export default function InteractiveMatch({ fixture, userClubId, homePlayers, awayPlayers, tactic, formation, coachStyle, coachPersonality, boardConfidence = 0, leaguePosition = null, leaguePoints = null, back, cancel }: Props) {
