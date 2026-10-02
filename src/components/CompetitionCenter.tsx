@@ -275,8 +275,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">{competition === 'Copa Nacional do Brasil' ? 'Fase' : 'Rodadas'}</p><h2 className="mt-2 text-2xl font-bold">{currentStage}</h2></div><Trophy className="text-emerald-300/50" /></div>
           <div className="relative mt-5">
-            <div ref={roundNavRef} className="round-scroller flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2">
-              {rounds.map(r => <button key={r} data-round={r} onClick={() => setRound(r)} className={`shrink-0 snap-center rounded-lg px-3 py-2 text-xs font-bold ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 text-white/45'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}
+            <div ref={roundNavRef} className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8 xl:grid-cols-12">
+              {rounds.map(r => <button key={r} data-round={r} onClick={() => setRound(r)} className={`min-w-0 rounded-lg px-2 py-2.5 text-xs font-bold transition ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 bg-white/[0.015] text-white/45 hover:border-white/10 hover:text-white/70'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}
             </div>
             <span className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#131b2a] to-transparent" />
             <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#131b2a] to-transparent" />
@@ -308,9 +308,29 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
         {(competition === 'Liga Nacional do Brasil' || competition === 'Série B do Brasil') && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">{competition}</h2>
-          <div className="mt-5 overflow-x-auto rounded-xl border border-white/5"><table className="w-full min-w-[720px] text-sm"><thead className="bg-white/[0.03] text-xs text-white/25"><tr>{['#','Clube','P','J','V','E','D','SG'].map(x => <th key={x} className="px-3 py-3 text-left">{x}</th>)}</tr></thead><tbody>
-            {table.map((team, i) => <tr key={team.id} className={`border-t border-white/5 ${team.id === currentClubId ? 'bg-emerald-400/5' : ''}`}><td className="px-3 py-3">{i + 1}</td><td className="px-3 py-3 font-medium">{team.name}</td><td className="px-3 py-3 font-bold">{team.points}</td><td className="px-3 py-3">{team.played}</td><td className="px-3 py-3">{team.wins}</td><td className="px-3 py-3">{team.draws}</td><td className="px-3 py-3">{team.losses}</td><td className="px-3 py-3">{team.gf - team.ga}</td></tr>)}
-          </tbody></table></div>
+          <div className="mt-5 overflow-hidden rounded-xl border border-white/5">
+            <div className="grid grid-cols-[28px_minmax(0,1fr)_48px_48px_48px_48px_48px_56px] items-center gap-1 bg-white/[0.03] px-3 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 sm:grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] sm:gap-2 sm:px-4">
+              <span>#</span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">V</span><span className="text-center">E</span><span className="text-center">D</span><span className="text-center">SG</span>
+            </div>
+            {table.map((team, i) => {
+              const club = clubs.find(item => item.id === team.id)
+              return <div key={team.id} className={`grid grid-cols-[28px_minmax(0,1fr)_48px_48px_48px_48px_48px_56px] items-center gap-1 border-t border-white/5 px-3 py-3 text-xs sm:grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] sm:gap-2 sm:px-4 sm:text-sm ${team.id === currentClubId ? 'bg-emerald-400/[0.06]' : ''}`}>
+                <span className="font-bold text-white/45">{i + 1}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">
+                    {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{(club?.short_name ?? team.name).slice(0,3).toUpperCase()}</span>}
+                  </span>
+                  <span className="min-w-0 truncate font-semibold">{club?.short_name ?? team.name}</span>
+                </div>
+                <span className="text-center font-black tabular-nums text-emerald-300">{team.points}</span>
+                <span className="text-center tabular-nums text-white/55">{team.played}</span>
+                <span className="text-center tabular-nums text-white/55">{team.wins}</span>
+                <span className="text-center tabular-nums text-white/55">{team.draws}</span>
+                <span className="text-center tabular-nums text-white/55">{team.losses}</span>
+                <span className="text-center tabular-nums text-white/55">{team.gf - team.ga}</span>
+              </div>
+            })}
+          </div>
           <p className="mt-3 text-xs text-white/25">{competition === 'Liga Nacional do Brasil' ? 'Os quatro últimos clubes descem para a Série B.' : 'Os dois primeiros sobem diretamente; 3º a 6º disputam os dois acessos restantes em playoffs; os quatro últimos são rebaixados quando a divisão inferior existir.'}</p>
         </section>}
 
@@ -381,18 +401,27 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             ].map(([value, label]) => <button key={value} onClick={() => setStatsMetric(value as typeof statsMetric)} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${statsMetric === value ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/35'}`}>{label}</button>)}
           </div>
           <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
-            <div className="grid grid-cols-[40px_minmax(180px,1fr)_90px_90px_90px_90px] gap-3 bg-white/[0.03] px-4 py-3 text-[11px] uppercase tracking-wider text-white/25">
+            <div className="hidden grid-cols-[28px_minmax(0,1fr)_64px_72px_64px_64px] gap-2 bg-white/[0.03] px-4 py-3 text-[10px] uppercase tracking-wider text-white/25 sm:grid">
               <span>#</span><span>Jogador</span><span className="text-right">Gols</span><span className="text-right">Assist.</span><span className="text-right">Jogos</span><span className="text-right">Média</span>
             </div>
             {filteredStats.map((player, index) => {
               const club = clubs.find(item => item.id === player.clubId)
-              return <div key={player.playerId} className="grid grid-cols-[40px_minmax(180px,1fr)_90px_90px_90px_90px] gap-3 border-t border-white/5 px-4 py-3 text-sm">
-                <span className="text-white/30">{index + 1}</span>
-                <div className="min-w-0"><p className="truncate font-semibold">{player.name}</p><p className="truncate text-xs text-white/25">{club?.short_name ?? 'Clube'}</p></div>
-                <span className={`text-right font-semibold ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
-                <span className={`text-right font-semibold ${statsMetric === 'assists' ? 'text-emerald-300' : ''}`}>{player.assists}</span>
-                <span className={`text-right font-semibold ${statsMetric === 'appearances' ? 'text-emerald-300' : ''}`}>{player.appearances}</span>
-                <span className={`text-right font-semibold ${statsMetric === 'averageRating' ? 'text-emerald-300' : ''}`}>{player.averageRating.toFixed(1)}</span>
+              return <div key={player.playerId} className="grid grid-cols-[28px_minmax(0,1fr)_48px_56px] items-center gap-2 border-t border-white/5 px-3 py-3 sm:grid-cols-[28px_minmax(0,1fr)_64px_72px_64px_64px] sm:gap-2 sm:px-4">
+                <span className="text-xs text-white/30">{index + 1}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{player.name}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-white/30">{club?.short_name ?? 'Clube'}</p>
+                  <div className="mt-2 grid grid-cols-4 gap-2 sm:hidden">
+                    <span><b className="block text-[9px] uppercase text-white/20">Gols</b><b className="text-xs">{player.goals}</b></span>
+                    <span><b className="block text-[9px] uppercase text-white/20">Assist.</b><b className="text-xs">{player.assists}</b></span>
+                    <span><b className="block text-[9px] uppercase text-white/20">Jogos</b><b className="text-xs">{player.appearances}</b></span>
+                    <span><b className="block text-[9px] uppercase text-white/20">Média</b><b className="text-xs">{player.averageRating.toFixed(1)}</b></span>
+                  </div>
+                </div>
+                <span className={`text-right text-sm font-bold sm:text-sm ${statsMetric === 'goals' ? 'text-emerald-300' : ''}`}>{player.goals}</span>
+                <span className={`text-right text-sm font-bold sm:text-sm ${statsMetric === 'assists' ? 'text-emerald-300' : ''}`}>{player.assists}</span>
+                <span className={`hidden text-right text-sm font-bold sm:block ${statsMetric === 'appearances' ? 'text-emerald-300' : ''}`}>{player.appearances}</span>
+                <span className={`hidden text-right text-sm font-bold sm:block ${statsMetric === 'averageRating' ? 'text-emerald-300' : ''}`}>{player.averageRating.toFixed(1)}</span>
               </div>
             })}
             {filteredStats.length === 0 && <div className="px-4 py-8 text-center text-sm text-white/30">Nenhum jogador com estatísticas nesta competição.</div>}
