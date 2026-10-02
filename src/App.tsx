@@ -4456,8 +4456,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       <section className="px-4 py-5 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <p className="label-mono text-white/45">Visão geral · {career.season.replace('Temporada ', '')}</p>
-            <h1 className="mt-2 font-display text-3xl font-bold tracking-tight sm:text-4xl">Visão geral</h1>
+            <p className="text-sm font-semibold text-white/55">{career.club.name}</p>
+            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-4xl">Dashboard</h1>
+            <p className="mt-1 text-xs text-white/40">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p>
           </div>
           <button onClick={newCareer} className="hidden rounded-lg border border-white/8 px-3 py-2 text-xs font-semibold text-white/45 transition hover:border-white/15 hover:text-white lg:block">Nova carreira</button>
         </div>
@@ -4520,23 +4521,26 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
                     {nextFixture && <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">Rodada {nextFixture.round}</span>}
                     <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{home ? 'Em casa' : 'Fora'}</span>
                   </div>
-                  <div className="mt-6 grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-6">
+                  <div className="mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-6">
                     <ClubMatchSide club={career.club} overall={avg} align="right" />
-                    <div className="text-center">
-                      <p className="font-display text-xs font-bold uppercase tracking-[0.2em] text-white/70">VS</p>
-                      <p className="mt-2 text-[10px] font-medium text-white/65">{nextMatchDate ? formatSeasonDate(nextMatchDate) : 'Sem partida'}</p>
+                    <div className="min-w-[48px] text-center">
+                      <p className="font-display text-xs font-bold uppercase tracking-[0.16em] text-white/70">VS</p>
+                      <p className="mt-2 whitespace-nowrap text-[10px] font-medium text-white/75">{nextMatchDate ? formatSeasonDate(nextMatchDate) : 'Sem partida'}</p>
                     </div>
                     <ClubMatchSide club={opponent} overall={opponent ? Math.round(opponentStrength) : 0} align="left" />
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 bg-[#101827] px-5 py-4 sm:px-7">
-                <div><p className="label-mono text-white/35">Data da partida</p><p className="mt-1 text-sm font-bold tabular-nums">{clock?.currentDate ? formatSeasonDate(clock.currentDate) : '—'}</p></div>
-                <div className="flex flex-wrap gap-2">
+              <div className="grid gap-3 border-t border-white/5 bg-[#101827] px-5 py-4 sm:px-7">
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between">
+                  <div><p className="label-mono text-white/50">Hoje</p><p className="mt-1 text-sm font-bold tabular-nums">{clock?.currentDate ? formatSeasonDate(clock.currentDate) : '—'}</p></div>
+                  <div className="text-right"><p className="label-mono text-white/50">Partida</p><p className="mt-1 text-sm font-bold tabular-nums">{nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'}</p></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
                   <button onClick={openOpponentSquad} disabled={!opponent || opponentLoading} className="game-button game-button-secondary">{opponentLoading ? 'Carregando...' : 'Ver adversário'}</button>
-                  <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
+                  <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary col-span-2 w-full sm:order-first sm:col-auto sm:w-auto">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
                 </div>
               </div>
             </section>
@@ -4555,10 +4559,19 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
             <section className="game-panel">
               <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Campeonato</p><h2 className="mt-1 font-display text-2xl font-bold">Classificação</h2></div><span className="text-xs font-bold text-white/35">Liga Nacional do Brasil</span></div>
               <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
-                <div className="grid grid-cols-[34px_1fr_44px_44px_44px] bg-white/[0.025] px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-white/30"><span>#</span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">SG</span></div>
-                {table.slice(0, 8).map((team, i) => <div key={team.id} className={`grid grid-cols-[34px_1fr_44px_44px_44px] items-center border-t border-white/5 px-3 py-2.5 text-xs ${team.id === career.club.id ? 'bg-emerald-400/[0.06]' : ''}`}>
-                  <span className={`font-bold ${i === 0 ? 'text-amber-300' : i < 4 ? 'text-emerald-300/75' : i >= 6 ? 'text-red-300/65' : 'text-white/30'}`}>{i + 1}</span><span className="truncate font-medium">{team.name}</span><span className="text-center font-bold tabular-nums">{team.points}</span><span className="text-center text-white/40 tabular-nums">{team.played}</span><span className="text-center text-white/40 tabular-nums">{team.gf - team.ga}</span>
-                </div>)}
+                <div className="grid grid-cols-[24px_24px_minmax(0,1fr)_34px_34px_34px_38px] bg-white/[0.025] px-2 py-2 text-[9px] font-bold uppercase tracking-wider text-white/45 sm:grid-cols-[28px_28px_minmax(0,1fr)_40px_40px_40px_44px] sm:px-3"><span>#</span><span></span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">V</span><span className="text-center">SG</span></div>
+                {table.slice(0, 8).map((team, i) => {
+                  const club = clubs.find(item => item.id === team.id)
+                  const zone = i < 4 ? 'border-l-2 border-emerald-400/70' : i >= 12 ? 'border-l-2 border-red-400/70' : ''
+                  return <div key={team.id} className={`grid grid-cols-[24px_24px_minmax(0,1fr)_34px_34px_34px_38px] items-center border-t border-white/5 px-2 py-2.5 text-[11px] ${zone} ${team.id === career.club.id ? 'bg-emerald-400/[0.06]' : ''} sm:grid-cols-[28px_28px_minmax(0,1fr)_40px_40px_40px_44px] sm:px-3 sm:text-xs`}>
+                    <span className={`font-bold ${i < 4 ? 'text-emerald-300' : i >= 12 ? 'text-red-300' : 'text-white/45'}`}>{i + 1}</span>
+                    <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white p-0.5 sm:h-6 sm:w-6">
+                      {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.parentElement?.classList.add('club-logo-fallback') }} /> : <span className="font-display text-[7px] font-black text-slate-700">{(club?.short_name ?? club?.name ?? 'FC').slice(0, 3).toUpperCase()}</span>}
+                    </span>
+                    <span className="min-w-0 truncate font-medium"><span className="sm:hidden">{club?.short_name ?? team.name}</span><span className="hidden sm:inline">{team.name}</span></span>
+                    <span className="text-center font-bold tabular-nums">{team.points}</span><span className="text-center text-white/50 tabular-nums">{team.played}</span><span className="text-center text-white/50 tabular-nums">{team.wins}</span><span className="text-center text-white/50 tabular-nums">{team.gf - team.ga}</span>
+                  </div>
+                })}
               </div>
             </section>
           </div>
@@ -4594,12 +4607,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 }
 
 function ClubMatchSide({ club, overall, align }: { club: { name: string; short_name?: string; logo_url?: string } | null | undefined; overall: number; align: 'left' | 'right' }) {
-  const content = <div className={`flex items-center gap-3 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
-    {align === 'right' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Seu clube'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
-    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/90 p-2 shadow-lg sm:h-16 sm:w-16">
-      {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-sm font-black text-slate-700">{(club?.short_name ?? club?.name ?? "FC").slice(0, 3).toUpperCase()}</span>}
+  const label = club?.short_name ?? club?.name ?? (align === 'right' ? 'Seu clube' : 'Adversário')
+  const fallback = (club?.short_name ?? club?.name ?? 'FC').slice(0, 3).toUpperCase()
+  const content = <div className={`flex min-w-0 items-center gap-2.5 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
+    {align === 'right' && <div className="min-w-0 max-w-[calc(100vw-150px)]"><p className="truncate text-xs font-black sm:text-base">{label}</p><p className="mt-1 font-display text-lg font-bold tabular-nums text-white/85 sm:text-xl">OVR {overall}</p></div>}
+    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg sm:h-16 sm:w-16">
+      {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.parentElement?.classList.add('club-logo-fallback') }} /> : <span className="font-display text-[11px] font-black text-slate-700">{fallback}</span>}
+      {club?.logo_url && <span className="hidden font-display text-[11px] font-black text-slate-700">{fallback}</span>}
     </div>
-    {align === 'left' && <div><p className="truncate text-sm font-black sm:text-base">{club?.short_name ?? club?.name ?? 'Adversário'}</p><p className="mt-1 font-display text-xl font-bold tabular-nums text-white/85">OVR {overall}</p></div>}
+    {align === 'left' && <div className="min-w-0 max-w-[calc(100vw-150px)]"><p className="truncate text-xs font-black sm:text-base">{label}</p><p className="mt-1 font-display text-lg font-bold tabular-nums text-white/85 sm:text-xl">OVR {overall}</p></div>}
   </div>
   return content
 }
