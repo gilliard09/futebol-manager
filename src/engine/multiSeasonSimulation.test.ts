@@ -222,6 +222,8 @@ describe('multi-season simulation', () => {
         janTen.aiManagers,
       )
 
+      expect(januaryWindow.marketInterest.some(interest => interest.playerId === transferTarget.id)).toBe(true)
+
       const januaryFreeAgents = simulateWorldDay(
         year + '-01-25',
         seasonId,
@@ -248,6 +250,7 @@ describe('multi-season simulation', () => {
       totalTransfers += januaryWindow.transfers.length + januaryWindow.freeAgentSignings.length
       totalTransfers += januaryFreeAgents.transfers.length + januaryFreeAgents.freeAgentSignings.length
       totalTransfers += february.transfers.length + february.freeAgentSignings.length
+      expect(february.negotiationEvents.length).toBeGreaterThan(0)
       totalAIManagers += januaryWindow.aiManagers.length + januaryFreeAgents.aiManagers.length + february.aiManagers.length
       totalNegotiations += januaryWindow.negotiationEvents.length + januaryFreeAgents.negotiationEvents.length + february.negotiationEvents.length
 
