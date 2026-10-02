@@ -17,6 +17,7 @@ import { playerPositionLabel } from '../engine/playerPositions'
 import type { MatchEvent, MatchResult } from '../engine/match'
 import { formatSeasonDate, toDateKey } from '../engine/calendar'
 import { playMatchSound } from '../engine/matchAudio'
+import MatchTacticsBoard, { formationFieldPosition } from './MatchTacticsBoard'
 
 
 type Props = {
@@ -90,14 +91,15 @@ function MatchHeader({ fixture, homeScore, awayScore, minute, finished }: { fixt
 }
 
 
-function playerFieldPosition(role: string, team: InteractiveTeam, occurrence: number) {
+function playerFieldPosition(role: string, team: InteractiveTeam, occurrence: number, formation?: Formation, slot?: number) {
+  if (formation && slot !== undefined) return formationFieldPosition(formation, slot, team)
   const home = team === 'home'
   const map: Record<string, { x: number; y: number }[]> = {
-    GK: [{ x: 50, y: 94 }], CB: [{ x: 35, y: 78 }, { x: 65, y: 78 }], LB: [{ x: 14, y: 80 }], RB: [{ x: 86, y: 80 }],
-    DM: [{ x: 50, y: 67 }, { x: 38, y: 66 }], CM: [{ x: 50, y: 57 }, { x: 34, y: 59 }, { x: 66, y: 59 }],
-    AM: [{ x: 50, y: 46 }], LW: [{ x: 18, y: 43 }], RW: [{ x: 82, y: 43 }], ST: [{ x: 50, y: 30 }, { x: 42, y: 31 }],
+    GK: [{ x: 50, y: 92 }], CB: [{ x: 38, y: 80 }, { x: 62, y: 80 }, { x: 50, y: 81 }], LB: [{ x: 14, y: 77 }], RB: [{ x: 86, y: 77 }],
+    DM: [{ x: 50, y: 65 }, { x: 38, y: 65 }], CM: [{ x: 28, y: 61 }, { x: 50, y: 61 }, { x: 72, y: 61 }],
+    AM: [{ x: 50, y: 45 }], LW: [{ x: 18, y: 42 }], RW: [{ x: 82, y: 42 }], ST: [{ x: 50, y: 30 }, { x: 60, y: 30 }],
   }
-  const point = map[role]?.[occurrence] ?? map[role]?.[0] ?? map.CM[0]
+  const point = map[role]?.[occurrence] ?? map.CM[0]
   return { x: point.x, y: home ? point.y : 100 - point.y }
 }
 
@@ -108,7 +110,7 @@ function Pitch({ session, userTeam, compact = false }: { session: InteractiveMat
     return team.lineup.map(item => {
       const occurrence = counts[item.role] ?? 0
       counts[item.role] = occurrence + 1
-      const pos = playerFieldPosition(item.role, teamNameValue, occurrence)
+      const pos = playerFieldPosition(item.role, teamNameValue, occurrence, team.formation, item.slot)
       const userSide = teamNameValue === userTeam
       return <div key={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
         <div className={userSide ? 'mx-auto flex h-7 w-7 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-500 text-[#04110c] shadow-lg md:h-8 md:w-8' : 'mx-auto flex h-7 w-7 items-center justify-center rounded-full border-2 border-orange-300 bg-orange-500 text-[#1a0b00] shadow-lg md:h-8 md:w-8'}>
@@ -133,7 +135,7 @@ function Pitch({ session, userTeam, compact = false }: { session: InteractiveMat
   </section>
 }
 
-function ProjectedPitch({ lineup, team, compact = false }: { lineup: LineupPlayer[]; team: InteractiveTeam; compact?: boolean }) {
+function ProjectedPitch({ lineup, team, formation, compact = false }: { lineup: LineupPlayer[]; team: InteractiveTeam; formation?: Formation; compact?: boolean }) {
   const counts: Record<string, number> = {}
   const starters = lineup
   return <div className={compact ? 'rounded-2xl border border-white/8 bg-[#131b2a] p-2' : 'rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4'}>
@@ -147,7 +149,7 @@ function ProjectedPitch({ lineup, team, compact = false }: { lineup: LineupPlaye
       {starters.map(item => {
         const occurrence = counts[item.role] ?? 0
         counts[item.role] = occurrence + 1
-        const pos = playerFieldPosition(item.role, team, occurrence)
+        const pos = playerFieldPosition(item.role, team, occurrence, formation, item.slot)
         return <div key={item.player.id} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
           <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border-2 border-emerald-300 bg-emerald-500 text-[9px] font-black text-[#04110c] shadow-lg md:h-10 md:w-10">{item.player.first_name[0]}{item.player.last_name[0]}</div>
           <span className="mt-1 block max-w-16 truncate rounded bg-black/55 px-1 text-[8px] font-bold text-white">{item.player.last_name}</span>
@@ -380,8 +382,8 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         </div>}
         {pregameTab === 'lineup' && <div className="space-y-3">
           <div className="grid gap-3 lg:grid-cols-2">
-            <ProjectedPitch lineup={userIsHome ? previewHomeLineup : previewAwayLineup} team={userTeam} compact />
-            <ProjectedPitch lineup={userIsHome ? previewAwayLineup : previewHomeLineup} team={userTeam === 'home' ? 'away' : 'home'} compact />
+            <ProjectedPitch lineup={userIsHome ? previewHomeLineup : previewAwayLineup} team={userTeam} formation={formation} compact />
+            <ProjectedPitch lineup={userIsHome ? previewAwayLineup : previewHomeLineup} team={userTeam === 'home' ? 'away' : 'home'} formation={userTeam === 'home' ? getAiCoachProfile(fixture.away_club_id).formation : getAiCoachProfile(fixture.home_club_id).formation} compact />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-white/6 bg-[#131b2a] p-5"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua equipe</p><p className="mt-2 text-xl font-bold">{teamName(fixture, userTeam)}</p><p className="mt-1 text-xs text-white/30">{formation} · {tactic === 'offensive' ? 'Ofensivo' : tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p><div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">{(userIsHome ? previewHomeLineup : previewAwayLineup).map(item => <div key={item.player.id} className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="truncate text-xs font-bold">{playerName(item.player)}</p><p className="mt-1 text-[9px] text-white/30">{item.role} · OVR {playerOverall(item.player)}</p></div>)}</div></div>
@@ -400,10 +402,9 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       {phase === 'halftime' && session && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={45} finished={false} />
         <div className="game-panel"><div className="flex items-center justify-between"><div><p className="label-mono text-amber-200/60">INTERVALO</p><h2 className="mt-1 font-display text-2xl font-bold">45 minutos concluídos</h2><p className="mt-1 text-sm text-white/40">Confira a energia do elenco antes de voltar para o segundo tempo.</p></div><span className="font-display text-4xl font-bold">45'</span></div>
-          <div className="mt-5 grid gap-3 lg:grid-cols-2"><ProjectedPitch lineup={session.home.lineup} team="home" compact /><ProjectedPitch lineup={session.away.lineup} team="away" compact /></div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">{user?.lineup.map(item => { const energy = Math.max(0, Math.min(100, Math.round(100 - ((item.player.fatigue ?? 0) + 45 * 0.8)))); const tone = energy <= 30 ? 'text-red-300 border-red-400/20 bg-red-400/5' : energy <= 65 ? 'text-amber-200 border-amber-400/20 bg-amber-400/5' : 'text-emerald-300 border-emerald-400/20 bg-emerald-400/5'; return <div key={item.player.id} className={'flex items-center justify-between rounded-xl border px-3 py-2.5 ' + tone}><span className="text-xs font-bold">{playerName(item.player)}</span><span className="font-mono text-xs font-bold">{energy}%</span></div>})}</div>
+          <MatchTacticsBoard session={session} userTeam={userTeam} onSubstitution={(outgoingId, incomingId) => { applySubstitution(outgoingId, incomingId); setSelectedOutgoing('') }} onTactic={applyTactic} />
+          <div className="mt-4 rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Intervalo</p><p className="mt-1 text-sm text-white/45">Você pode trocar jogadores e mudar a formação agora. As alterações entram no segundo tempo.</p></div>
           <button onClick={() => {
-            setSession(current => current ? advanceInteractiveMinute(current, userTeam) : current)
             setPhase('live')
             setPaused(false)
           }} className="mt-5 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao segundo tempo <ArrowRight size={16} className="inline ml-1" /></button>
@@ -418,12 +419,8 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
           <div className="space-y-4">
+            <MatchTacticsBoard session={session} userTeam={userTeam} onSubstitution={(outgoingId, incomingId) => { applySubstitution(outgoingId, incomingId); setSelectedOutgoing('') }} onTactic={applyTactic} />
             <Pitch session={session} userTeam={userTeam} compact />
-            <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
-              <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Sua escalação</p><p className="mt-1 text-xs text-white/30">Selecione um titular para preparar a substituição.</p></div><span className="font-mono text-[9px] text-white/25">{user?.lineup.length ?? 0} em campo</span></div>
-              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-3">{user?.lineup.map(item => <button key={item.player.id} disabled={item.player.position === 'GK'} onClick={() => setSelectedOutgoing(item.player.id)} className={selectedOutgoing === item.player.id ? 'flex items-center gap-2 rounded-xl border border-red-400/30 bg-red-400/8 p-2.5 text-left' : 'flex items-center gap-2 rounded-xl border border-white/5 bg-black/10 p-2.5 text-left'}><span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-[8px] font-black">{item.player.first_name[0]}{item.player.last_name[0]}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold">{playerName(item.player)}</span><span className="block text-[8px] uppercase tracking-wider text-white/25">{item.role} · OVR {playerOverall(item.player)}</span></span></button>)}</div>
-            </section>
-            <Bench session={session} userTeam={userTeam} selectedOutgoing={selectedOutgoing} onSelectIncoming={(incomingId) => { if (selectedOutgoing) { applySubstitution(selectedOutgoing, incomingId); setSelectedOutgoing('') } }} />
           </div>
           <aside className="space-y-4">
             <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
@@ -456,7 +453,7 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
       {highlightEvent.type === 'penalty' && !penaltyResolution && highlightEvent.team !== userTeam && <button onClick={resolveOpponentPenalty} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">Continuar cobrança</button>}
       {highlightEvent.type === 'penalty' && penaltyResolution && <div className="mt-4"><p className="label-mono text-white/35">NARRAÇÃO DA COBRANÇA</p><p className="mt-2 rounded-xl bg-black/20 p-3 text-sm font-semibold leading-5">{penaltyResolution}</p><button onClick={() => { dismissHighlight() }} className="mt-3 w-full rounded-xl bg-emerald-400 px-4 py-3 text-xs font-bold text-[#06100c]">Voltar ao jogo</button></div>}
       {highlightEvent.type !== 'penalty' && <button onClick={() => { dismissHighlight() }} className="mt-4 w-full rounded-xl bg-white/10 px-4 py-3 text-xs font-bold">{highlightEvent.type === 'goal' ? 'Continuar jogo' : 'Continuar'}</button>}</div></div>}
-      {phase === 'live' && session && pendingIncident && <div className="fixed inset-0 z-40 overflow-y-auto bg-[#0a0f1a]/98 px-4 py-6"><div className="mx-auto max-w-4xl"><div className="mb-4 flex items-center justify-between"><div><p className="label-mono text-red-300/70">{pendingIncident === 'injury' ? 'LESÃO' : 'EXPULSÃO'}</p><h2 className="mt-1 font-display text-2xl font-bold">{incidentEvent?.player ?? 'Ajuste sua equipe'}</h2><p className="mt-1 text-sm text-white/45">{incidentEvent?.text ?? 'Você pode substituir o jogador ou reorganizar a equipe.'}</p></div><span className="font-mono text-xs text-white/30">{session.minute}'</span></div><div className="grid gap-4 lg:grid-cols-[0.7fr_1.3fr]"><div className="space-y-3"><ProjectedPitch lineup={user?.lineup ?? []} team={userTeam} compact /><div className="rounded-2xl border border-white/6 bg-[#131b2a] p-3"><p className="label-mono text-white/30">Ajuste tático</p><div className="mt-2 grid grid-cols-3 gap-2">{(['defensive','balanced','offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => applyTactic(value)} className={user?.tactic === value ? 'rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2 py-2 text-[9px] font-bold text-emerald-300' : 'rounded-lg border border-white/6 px-2 py-2 text-[9px] font-bold text-white/35'}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}</div><div className="mt-2 grid grid-cols-4 gap-1.5">{(['4-3-3','4-4-2','4-2-3-1','3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => user && applyTactic(user.tactic, value)} className={user?.formation === value ? 'rounded-lg border border-white/20 bg-white/8 px-2 py-2 font-mono text-[8px] font-bold text-white' : 'rounded-lg border border-white/5 px-2 py-2 font-mono text-[8px] font-bold text-white/30'}>{value}</button>)}</div></div></div><Bench session={session} userTeam={userTeam} selectedOutgoing={selectedOutgoing} onSelectIncoming={(incomingId) => { if (selectedOutgoing) { applySubstitution(selectedOutgoing, incomingId); setSelectedOutgoing(''); setPendingIncident(null); setHighlightEvent(null); setPaused(false) } }} /></div><button onClick={returnFromIncident} className="mt-4 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao jogo <ArrowRight size={16} className="inline ml-1" /></button></div></div>}
+      {phase === 'live' && session && pendingIncident && <div className="fixed inset-0 z-40 overflow-y-auto bg-[#0a0f1a]/98 px-4 py-6"><div className="mx-auto max-w-4xl"><div className="mb-4 flex items-center justify-between"><div><p className="label-mono text-red-300/70">{pendingIncident === 'injury' ? 'LESÃO' : 'EXPULSÃO'}</p><h2 className="mt-1 font-display text-2xl font-bold">{incidentEvent?.player ?? 'Ajuste sua equipe'}</h2><p className="mt-1 text-sm text-white/45">{incidentEvent?.text ?? 'Você pode substituir o jogador ou reorganizar a equipe.'}</p></div><span className="font-mono text-xs text-white/30">{session.minute}'</span></div><div className="grid gap-4 lg:grid-cols-[0.7fr_1.3fr]"><div className="space-y-3"><ProjectedPitch lineup={user?.lineup ?? []} team={userTeam} formation={user?.formation} compact /><div className="rounded-2xl border border-white/6 bg-[#131b2a] p-3"><p className="label-mono text-white/30">Ajuste tático</p><div className="mt-2 grid grid-cols-3 gap-2">{(['defensive','balanced','offensive'] as InteractiveTactic[]).map(value => <button key={value} onClick={() => applyTactic(value)} className={user?.tactic === value ? 'rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-2 py-2 text-[9px] font-bold text-emerald-300' : 'rounded-lg border border-white/6 px-2 py-2 text-[9px] font-bold text-white/35'}>{value === 'defensive' ? 'Defensivo' : value === 'offensive' ? 'Ofensivo' : 'Equilibrado'}</button>)}</div><div className="mt-2 grid grid-cols-4 gap-1.5">{(['4-3-3','4-4-2','4-2-3-1','3-5-2'] as Formation[]).map(value => <button key={value} onClick={() => user && applyTactic(user.tactic, value)} className={user?.formation === value ? 'rounded-lg border border-white/20 bg-white/8 px-2 py-2 font-mono text-[8px] font-bold text-white' : 'rounded-lg border border-white/5 px-2 py-2 font-mono text-[8px] font-bold text-white/30'}>{value}</button>)}</div></div></div><Bench session={session} userTeam={userTeam} selectedOutgoing={selectedOutgoing} onSelectIncoming={(incomingId) => { if (selectedOutgoing) { applySubstitution(selectedOutgoing, incomingId); setSelectedOutgoing(''); setPendingIncident(null); setHighlightEvent(null); setPaused(false) } }} /></div><button onClick={returnFromIncident} className="mt-4 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao jogo <ArrowRight size={16} className="inline ml-1" /></button></div></div>}
       {phase === 'postgame' && session && result && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={session.minute} finished={session.finished} />
         <div className="flex rounded-xl border border-white/6 bg-[#131b2a] p-1">
