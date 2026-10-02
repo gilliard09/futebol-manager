@@ -554,11 +554,17 @@ function GameApp() {
       localStorage.setItem(CAREER_KEY, JSON.stringify(next))
       localStorage.setItem(MANAGER_STATUS_KEY, 'active')
       const popularity = initialManagerPopularity(Number(next.club.reputation ?? 50))
-      await supabase.from('manager_profiles').upsert({
+      const { error: managerProfileError } = await supabase.from('manager_profiles').upsert({
         owner_id: authUser.user.id, manager_name: next.name, nationality: next.nationality, birth_date: next.birthDate || null,
         style: next.style, personality: next.personality, regional_popularity: popularity.regional, national_popularity: popularity.national,
         international_popularity: popularity.international, current_club_id: next.club.id, current_season_id: careerSeason.id,
       }, { onConflict: 'owner_id' })
+      if (managerProfileError) {
+        setError(managerProfileError.message)
+        return
+      }
+      setCareer(next)
+      navigate('/dashboard')
     } finally {
       setCareerCreating(false)
     }
