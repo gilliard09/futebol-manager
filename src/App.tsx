@@ -3472,10 +3472,15 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   }
 
   async function restOneDay() {
-    if (!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays) return
+    if (advancingDays || !clock) return
+    if (!canAdvanceDay(clock, nextMatchDate)) return
+
     setAdvancingDays(true)
     try {
-      await advanceOneDay(clock)
+      const advanced = await advanceOneDay(clock)
+      if (!advanced) return
+    } catch (error) {
+      console.error('Não foi possível avançar o dia.', error)
     } finally {
       setAdvancingDays(false)
     }
@@ -4700,7 +4705,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
                   <div className="text-right"><p className="label-mono text-white/50">Partida</p><p className="mt-1 text-sm font-bold tabular-nums">{nextMatchDate ? formatSeasonDate(nextMatchDate) : '—'}</p></div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
-                  <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
+                  <button onClick={() => { void restOneDay() }} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary" title={matchReady ? 'O dia da partida chegou. Jogue a partida para continuar.' : 'Avançar um dia'}>{advancingDays ? 'Avançando...' : matchReady ? 'Dia da partida' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
                   <button onClick={() => goToView('squad')} className="game-button game-button-secondary">Elenco</button>
                   <button onClick={openOpponentSquad} disabled={!opponent || opponentLoading} className="game-button game-button-secondary">{opponentLoading ? 'Carregando...' : 'Ver adversário'}</button>
