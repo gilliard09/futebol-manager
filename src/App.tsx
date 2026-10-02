@@ -4702,7 +4702,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(matchClock))
       }
     }
-    return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} cancel={() => { setActiveMatchFixture(null); goToView('overview') }} />
+    return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} boardConfidence={boardState.confidence} leaguePosition={(() => { const standing = table.find(team => team.id === career.club.id); return standing ? table.findIndex(team => team.id === career.club.id) + 1 : null })()} leaguePoints={table.find(team => team.id === career.club.id)?.points ?? null} back={finishMatch} cancel={() => { setActiveMatchFixture(null); goToView('overview') }} />
   }
 
   const currentStandingIndex = Math.max(0, table.findIndex(team => team.id === career.club.id))
