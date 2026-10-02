@@ -42,6 +42,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [clubHistory, setClubHistory] = useState<Array<{ season: string; competition: string; position: number; points: number; division: number }>>([])
   const [competitionRecords, setCompetitionRecords] = useState<Array<{ record_type: string; value: number; description: string; club_id: string | null }>>([])
   const [competitionStats, setCompetitionStats] = useState<Array<{ playerId: string; name: string; clubId: string; goals: number; assists: number; appearances: number; averageRating: number }>>([])
+  const [seasonStatsFallback, setSeasonStatsFallback] = useState<Array<{ playerId: string; name: string; clubId: string; goals: number; assists: number; appearances: number; averageRating: number }>>([])
   const roundNavRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -143,9 +144,8 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       if (!active) return
       if (error || !data?.length) {
         setCompetitionStats([])
-        return
-      }
-      setCompetitionStats(data.map((row: any) => {
+      } else {
+        setCompetitionStats(data.map((row: any) => {
         const player = Array.isArray(row.players) ? row.players[0] : row.players
         return {
           playerId: row.player_id,
@@ -156,7 +156,28 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           appearances: Number(row.appearances ?? 0),
           averageRating: Number(row.avg_rating ?? 0),
         }
-      }))
+        }))
+      }
+
+      const { data: seasonData } = await supabase
+        .from('player_season_stats')
+        .select('player_id,club_id,appearances,goals,assists,avg_rating,players!inner(first_name,last_name)')
+        .eq('season_id', seasonId)
+        .order('goals', { ascending: false })
+      if (active) {
+        setSeasonStatsFallback((seasonData ?? []).map((row: any) => {
+          const player = Array.isArray(row.players) ? row.players[0] : row.players
+          return {
+            playerId: row.player_id,
+            name: [player?.first_name, player?.last_name].filter(Boolean).join(' ') || 'Jogador',
+            clubId: row.club_id,
+            goals: Number(row.goals ?? 0),
+            assists: Number(row.assists ?? 0),
+            appearances: Number(row.appearances ?? 0),
+            averageRating: Number(row.avg_rating ?? 0),
+          }
+        }))
+      }
     })()
     return () => { active = false }
   }, [seasonId, fixtures, competition])
@@ -184,7 +205,12 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       : BRAZIL_CUP_RULES
   const competitionId = fixtures[0]?.competition_id
   const localStats = useMemo(() => buildPlayerCompetitionStats(playedMatches, competitionId, seasonId ?? undefined), [playedMatches, competitionId, seasonId])
-  const stats = competitionStats.length ? competitionStats : localStats
+  const stats = useMemo(() => {
+    if (competitionStats.length) return competitionStats
+    const localTotal = localStats.reduce((sum, player) => sum + player.appearances, 0)
+    const seasonTotal = seasonStatsFallback.reduce((sum, player) => sum + player.appearances, 0)
+    return seasonTotal > localTotal ? seasonStatsFallback : localStats
+  }, [competitionStats, localStats, seasonStatsFallback])
   const filteredStats = useMemo(() => {
     const scoped = statsScope === 'club' ? stats.filter(player => player.clubId === currentClubId) : stats
     return [...scoped].sort((a, b) => {
