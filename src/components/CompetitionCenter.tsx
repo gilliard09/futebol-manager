@@ -382,7 +382,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
           <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">{competition === 'Copa Nacional do Brasil' ? 'Fase' : 'Rodadas'}</p><h2 className="mt-2 text-2xl font-bold">{currentStage}</h2></div><Trophy className="text-emerald-300/50" /></div>
           <div className="relative mt-5">
             <div ref={roundNavRef} className="flex gap-2 overflow-x-auto pb-1 pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-              {rounds.map(r => <button key={r} data-round={r} onClick={() => setRound(r)} className={`min-w-0 rounded-lg px-2 py-2.5 text-xs font-bold transition ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 bg-white/[0.015] text-white/45 hover:border-white/10 hover:text-white/70'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}
+              {rounds.map(r => <button key={r} data-round={r} onClick={() => setRound(r)} className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2.5 text-xs font-bold transition ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 bg-white/[0.015] text-white/45 hover:border-white/10 hover:text-white/70'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}
             </div>
             <span className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#131b2a] to-transparent" />
             <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#131b2a] to-transparent" />
