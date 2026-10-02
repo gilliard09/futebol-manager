@@ -4619,9 +4619,9 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       <section className="px-4 py-5 sm:px-6 lg:px-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-white/55">{career.club.name}</p>
-            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight sm:text-4xl">Dashboard</h1>
-            <p className="mt-1 text-xs text-white/40">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p>
+            <p className="label-mono text-emerald-300/60">Seu clube · seu comando</p>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1"><h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{career.club.name}</h1><span className="text-sm font-semibold text-white/35">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</span></div>
+            <p className="mt-2 text-xs text-white/40">Você é o treinador. Cada decisão aqui muda a temporada.</p>
           </div>
           <button onClick={newCareer} className="hidden rounded-lg border border-white/8 px-3 py-2 text-xs font-semibold text-white/45 transition hover:border-white/15 hover:text-white lg:block">Nova carreira</button>
         </div>
@@ -4853,7 +4853,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
         <div className="rounded-xl bg-white/[0.025] p-3">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5">{career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-[10px] font-black text-white/55">{(career.club.short_name ?? career.club.name ?? "FM").slice(0, 3).toUpperCase()}</span>}</div>
-            <div className="min-w-0"><p className="truncate text-xs font-bold">{career.club.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">{career.name}</p></div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold">{career.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">Treinador · {career.club.short_name ?? career.club.name}</p></div>
           </div>
           <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/35">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">{career.season.match(/\d{4}/)?.[0] ?? '2026'}</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
         </div>
@@ -4866,7 +4866,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
         className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/95 px-3 pb-2 backdrop-blur sm:px-6"
         style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}
       >
-        <div className="hidden min-w-0 lg:block"><p className="truncate text-sm font-semibold text-white/75">{activeLabel}</p></div>
+        <div className="min-w-0"><p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/55">Você está no comando</p><p className="truncate text-sm font-semibold text-white/80">{activeLabel}</p></div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
           <button onClick={() => setMobileMenuOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
@@ -4875,7 +4875,23 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
       <div className="pb-4 lg:pb-0">{children}</div>
     </div>
 
-    {mobileMenuOpen && <div className="fixed inset-0 z-[60] lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#0d1421]/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
+  <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
+    {[
+      { key: 'overview' as DashboardView, label: 'Início', icon: House },
+      { key: 'calendar' as DashboardView, label: 'Partidas', icon: CalendarDays },
+      { key: 'squad' as DashboardView, label: 'Meu Clube', icon: Shield },
+      { key: 'legacy' as DashboardView, label: 'Carreira', icon: Medal },
+    ].map(item => {
+      const Icon = item.icon
+      const active = activeView === item.key
+      return <button key={item.key} onClick={() => onNavigate(item.key)} className={'flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold ' + (active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/35')}>
+        <Icon size={18} strokeWidth={active ? 2.3 : 1.7} /><span>{item.label}</span>
+      </button>
+    })}
+  </div>
+</nav>
+{mobileMenuOpen && <div className="fixed inset-0 z-[60] lg:hidden">
       <button className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu" />
       <aside className="absolute right-0 top-0 h-[100dvh] w-[min(86vw,340px)] overflow-y-auto border-l border-white/8 bg-[#0d1421] px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-4">
