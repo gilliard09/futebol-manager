@@ -551,12 +551,6 @@ function GameApp() {
           .in('name', ['CONMEBOL Libertadores', 'CONMEBOL Sudamericana'])
         const libertadoresId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Libertadores')?.id
         const sudamericanaId = continentalCompetitions?.find(item => item.name === 'CONMEBOL Sudamericana')?.id
-        const { error: fixtureError } = await supabase.from('fixtures').insert(fixtureRows)
-        if (fixtureError) {
-          setError(fixtureError.message)
-          return
-        }
-
         if (libertadoresId && sudamericanaId) {
           try {
             await initializeFirstSeasonContinentalCalendar(careerSeason.id, year, clubs, libertadoresId, sudamericanaId)
