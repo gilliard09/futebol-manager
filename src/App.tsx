@@ -4896,7 +4896,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
             </section>
 
             <section className="game-panel">
-              <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Elenco</p><h2 className="mt-1 font-display text-xl font-bold">Pontos de atenção</h2></div><button onClick={() => goToView('squad')} className="text-xs font-bold text-emerald-300">Ver elenco</button></div>
+              <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Elenco</p><h2 className="mt-1 font-display text-xl font-bold">Pontos de atenção</h2></div><button onClick={() => goToView('squad-detail')} className="text-xs font-bold text-emerald-300">Ver elenco</button></div>
               <div className="mt-4 space-y-2">{rosterAlerts.slice(0, 4).map(alert => <div key={alert.kind} className="border-l-2 border-amber-300/60 bg-white/[0.02] px-3 py-2.5"><p className="text-xs font-semibold">{alert.title}</p><p className="mt-1 text-[10px] leading-4 text-white/40">{alert.description}</p></div>)}{!rosterAlerts.length && <p className="text-xs text-white/35">Nenhum ponto de atenção no momento.</p>}</div>
             </section>
 
@@ -5287,7 +5287,7 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
               <span className={player.morale < 50 ? 'text-sm font-bold text-red-300' : 'text-sm font-bold text-amber-200'}>{player.morale}</span>
             </button>)}
           </div>
-          <div className="border-t border-white/[0.05] px-4 py-3 sm:px-5"><button onClick={() => onNavigate('squad-detail')} className="flex w-full items-center justify-between text-xs font-semibold text-white/45 hover:text-white"><span>Gerenciar elenco e jogadores</span><ChevronRight size={15} /></button></div>
+          <div className="border-t border-white/[0.05] px-4 py-3 sm:px-5"><button type="button" onClick={() => onNavigate('squad-detail')} className="relative z-10 flex w-full cursor-pointer items-center justify-between text-xs font-semibold text-white/45 hover:text-white"><span>Gerenciar elenco e jogadores</span><ChevronRight size={15} /></button></div>
         </div>
       </section>
 
