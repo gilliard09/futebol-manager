@@ -404,10 +404,11 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
         <div className="game-panel"><div className="flex items-center justify-between"><div><p className="label-mono text-amber-200/60">INTERVALO</p><h2 className="mt-1 font-display text-2xl font-bold">45 minutos concluídos</h2><p className="mt-1 text-sm text-white/40">Confira a energia do elenco antes de voltar para o segundo tempo.</p></div><span className="font-display text-4xl font-bold">45'</span></div>
           <MatchTacticsBoard session={session} userTeam={userTeam} onSubstitution={(outgoingId, incomingId) => { applySubstitution(outgoingId, incomingId); setSelectedOutgoing('') }} onTactic={applyTactic} />
           <div className="mt-4 rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Intervalo</p><p className="mt-1 text-sm text-white/45">Você pode trocar jogadores e mudar a formação agora. As alterações entram no segundo tempo.</p></div>
-          <button onClick={() => {
-            setPhase('live')
+          <button type="button" onClick={() => {
             setPaused(false)
-          }} className="mt-5 w-full rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c]">Voltar ao segundo tempo <ArrowRight size={16} className="inline ml-1" /></button>
+            setSession(current => current ? advanceInteractiveMinute(current, userTeam) : current)
+            setPhase('live')
+          }} className="relative z-10 mt-5 flex min-h-14 w-full touch-manipulation items-center justify-center gap-1 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c] active:scale-[0.99]">Voltar ao segundo tempo <ArrowRight size={16} /></button>
         </div>
       </section>}
 
