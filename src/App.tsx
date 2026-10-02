@@ -3991,7 +3991,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   if (view === 'trophies') return <TrophyRoomScreen trophies={managerTrophies} back={() => goToView('overview')} />
   if (view === 'history') return <HistoryScreen rows={historyRows} clubs={clubs} players={[...players, ...historyPlayers]} back={() => goToView('overview')} />
   if (view === 'legacy') return <ManagerCareerScreen managerName={career.name} popularity={managerPopularity} history={managerHistory} trophies={managerTrophies} records={managerRecords} offers={managerOffers} clubs={clubs} careerStatus={careerStatus} currentClubId={career.club.id} contractEndSeason={career.contractEndSeason ?? boardState.contractEndSeason} contractYears={boardState.contractYears ?? 1} back={() => goToView('overview')} onOffer={respondToManagerOffer} onRejectOffer={rejectManagerOffer} onRetire={undefined} />
-  if (view === 'stats') return <GameSection title="Estatísticas" eyebrow="Mundo" icon={<BarChart3 size={22} />} description="Desempenho do clube, jogadores e campeonato em uma visão dedicada." back={() => goToView('overview')} />
+  if (view === 'stats') return <CompetitionCenter clubs={clubs} currentClubId={career.club.id} playedMatches={Object.values(playedMatches)} seasonName={career.season} seasonId={career.seasonId} back={() => goToView('overview')} />
   if (view === 'settings') return <GameSection title="Configurações" eyebrow="Jogo" icon={<Settings size={22} />} description="Preferências da carreira e configurações do jogo." back={() => goToView('overview')} />
 
   if (view === 'press') return <PressCenter club={career.club} news={worldNews} back={() => goToView('overview')} />
