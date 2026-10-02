@@ -533,7 +533,7 @@ function GameApp() {
       const existingNationalCompetitionIds = new Set((existingNationalFixtures ?? []).map(row => String(row.competition_id)))
       const missingFixtureRows = [
         ...(existingNationalCompetitionIds.has(leagueId) ? [] : buildLeagueFixtures(careerSeason.id, leagueStartDate(year), firstDivision, leagueId)),
-        ...(existingNationalCompetitionIds.has(serieBId) ? [] : buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5)),
+        ...(existingNationalCompetitionIds.has(serieBId) ? [] : buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 7)),
         ...(existingNationalCompetitionIds.has(cupId) ? [] : buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId)),
       ]
       if (missingFixtureRows.length) {
@@ -2147,7 +2147,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           const secondDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 2)
           const repairRows = [
             ...(existingIds.has(repairLeagueId) ? [] : buildLeagueFixtures(currentSeasonId, leagueStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), firstDivision, repairLeagueId)),
-            ...(existingIds.has(repairSerieBId) ? [] : buildLeagueFixtures(currentSeasonId, leagueStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), secondDivision, repairSerieBId, 5)),
+            ...(existingIds.has(repairSerieBId) ? [] : buildLeagueFixtures(currentSeasonId, leagueStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), secondDivision, repairSerieBId, 7)),
             ...(existingIds.has(repairCupId) ? [] : buildCupFixtures(currentSeasonId, cupStartDate(Number(career.season.match(/\d{4}/)?.[0] ?? INITIAL_SEASON_YEAR)), [...firstDivision, ...secondDivision], repairCupId)),
           ]
           if (repairRows.length) {
