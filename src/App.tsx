@@ -708,7 +708,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   })
   const location = useLocation()
   const navigate = useNavigate()
-  const dashboardViews: DashboardView[] = ['overview', 'board', 'contracts', 'calendar', 'news', 'squad', 'tactics', 'finance', 'stadium', 'trophies', 'history', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
+  const dashboardViews: DashboardView[] = ['overview', 'board', 'contracts', 'calendar', 'news', 'squad', 'squad-detail', 'tactics', 'finance', 'stadium', 'trophies', 'history', 'legacy', 'market', 'stats', 'settings', 'match', 'training', 'loans', 'competitions', 'press']
   const pathView = location.pathname.split('/')[2] as DashboardView | undefined
   const initialView = pathView && dashboardViews.includes(pathView) ? pathView : 'overview'
   const [view, setView] = useState<DashboardView>(initialView)
