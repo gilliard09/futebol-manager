@@ -4853,11 +4853,12 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
               <div className="flex items-center justify-between"><div><p className="label-mono text-white/35">Campeonato</p><h2 className="mt-1 font-display text-2xl font-bold">Classificação</h2></div><span className="text-xs font-bold text-white/35">Liga Nacional do Brasil</span></div>
               <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
                 <div className="grid grid-cols-[24px_24px_minmax(0,1fr)_34px_34px_34px_38px] bg-white/[0.025] px-2 py-2 text-[9px] font-bold uppercase tracking-wider text-white/45 sm:grid-cols-[28px_28px_minmax(0,1fr)_40px_40px_40px_44px] sm:px-3"><span>#</span><span></span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">V</span><span className="text-center">SG</span></div>
-                {table.slice(0, 8).map((team, i) => {
+                {dashboardTable.map((team) => {
+                  const actualIndex = table.findIndex(item => item.id === team.id)
                   const club = clubs.find(item => item.id === team.id)
-                  const zone = i < 4 ? 'border-l-2 border-emerald-400/70' : i >= 12 ? 'border-l-2 border-red-400/70' : ''
+                  const zone = actualIndex < 4 ? 'border-l-2 border-emerald-400/70' : actualIndex >= 12 ? 'border-l-2 border-red-400/70' : ''
                   return <div key={team.id} className={`grid grid-cols-[24px_24px_minmax(0,1fr)_34px_34px_34px_38px] items-center border-t border-white/5 px-2 py-2.5 text-[11px] ${zone} ${team.id === career.club.id ? 'bg-emerald-400/[0.06]' : ''} sm:grid-cols-[28px_28px_minmax(0,1fr)_40px_40px_40px_44px] sm:px-3 sm:text-xs`}>
-                    <span className={`font-bold ${i < 4 ? 'text-emerald-300' : i >= 12 ? 'text-red-300' : 'text-white/45'}`}>{i + 1}</span>
+                    <span className={`font-bold ${actualIndex < 4 ? 'text-emerald-300' : actualIndex >= 12 ? 'text-red-300' : 'text-white/45'}`}>{actualIndex + 1}</span>
                     <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-white p-0.5 sm:h-6 sm:w-6">
                       {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.parentElement?.classList.add('club-logo-fallback') }} /> : <span className="font-display text-[7px] font-black text-slate-700">{(club?.short_name ?? club?.name ?? 'FC').slice(0, 3).toUpperCase()}</span>}
                     </span>
