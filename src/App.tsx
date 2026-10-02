@@ -73,6 +73,10 @@ const AI_MANAGERS_KEY = 'futebol-manager:ai-managers'
 const AI_BOARD_DECISIONS_KEY = 'futebol-manager:ai-board-decisions'
 const PLAYER_LIFECYCLE_KEY = 'futebol-manager:player-lifecycle'
 
+function seasonStorageKey(prefix: string, seasonId: string) {
+  return `${prefix}:${seasonId}`
+}
+
 
 function marketInterestStorageKey(seasonId: string) {
   return `${MARKET_INTEREST_KEY}:${seasonId}`
@@ -692,7 +696,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
   const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; wins: number; draws: number; losses: number; gf: number; ga: number }[]>([])
   const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
-    try { return JSON.parse(localStorage.getItem(MATCHES_KEY) ?? '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem(seasonStorageKey(MATCHES_KEY, career.seasonId)) ?? '{}') } catch { return {} }
   })
   const location = useLocation()
   const navigate = useNavigate()
@@ -725,7 +729,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   const [nextSeasonBudget, setNextSeasonBudget] = useState(() => Number(localStorage.getItem(NEXT_BUDGET_KEY) ?? 0))
   const [contractAlerts, setContractAlerts] = useState<Array<{ playerId: string; name: string; until: string | null; days: number | null; status: string }>>([])
   const [upcomingFixtures, setUpcomingFixtures] = useState<Fixture[]>([])
-  const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(CLOCK_KEY); return saved ? JSON.parse(saved) : null } catch { return null } })
+  const [clock, setClock] = useState<SeasonClock | null>(() => { try { const saved = localStorage.getItem(seasonStorageKey(CLOCK_KEY, career.seasonId)); return saved ? JSON.parse(saved) : null } catch { return null } })
   const [seasonClosed, setSeasonClosed] = useState(false)
   const [seasonCompletion, setSeasonCompletion] = useState<any>(null)
   const [seasonAwards, setSeasonAwards] = useState<SeasonAward[]>([])
@@ -2254,12 +2258,13 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         if (!clock && fixture) {
           const initialClock = createSeasonClock(seasonStart(career.season), toDateKey(fixture.scheduled_at), 3)
           setClock(initialClock)
-          localStorage.setItem(CLOCK_KEY, JSON.stringify(initialClock))
+          localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(initialClock))
         }
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
-          const { data: opponentSquad } = await supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').order('squad_number')
-          const effectiveOpponent = (opponentSquad ?? []).filter((row: any) => (getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === opponentId))
+          const { data: opponentSquad, error: opponentSquadError } = await supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').eq('club_id', opponentId).order('squad_number')
+          if (opponentSquadError) console.error('Não foi possível carregar o elenco do adversário', opponentSquadError)
+          const effectiveOpponent = (opponentSquad ?? []).filter((row: any) => getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === opponentId)
           if (active) setOpponentPlayers(effectiveOpponent.map(normalizePlayer))
         } else {
           setOpponentPlayers([])
@@ -2283,6 +2288,23 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     loadDashboard()
     return () => { active = false }
   }, [career.club.id, career.season, clubs, playedMatches, clock?.currentDate, transferState.playerClubOverrides, loanState.records])
+
+  useEffect(() => {
+    try {
+      const savedMatches = JSON.parse(localStorage.getItem(seasonStorageKey(MATCHES_KEY, career.seasonId)) ?? '{}')
+      setPlayedMatches(savedMatches)
+    } catch {
+      setPlayedMatches({})
+    }
+    try {
+      const savedClock = localStorage.getItem(seasonStorageKey(CLOCK_KEY, career.seasonId))
+      setClock(savedClock ? JSON.parse(savedClock) : null)
+    } catch {
+      setClock(null)
+    }
+    setNextFixture(null)
+    setOpponentPlayers([])
+  }, [career.seasonId])
 
   useEffect(() => {
     try {
@@ -2675,7 +2697,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
   async function simulateWorldUntilMatch(startDate: string, targetDate: string) {
     const state = await loadWorldState()
-    if (!state) return { date: startDate, event: null as ImportantEvent | null }
+    if (!state) return { date: targetDate, event: null as ImportantEvent | null }
 
     const results: WorldSimulationResult[] = []
     const news: WorldNews[] = []
@@ -3300,7 +3322,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     setPlayers(nextPlayers)
     const savedTraining = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...savedTraining, players: Object.fromEntries(nextPlayers.map(player => [player.id, player])) }))
-    localStorage.setItem(CLOCK_KEY, JSON.stringify(nextClock))
+    localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(nextClock))
     return true
   }
 
@@ -3358,7 +3380,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       setFinanceBalance(nextBalance)
       setFinanceTransactions(nextTransactions)
 
-      localStorage.setItem(CLOCK_KEY, JSON.stringify(current))
+      localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(current))
       localStorage.setItem(FINANCE_KEY, JSON.stringify(nextTransactions))
       localStorage.setItem(CAREER_KEY, JSON.stringify({ ...career, club: { ...career.club, budget: nextBalance } }))
       localStorage.setItem(TRAINING_KEY, JSON.stringify({
@@ -4280,7 +4302,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         }
       }
 
-      localStorage.setItem(MATCHES_KEY, JSON.stringify(nextMatches))
+      localStorage.setItem(seasonStorageKey(MATCHES_KEY, career.seasonId), JSON.stringify(nextMatches))
       setPlayedMatches(nextMatches)
 
       const { data: refreshedFixtures } = await supabase
