@@ -26,14 +26,14 @@ function club(id: string, division = 1, strength = 75): WorldClub {
   }
 }
 
-function player(id: string, clubId: string, age = 22): WorldPlayer {
+function player(id: string, clubId: string, age = 22, position: Player['position'] = 'ST'): WorldPlayer {
   const base: Player = {
     id,
     first_name: id,
     last_name: 'Player',
     age,
     nationality: 'Brasil',
-    position: id.includes('gk') ? 'GK' : 'ST',
+    position,
     pace: 70,
     shooting: 70,
     passing: 65,
@@ -92,11 +92,17 @@ describe('multi-season simulation', () => {
 
     const players: WorldPlayer[] = [
       ...leagueClubs.flatMap(clubItem =>
-        Array.from({ length: 15 }, (_, index) =>
-          player(clubItem.id + '-p' + index, clubItem.id, 20 + (index % 10)),
-        ),
+        Array.from({ length: 18 }, (_, index) => {
+          const positions: Player['position'][] = ['GK', 'CB', 'LB', 'RB', 'DM', 'CM', 'AM', 'LW', 'RW', 'ST']
+          return player(
+            clubItem.id + '-p' + index,
+            clubItem.id,
+            20 + (index % 10),
+            positions[index % positions.length],
+          )
+        }),
       ),
-      player('free-agent', ''),
+      player('free-agent', '', 21, 'GK'),
     ]
 
     for (const year of seasons) {
