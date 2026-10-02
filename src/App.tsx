@@ -4738,7 +4738,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const groups: Array<{ label: string; items: Array<{ key: DashboardView; label: string; icon: typeof Settings }> }> = [
-    { label: 'Hoje', items: [{ key: 'overview', label: 'Dashboard', icon: House }] },
+    { label: 'Hoje', items: [{ key: 'overview', label: 'Início', icon: House }] },
     {
       label: 'Clube',
       items: [
