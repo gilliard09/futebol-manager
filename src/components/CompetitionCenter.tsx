@@ -454,7 +454,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             {table.map((team, i) => {
               const club = clubs.find(item => item.id === team.id)
               return <div key={team.id} className={'grid grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] items-center gap-2 border-t border-white/5 px-4 py-3 text-sm ' + (team.id === currentClubId ? 'bg-emerald-400/[0.06]' : '')}>
-                <span className="font-bold text-white/45">{i + 1}</span>
+                <span className={'flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black ' + (i === 0 ? 'bg-amber-300/15 text-amber-300' : i < 4 ? 'bg-blue-400/15 text-blue-300' : i < 8 ? 'bg-sky-300/15 text-sky-300' : i >= table.length - 4 ? 'bg-red-400/15 text-red-300' : 'bg-white/5 text-white/45')}>{i + 1}</span>
                 <div className="flex min-w-0 items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{(club?.short_name ?? team.name).slice(0,3).toUpperCase()}</span>}</span><span className="truncate font-semibold">{club?.short_name ?? team.name}</span></div>
                 <span className="text-center font-black tabular-nums text-emerald-300">{team.points}</span><span className="text-center tabular-nums text-white/55">{team.played}</span><span className="text-center tabular-nums text-white/55">{team.wins}</span><span className="text-center tabular-nums text-white/55">{team.draws}</span><span className="text-center tabular-nums text-white/55">{team.losses}</span><span className="text-center tabular-nums text-white/55">{team.gf - team.ga}</span>
               </div>
@@ -464,7 +464,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             {table.map((team, i) => {
               const club = clubs.find(item => item.id === team.id)
               return <div key={team.id} className={'grid grid-cols-[24px_minmax(0,1fr)_56px] items-center gap-2 border-t border-white/5 px-3 py-3 ' + (team.id === currentClubId ? 'bg-emerald-400/[0.06]' : '')}>
-                <span className="font-bold text-white/40">{i + 1}</span>
+                <span className={'flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black ' + (i === 0 ? 'bg-amber-300/15 text-amber-300' : i < 4 ? 'bg-blue-400/15 text-blue-300' : i < 8 ? 'bg-sky-300/15 text-sky-300' : i >= table.length - 4 ? 'bg-red-400/15 text-red-300' : 'bg-white/5 text-white/45')}>{i + 1}</span>
                 <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{(club?.short_name ?? team.name).slice(0,3).toUpperCase()}</span>}</span><span className="truncate text-sm font-semibold">{club?.short_name ?? team.name}</span></div><p className="mt-1 pl-8 text-[9px] text-white/25">{team.played}J · {team.wins}V · {team.draws}E · {team.losses}D · SG {team.gf - team.ga}</p></div>
                 <span className="text-right text-lg font-black tabular-nums text-emerald-300">{team.points}<small className="ml-1 text-[8px] font-bold uppercase text-white/25">pts</small></span>
               </div>
