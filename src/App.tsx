@@ -132,6 +132,14 @@ function addDays(date: string, days: number) {
   return next.toISOString().slice(0, 10)
 }
 
+async function persistPlayerFatigue(players: Player[]) {
+  const results = await Promise.all(players.map(player =>
+    supabase.from('players').update({ fatigue: Math.max(0, Math.min(100, Number(player.fatigue ?? 0))) }).eq('id', player.id)
+  ))
+  const failed = results.find(result => result.error)
+  if (failed?.error) console.error('Não foi possível persistir a recuperação física do elenco', failed.error)
+}
+
 
 async function ensureCompetitionTeams(seasonId: string, competitionId: string, clubs: Club[]) {
   if (!clubs.length) return
@@ -3466,6 +3474,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     }
 
     setPlayers(nextPlayers)
+    await persistPlayerFatigue(nextPlayers)
     const savedTraining = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     localStorage.setItem(TRAINING_KEY, JSON.stringify({ ...savedTraining, players: Object.fromEntries(nextPlayers.map(player => [player.id, player])) }))
     return true
@@ -3540,6 +3549,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       }
 
       setPlayers(nextPlayers)
+      await persistPlayerFatigue(nextPlayers)
       setFinanceBalance(nextBalance)
       setFinanceTransactions(nextTransactions)
 
