@@ -4897,7 +4897,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, advanceLabel,
     { label: 'Gestão', items: [
       { key: 'board', label: 'Diretoria', icon: Building2 },
       { key: 'contracts', label: 'Contratos', icon: Handshake },
-      { key: 'tactics', label: 'Escalação e tática', icon: Shield },
+      { key: 'tactics', label: 'Escalação', icon: Shield },
       { key: 'training', label: 'Treinamento', icon: Dumbbell },
       { key: 'market', label: 'Mercado', icon: ShoppingBag },
       { key: 'loans', label: 'Empréstimos', icon: Handshake },
@@ -4913,113 +4913,99 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, advanceLabel,
       { key: 'press', label: 'Imprensa', icon: Newspaper },
     ] },
   ] as const
-  const extras = [
-    { key: 'loans' as DashboardView, label: 'Empréstimos', icon: Handshake },
-    { key: 'training' as DashboardView, label: 'Treinamento', icon: Dumbbell },
-    { key: 'settings' as DashboardView, label: 'Configurações', icon: Settings },
-  ]
-  const activeLabel = groups.flatMap(group => group.items).find(item => item.key === activeView)?.label
-    ?? extras.find(item => item.key === activeView)?.label
-    ?? 'Futebol Manager'
+
+  const activeLabel = groups.flatMap(group => group.items).find(item => item.key === activeView)?.label ?? 'Futebol Manager'
 
   function navigateMobile(view: DashboardView) {
     setMobileMenuOpen(false)
     onNavigate(view)
   }
 
-  return <div className="min-h-screen bg-[#0a0f1a]">
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/5 bg-[#0d1421] lg:flex lg:flex-col">
-      <div className="flex h-16 items-center border-b border-white/5 px-5">
-        <div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400 text-[11px] font-black text-[#06100c]">FM</div><div><p className="font-display text-sm font-bold tracking-wide">FUTEBOL MANAGER</p><p className="label-mono text-white/25">Carreira</p></div></div>
+  return <div className="min-h-screen bg-[#070b12]">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-[232px] border-r border-white/[0.06] bg-[#0a1019] lg:flex lg:flex-col">
+      <div className="flex h-[68px] items-center border-b border-white/[0.06] px-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-emerald-400 text-[10px] font-black tracking-tight text-[#06100c]">FM</div>
+          <div><p className="font-display text-[13px] font-bold tracking-wide">FUTEBOL MANAGER</p><p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/25">Sua carreira</p></div>
+        </div>
       </div>
-      <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
-        {groups.map(group => <div key={group.label} className="mb-3">
-          <p className="px-3 pb-1.5 label-mono text-white/30">{group.label}</p>
+      <nav className="flex-1 overflow-y-auto px-2.5 py-4">
+        {groups.map(group => <div key={group.label} className="mb-5">
+          <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[0.18em] text-white/20">{group.label}</p>
           <div className="space-y-0.5">{group.items.map(item => {
             const Icon = item.icon
             const active = activeView === item.key
-            return <button key={item.key} onClick={() => onNavigate(item.key)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold transition ${active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Icon size={16} strokeWidth={active ? 2.2 : 1.8} /><span>{item.label}</span></button>
+            return <button key={item.key} onClick={() => onNavigate(item.key)} className={`group flex w-full items-center gap-3 rounded-[9px] px-3 py-2.5 text-left text-[11px] font-semibold transition ${active ? 'bg-white/[0.075] text-white' : 'text-white/40 hover:bg-white/[0.035] hover:text-white/80'}`}>
+              <Icon size={16} strokeWidth={active ? 2.2 : 1.7} className={active ? 'text-emerald-300' : 'text-white/30 group-hover:text-white/55'} /><span>{item.label}</span>
+            </button>
           })}</div>
         </div>)}
-        <div className="mb-5">
-          <p className="px-3 pb-2 label-mono text-white/20">Extras</p>
-          <div className="space-y-0.5">{extras.slice(0, 2).map(item => {
-            const Icon = item.icon
-            return <button key={item.key} onClick={() => onNavigate(item.key)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${activeView === item.key ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Icon size={16} /><span>{item.label}</span></button>
-          })}</div>
-        </div>
       </nav>
-      <div className="border-t border-white/5 p-3">
-        <div className="rounded-xl bg-white/[0.025] p-3">
+      <div className="border-t border-white/[0.06] p-3">
+        <button onClick={() => onNavigate('legacy')} className="w-full rounded-xl bg-white/[0.025] p-3 text-left transition hover:bg-white/[0.045]">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5">{career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-[10px] font-black text-white/55">{(career.club.short_name ?? career.club.name ?? "FM").slice(0, 3).toUpperCase()}</span>}</div>
-            <div className="min-w-0"><p className="truncate text-xs font-bold">{career.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">Treinador · {career.club.short_name ?? career.club.name}</p></div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1.5">{career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-[10px] font-black text-slate-700">{(career.club.short_name ?? 'FM').slice(0,3).toUpperCase()}</span>}</div>
+            <div className="min-w-0"><p className="truncate text-xs font-bold text-white/85">{career.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">Treinador · {career.club.short_name ?? career.club.name}</p></div>
           </div>
-          <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/35">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">{career.season.match(/\d{4}/)?.[0] ?? '2026'}</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
-        </div>
-        <button onClick={() => onNavigate('settings')} className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold text-white/35 hover:bg-white/[0.035] hover:text-white/75"><Settings size={16} /><span>Configurações</span></button>
+          <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3"><span className="text-[9px] uppercase tracking-wider text-white/25">Temporada</span><span className="font-display text-xs font-bold text-emerald-300">{career.season.match(/\d{4}/)?.[0] ?? '2026'}</span></div>
+        </button>
+        <button onClick={() => onNavigate('settings')} className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-white/30 hover:text-white/70"><Settings size={15} /><span>Configurações</span></button>
       </div>
     </aside>
 
-    <div className="min-h-screen lg:pl-[248px]">
-      <header
-        className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/95 px-3 pb-2 backdrop-blur sm:px-6"
-        style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}
-      >
-        <div className="min-w-0"><p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/55">Você está no comando</p><p className="truncate text-sm font-semibold text-white/80">{activeLabel}</p></div>
+    <div className="min-h-screen lg:pl-[232px]">
+      <header className="sticky top-0 z-30 flex min-h-[60px] items-center justify-between border-b border-white/[0.06] bg-[#070b12]/90 px-4 backdrop-blur-xl sm:px-6" style={{ paddingTop: 'max(10px, env(safe-area-inset-top))' }}>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="hidden h-8 w-8 shrink-0 overflow-hidden rounded-lg bg-white p-1 sm:flex">{career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="m-auto text-[8px] font-black text-slate-700">{(career.club.short_name ?? 'FM').slice(0,3).toUpperCase()}</span>}</div>
+          <div className="min-w-0"><p className="truncate text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300/55">Você está no comando</p><p className="truncate text-[13px] font-semibold text-white/80">{activeLabel}</p></div>
+        </div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={() => { void onAdvanceDay() }} disabled={!canAdvance} className={`hidden items-center gap-2 lg:flex game-button ${advanceLabel === 'Jogar partida' ? 'bg-emerald-400 text-[#06100c] shadow-[0_0_24px_rgba(52,211,153,0.18)] hover:bg-emerald-300' : 'game-button-primary'} disabled:cursor-not-allowed disabled:opacity-30`}><CalendarDays size={14} /> {advanceLabel}</button>
-          <button onClick={() => setMobileMenuOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
+          <button onClick={() => void onAdvanceDay()} disabled={!canAdvance} className={`hidden items-center gap-2 rounded-lg px-3.5 py-2 text-[11px] font-bold lg:flex ${advanceLabel === 'Jogar partida' ? 'bg-emerald-400 text-[#06100c] shadow-[0_0_22px_rgba(52,211,153,0.18)] hover:bg-emerald-300' : 'border border-white/8 bg-white/[0.025] text-white/65 hover:text-white'} disabled:cursor-not-allowed disabled:opacity-30`}>
+            <CalendarDays size={14} /> {advanceLabel}
+          </button>
+          <button onClick={() => setMobileMenuOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/[0.025] text-white/65 lg:hidden" aria-label="Abrir menu"><span className="text-lg leading-none">☰</span></button>
         </div>
       </header>
-      <div className="pb-4 lg:pb-0">{children}</div>
+
+      <div className="pb-20 lg:pb-0">{children}</div>
     </div>
 
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#0d1421]/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden">
-  <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
-    {[
-      { key: 'overview' as DashboardView, label: 'Início', icon: House },
-      { key: 'calendar' as DashboardView, label: 'Partidas', icon: CalendarDays },
-      { key: 'squad' as DashboardView, label: 'Meu Clube', icon: Shield },
-      { key: 'legacy' as DashboardView, label: 'Carreira', icon: Medal },
-    ].map(item => {
-      const Icon = item.icon
-      const active = activeView === item.key
-      return <button key={item.key} onClick={() => onNavigate(item.key)} className={'flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold ' + (active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/35')}>
-        <Icon size={18} strokeWidth={active ? 2.3 : 1.7} /><span>{item.label}</span>
-      </button>
-    })}
-  </div>
-</nav>
-{mobileMenuOpen && <div className="fixed inset-0 z-[60] lg:hidden">
-      <button className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu" />
-      <aside className="absolute right-0 top-0 h-[100dvh] w-[min(86vw,340px)] overflow-y-auto border-l border-white/8 bg-[#0d1421] px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] shadow-2xl">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.07] bg-[#080d15]/95 px-2 pb-[calc(7px+env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl lg:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
+        {[
+          { key: 'overview' as DashboardView, label: 'Início', icon: House },
+          { key: 'calendar' as DashboardView, label: 'Partidas', icon: CalendarDays },
+          { key: 'squad' as DashboardView, label: 'Meu Clube', icon: Shield },
+          { key: 'legacy' as DashboardView, label: 'Carreira', icon: Medal },
+        ].map(item => {
+          const Icon = item.icon
+          const active = activeView === item.key
+          return <button key={item.key} onClick={() => onNavigate(item.key)} className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl text-[9px] font-semibold ${active ? 'text-emerald-300' : 'text-white/30'}`}>
+            <span className={`flex h-7 w-10 items-center justify-center rounded-full ${active ? 'bg-emerald-400/10' : ''}`}><Icon size={17} strokeWidth={active ? 2.2 : 1.7} /></span><span>{item.label}</span>
+          </button>
+        })}
+      </div>
+    </nav>
+
+    {mobileMenuOpen && <div className="fixed inset-0 z-[60] lg:hidden">
+      <button className="absolute inset-0 bg-black/65" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu" />
+      <aside className="absolute right-0 top-0 h-[100dvh] w-[min(88vw,350px)] overflow-y-auto border-l border-white/8 bg-[#0a1019] px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-4">
-          <div><p className="font-display text-sm font-bold">FUTEBOL MANAGER</p><p className="label-mono mt-1 text-white/25">{career.club.short_name ?? career.club.name}</p></div>
-          <button onClick={() => setMobileMenuOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/60" aria-label="Fechar menu">×</button>
+          <div><p className="font-display text-sm font-bold">FUTEBOL MANAGER</p><p className="mt-1 text-[9px] uppercase tracking-wider text-white/25">{career.club.short_name ?? career.club.name}</p></div>
+          <button onClick={() => setMobileMenuOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/55" aria-label="Fechar menu">×</button>
         </div>
         {groups.map(group => <div key={group.label} className="mb-5">
-          <p className="px-2 pb-2 label-mono text-white/30">{group.label}</p>
+          <p className="px-2 pb-2 text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">{group.label}</p>
           <div className="space-y-1">{group.items.map(item => {
             const Icon = item.icon
             const active = activeView === item.key
             return <button key={item.key} onClick={() => navigateMobile(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/55'}`}><Icon size={18} /><span>{item.label}</span></button>
           })}</div>
         </div>)}
-        <div className="mb-5">
-          <p className="px-2 pb-2 label-mono text-white/30">Extras</p>
-          <div className="space-y-1">{extras.map(item => {
-            const Icon = item.icon
-            const active = activeView === item.key
-            return <button key={item.key} onClick={() => navigateMobile(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/55'}`}><Icon size={18} /><span>{item.label}</span></button>
-          })}</div>
-        </div>
       </aside>
     </div>}
-
   </div>
 }
-
 function FinanceScreen({ balance, transactions, salaryTotal, initialCapital, financeHistory, nextSeasonBudget, reputation, strength, managerConfidence, back }: {
   balance: number; transactions: FinanceTransaction[]; salaryTotal: number; initialCapital: number;
   financeHistory: SeasonFinancialHistory[]; nextSeasonBudget: number; reputation: number; strength: number; managerConfidence: number; back: () => void
