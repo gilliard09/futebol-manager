@@ -539,10 +539,19 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
           <div className="flex items-center justify-between gap-3"><span className="font-mono text-xs font-bold text-white/50">{session.minute}'</span><div className="h-2 flex-1 overflow-hidden rounded-full bg-white/6"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: (session.minute / 90) * 100 + '%' }} /></div><span className="font-mono text-xs text-white/25">90'</span></div>
           <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => setPaused(value => !value)} className="flex items-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-xs font-bold text-[#06100c]">{paused ? <Play size={14} /> : <Pause size={14} />}{paused ? 'Continuar' : 'Pausar'}</button><button onClick={skipToEnd} className="flex items-center gap-2 rounded-xl border border-white/8 px-4 py-2.5 text-xs font-bold text-white/60"><Square size={13} /> Pular para o fim</button><span className="ml-auto flex items-center gap-1.5 rounded-xl border border-white/6 px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-white/25"><Zap size={12} /> {paused ? 'Pausado' : 'Ao vivo'}</span></div>
         </div>
-        <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
           <div className="space-y-4">
+            <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-3 md:p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="label-mono text-emerald-300/60">JOGO EM ANDAMENTO</p>
+                  <p className="mt-1 text-xs text-white/35">{paused ? 'A partida está pausada para sua decisão.' : 'Acompanhe o jogo e intervenha quando necessário.'}</p>
+                </div>
+                {visibleEvents.length > 0 && <div className="max-w-[55%] truncate text-right text-[10px] font-semibold text-white/45">{visibleEvents[visibleEvents.length - 1].text}</div>}
+              </div>
+              <Pitch session={session} userTeam={userTeam} compact />
+            </section>
             <MatchTacticsBoard session={session} userTeam={userTeam} onSubstitution={(outgoingId, incomingId) => { applySubstitution(outgoingId, incomingId); setSelectedOutgoing('') }} onTactic={applyTactic} onInstruction={applyInstruction} onPlayerInstruction={applyPlayerInstruction} onRisk={applyRisk} />
-            <Pitch session={session} userTeam={userTeam} compact />
           </div>
           <aside className="space-y-4">
             <section className="rounded-2xl border border-white/6 bg-[#131b2a] p-4">
