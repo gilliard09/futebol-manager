@@ -4605,9 +4605,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         await finalizeSeasonIfComplete(seasonId, nextMatches)
       }
       if (clock) {
-        const matchClock = { ...clock, currentDate: toDateKey(activeMatchFixture.scheduled_at) }
+        const matchDate = toDateKey(activeMatchFixture.scheduled_at)
+        const nextDate = addDays(matchDate, 1)
+        const matchClock = { ...clock, currentDate: nextDate }
         setClock(matchClock)
-        localStorage.setItem(CLOCK_KEY, JSON.stringify(matchClock))
+        localStorage.setItem(seasonStorageKey(CLOCK_KEY, career.seasonId), JSON.stringify(matchClock))
       }
     }
     return <InteractiveMatch key={activeMatchFixture.id} userClubId={career.club.id} formation={formation as Formation} fixture={activeMatchFixture} homePlayers={matchHome ? players : opponentPlayers} awayPlayers={matchHome ? opponentPlayers : players} tactic={tactic as 'balanced' | 'offensive' | 'defensive'} coachStyle={career.style} coachPersonality={career.personality} back={finishMatch} cancel={() => { setActiveMatchFixture(null); goToView('overview') }} />
