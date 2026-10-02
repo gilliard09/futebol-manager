@@ -113,6 +113,11 @@ describe('multi-season simulation', () => {
     transferTarget.transferRequested = true
     transferTarget.transferRequestDate = '2026-01-01'
     transferTarget.dissatisfaction = 80
+    transferTarget.defending = 88
+    transferTarget.physical = 82
+    transferTarget.mental = 82
+    transferTarget.passing = 78
+    transferTarget.marketValue = 2_000_000
 
     for (const year of seasons) {
       const seasonId = 'season-' + year
@@ -192,7 +197,7 @@ describe('multi-season simulation', () => {
       )
       expect(leagueClubs[0].budget).toBeLessThan(budgetBefore)
 
-      simulateWorldDay(
+      const janTen = simulateWorldDay(
         year + '-01-10',
         seasonId,
         leagueClubs,
@@ -212,9 +217,9 @@ describe('multi-season simulation', () => {
         players,
         userClubId,
         {},
-        janFirst.marketInterest,
-        janFirst.loans,
-        janFirst.aiManagers,
+        janTen.marketInterest,
+        janTen.loans,
+        janTen.aiManagers,
       )
 
       const januaryFreeAgents = simulateWorldDay(
