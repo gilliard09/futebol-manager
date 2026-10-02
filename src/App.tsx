@@ -4714,7 +4714,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
 
     {mobileMenuOpen && <div className="fixed inset-0 z-[60] lg:hidden">
       <button className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu" />
-      <aside className="absolute right-0 top-0 h-full w-[min(86vw,340px)] overflow-y-auto border-l border-white/8 bg-[#0d1421] px-4 pb-8 pt-4 shadow-2xl">
+      <aside className="absolute right-0 top-0 h-[100dvh] w-[min(86vw,340px)] overflow-y-auto border-l border-white/8 bg-[#0d1421] px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] shadow-2xl">
         <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-4">
           <div><p className="font-display text-sm font-bold">FUTEBOL MANAGER</p><p className="label-mono mt-1 text-white/25">{career.club.short_name ?? career.club.name}</p></div>
           <button onClick={() => setMobileMenuOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/60" aria-label="Fechar menu">×</button>
