@@ -5413,10 +5413,20 @@ function Tactics({ players, club, today, back }: { players: Player[]; club: Club
     return false
   }
 
+  function condition(player: Player) {
+    return Math.max(0, 100 - (player.fatigue ?? 0))
+  }
+
+  function selectionScore(player: Player) {
+    const physicalPenalty = condition(player) < 45 ? 7 : condition(player) < 60 ? 3 : 0
+    const moraleBonus = player.morale >= 75 ? 2 : player.morale < 45 ? -2 : 0
+    return overall(player) + moraleBonus - physicalPenalty
+  }
+
   function bestForPosition(position: string, usedIds: Set<string>) {
     return players
       .filter(player => isPlayerAvailable(player, today) && !usedIds.has(player.id) && canPlayPosition(player, position))
-      .sort((a, b) => overall(b) - overall(a))[0]
+      .sort((a, b) => selectionScore(b) - selectionScore(a))[0]
   }
 
   function autoPick() {
@@ -5450,10 +5460,30 @@ function Tactics({ players, club, today, back }: { players: Player[]; club: Club
     <div className="flex flex-col justify-between gap-5 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">{club.name}</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Quem começa jogando?</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Monte sua equipe antes da partida. A escalação escolhida será a base para o motor de jogo.</p></div><button onClick={autoPick} className="rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] hover:bg-emerald-300">Escalar melhor time</button></div>
     <div className="mt-8 flex flex-wrap gap-2">{(Object.keys(formations) as Array<keyof typeof formations>).map(item => <button key={item} onClick={() => changeFormation(item)} className={`rounded-lg px-4 py-2.5 text-xs font-bold ${formation === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/8 text-white/45 hover:text-white'}`}>{item}</button>)}</div>
     <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estilo de jogo</p><div className="mt-4 grid grid-cols-3 gap-2">{[['defensive','Defensivo'],['balanced','Equilibrado'],['offensive','Ofensivo']].map(([value,label]) => <button key={value} onClick={() => saveTactic(value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${tactic === value ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/40'}`}>{label}</button>)}</div></div>
+    <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <Info label="Condição média" value={`${players.length ? Math.round(players.reduce((sum, player) => sum + condition(player), 0) / players.length) : 0}%`} />
+      <Info label="Moral média" value={String(players.length ? Math.round(players.reduce((sum, player) => sum + player.morale, 0) / players.length) : 0)} />
+      <Info label="Titulares" value={`${starters}/11`} />
+      <Info label="Formação" value={formation} />
+    </div>
+    <div className="mt-4 rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 text-xs text-white/40">
+      O “melhor time” agora considera GER, condição física e moral. Um jogador superior tecnicamente pode perder a vaga quando chega desgastado.
+    </div>
     <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
       <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5">
         <div className="mb-5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Titulares</span><span className="text-xs text-white/30">{starters}/11</span></div>
-        <div className="grid gap-2">{selected.map(({position,index,player}) => <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3"><span className="w-10 text-xs font-bold text-emerald-300">{position}</span><select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"><option value="">Escolher jogador</option>{players.filter(p => (isPlayerAvailable(p, today) && (!Object.values(lineup).includes(p.id) || p.id === player?.id)) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {playerOverall(p)}{!isPlayerAvailable(p, today) ? ' · indisponível' : ''}</option>)}</select></div>)}</div>
+        <div className="grid gap-2">{selected.map(({position,index,player}) => {
+          const playerCondition = player ? condition(player) : null
+          const status = playerCondition !== null && playerCondition < 45 ? 'Desgastado' : playerCondition !== null && playerCondition < 60 ? 'Atenção' : 'Pronto'
+          return <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3">
+            <span className="w-10 text-xs font-bold text-emerald-300">{position}</span>
+            <select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next,tactic})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none">
+              <option value="">Escolher jogador</option>
+              {players.filter(p => (isPlayerAvailable(p, today) && (!Object.values(lineup).includes(p.id) || p.id === player?.id)) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {playerOverall(p)} · condição {condition(p)}%</option>)}
+            </select>
+            {player && <div className="hidden shrink-0 text-right sm:block"><p className={`text-[9px] font-bold uppercase tracking-[0.12em] ${status === 'Desgastado' ? 'text-red-300' : status === 'Atenção' ? 'text-amber-300' : 'text-emerald-300'}`}>{status}</p><p className="text-[9px] text-white/25">{condition(player)}% · moral {player.morale}</p></div>}
+          </div>
+        })}</div>
       </section>
       <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => isPlayerAvailable(p, today) && !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{playerOverall(p)}</span></div>)}</div></section>
     </div>
