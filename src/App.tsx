@@ -5138,6 +5138,186 @@ function GameSection({ title, eyebrow, icon, description, back }: { title: strin
   </main>
 }
 
+function ClubManagementHub({ players, club, today, nextFixture, balance, salaryTotal, board, onNavigate, onContractChange }: {
+  players: Player[]
+  club: Club
+  today: string
+  nextFixture: Fixture | null
+  balance: number
+  salaryTotal: number
+  board: BoardState
+  onNavigate: (view: DashboardView) => void
+  onContractChange?: (oldSalary: number, newSalary: number) => void
+}) {
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [tacticState, setTacticState] = useState<{ formation: Formation; tactic: string; lineup: Record<number, string> }>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}')
+      return {
+        formation: saved.formation ?? '4-3-3',
+        tactic: saved.tactic ?? 'balanced',
+        lineup: saved.lineup ?? {},
+      }
+    } catch {
+      return { formation: '4-3-3', tactic: 'balanced', lineup: {} }
+    }
+  })
+
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}')
+        setTacticState({
+          formation: saved.formation ?? '4-3-3',
+          tactic: saved.tactic ?? 'balanced',
+          lineup: saved.lineup ?? {},
+        })
+      } catch {}
+    }
+    window.addEventListener('storage', refresh)
+    return () => window.removeEventListener('storage', refresh)
+  }, [])
+
+  const available = players.filter(player => isPlayerAvailable(player, today))
+  const averageOverall = players.length ? Math.round(players.reduce((sum, player) => sum + playerOverall(player), 0) / players.length) : 0
+  const averageFatigue = players.length ? Math.round(players.reduce((sum, player) => sum + (player.fatigue ?? 0), 0) / players.length) : 0
+  const averageMorale = players.length ? Math.round(players.reduce((sum, player) => sum + (player.morale ?? 0), 0) / players.length) : 0
+  const tiredPlayers = [...players].sort((a, b) => (b.fatigue ?? 0) - (a.fatigue ?? 0)).slice(0, 3)
+  const lowMoralePlayers = [...players].sort((a, b) => (a.morale ?? 0) - (b.morale ?? 0)).slice(0, 3)
+  const starters = Object.values(tacticState.lineup)
+    .map(playerId => players.find(player => player.id === playerId))
+    .filter((player): player is Player => Boolean(player))
+  const nextOpponent = nextFixture
+    ? nextFixture.home_club_id === club.id ? nextFixture.away_club : nextFixture.home_club
+    : null
+  const nextIsHome = nextFixture?.home_club_id === club.id
+  const nextDate = nextFixture ? toDateKey(nextFixture.scheduled_at) : null
+  const daysToMatch = nextDate ? daysBetween(today, nextDate) : null
+  const tacticLabel = tacticState.tactic === 'offensive' ? 'Ofensivo' : tacticState.tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'
+  const objectiveLabel = board.objectiveLabel || 'Objetivo da temporada'
+
+  return <main className="min-h-screen pb-24 lg:pb-0">
+    <section className="px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mb-6">
+        <p className="label-mono text-emerald-300/60">Meu clube · centro de comando</p>
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">{club.name}</h1>
+          <span className="text-sm font-semibold text-white/35">{players.length} jogadores</span>
+        </div>
+        <p className="mt-2 max-w-2xl text-xs leading-5 text-white/40">Elenco, preparação, condição e decisões de gestão no mesmo lugar.</p>
+      </div>
+
+      <section className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0d131e]">
+        <div className="border-b border-white/[0.05] px-4 py-3 sm:px-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="label-mono text-white/25">Próximo jogo</p>
+              <p className="mt-1 text-sm font-bold">{nextFixture ? `${nextOpponent?.name ?? 'Adversário'} · ${nextIsHome ? 'Casa' : 'Fora'}` : 'Calendário atualizado'}</p>
+            </div>
+            <CalendarDays size={18} className="text-white/25" />
+          </div>
+        </div>
+        {nextFixture ? <div className="grid gap-0 sm:grid-cols-[1fr_auto_1fr]">
+          <div className="px-4 py-5 sm:px-5">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/25">{nextFixture.competition_name ?? 'Competição'}</p>
+            <p className="mt-2 text-lg font-bold">{nextFixture.home_club?.short_name ?? 'Casa'} <span className="px-1 text-white/20">×</span> {nextFixture.away_club?.short_name ?? 'Fora'}</p>
+            <p className="mt-1 text-xs text-white/35">{formatSeasonDate(nextDate ?? today)}{daysToMatch !== null ? ` · ${daysToMatch === 0 ? 'hoje' : daysToMatch === 1 ? 'amanhã' : `em ${daysToMatch} dias`}` : ''}</p>
+          </div>
+          <div className="hidden items-center border-x border-white/[0.05] px-5 sm:flex">
+            <div className="text-center"><p className="text-[9px] uppercase tracking-[0.16em] text-white/25">Preparação</p><p className="mt-1 text-xl font-bold text-emerald-300">{starters.length}/11</p><p className="text-[9px] text-white/25">titulares definidos</p></div>
+          </div>
+          <div className="flex gap-2 border-t border-white/[0.05] p-4 sm:border-t-0 sm:p-5">
+            <button onClick={() => onNavigate('tactics')} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 py-3 text-xs font-bold text-[#06100c]">Escalação <ArrowRight size={14} /></button>
+            <button onClick={() => onNavigate('training')} className="flex items-center justify-center rounded-xl border border-white/8 px-3 py-3 text-white/55 hover:text-white" aria-label="Treinamento"><Dumbbell size={16} /></button>
+          </div>
+        </div> : <div className="px-5 py-6 text-sm text-white/35">Não há próximo jogo disponível.</div>}
+      </section>
+
+      <section className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { label: 'ELENCO', value: String(players.length), detail: `GER médio ${averageOverall}`, icon: <Users size={16} />, view: 'squad' as DashboardView },
+          { label: 'CONDIÇÃO', value: `${Math.max(0, 100 - averageFatigue)}%`, detail: averageFatigue >= 60 ? 'Elenco desgastado' : 'Carga controlada', icon: <Dumbbell size={16} />, view: 'training' as DashboardView },
+          { label: 'MORAL', value: `${averageMorale}`, detail: averageMorale >= 70 ? 'Ambiente positivo' : 'Atenção ao vestiário', icon: <CircleUserRound size={16} />, view: 'squad' as DashboardView },
+          { label: 'CAIXA', value: money(balance), detail: `Folha ${money(salaryTotal)}/mês`, icon: <WalletCards size={16} />, view: 'finance' as DashboardView },
+        ].map(item => <button key={item.label} onClick={() => onNavigate(item.view)} className="rounded-xl border border-white/[0.06] bg-[#0d131e] p-4 text-left transition hover:bg-white/[0.035]">
+          <div className="flex items-center gap-2 text-white/30">{item.icon}<span className="label-mono">{item.label}</span></div>
+          <p className="mt-3 truncate font-display text-xl font-bold tabular-nums">{item.value}</p>
+          <p className="mt-1 truncate text-[10px] text-white/30">{item.detail}</p>
+        </button>)}
+      </section>
+
+      <section className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+        <div className="rounded-2xl border border-white/[0.06] bg-[#0d131e]">
+          <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4 sm:px-5">
+            <div><p className="label-mono text-white/25">Preparação do elenco</p><h2 className="mt-1 text-lg font-bold">Quem está pronto para jogar?</h2></div>
+            <button onClick={() => onNavigate('squad')} className="text-xs font-semibold text-emerald-300">Ver elenco</button>
+          </div>
+          <div className="grid gap-2 p-3 sm:p-4">
+            {tiredPlayers.map(player => {
+              const condition = Math.max(0, 100 - (player.fatigue ?? 0))
+              return <button key={player.id} onClick={() => setSelectedPlayer(player)} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 px-3 py-3 text-left hover:bg-white/[0.025]">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-[10px] font-bold text-white/35">#{player.squad_number}</div>
+                <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-[10px] text-white/30">{playerPositionLabel(player.position)} · Moral {player.morale}</p></div>
+                <div className="w-20 shrink-0"><div className="flex justify-between text-[9px] text-white/25"><span>Condição</span><span>{condition}%</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/8"><div className={condition < 45 ? 'h-full bg-red-400' : condition < 65 ? 'h-full bg-amber-300' : 'h-full bg-emerald-400'} style={{ width: `${condition}%` }} /></div></div>
+              </button>
+            })}
+          </div>
+          <div className="border-t border-white/[0.05] px-4 py-3 sm:px-5"><button onClick={() => onNavigate('training')} className="flex w-full items-center justify-between text-xs font-semibold text-white/45 hover:text-white"><span>Recuperar e preparar elenco</span><ChevronRight size={15} /></button></div>
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.06] bg-[#0d131e]">
+          <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4 sm:px-5">
+            <div><p className="label-mono text-white/25">Vestiário</p><h2 className="mt-1 text-lg font-bold">Moral do grupo</h2></div>
+            <span className="font-display text-2xl font-bold text-emerald-300">{averageMorale}</span>
+          </div>
+          <div className="space-y-2 p-4">
+            {lowMoralePlayers.map(player => <button key={player.id} onClick={() => setSelectedPlayer(player)} className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-black/10 px-3 py-3 text-left hover:bg-white/[0.025]">
+              <div className="min-w-0"><p className="truncate text-sm font-semibold">{player.first_name} {player.last_name}</p><p className="text-[10px] text-white/30">{playerPositionLabel(player.position)} · {player.age} anos</p></div>
+              <span className={player.morale < 50 ? 'text-sm font-bold text-red-300' : 'text-sm font-bold text-amber-200'}>{player.morale}</span>
+            </button>)}
+          </div>
+          <div className="border-t border-white/[0.05] px-4 py-3 sm:px-5"><button onClick={() => onNavigate('squad')} className="flex w-full items-center justify-between text-xs font-semibold text-white/45 hover:text-white"><span>Gerenciar elenco e jogadores</span><ChevronRight size={15} /></button></div>
+        </div>
+      </section>
+
+      <section className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-white/[0.06] bg-[#0d131e] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div><p className="label-mono text-white/25">Sua equipe</p><h2 className="mt-1 text-lg font-bold">{tacticState.formation} · {tacticLabel}</h2><p className="mt-1 text-xs text-white/30">{starters.length}/11 titulares definidos</p></div>
+            <Shield size={20} className="text-emerald-300/50" />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {starters.slice(0, 11).map(player => <button key={player.id} onClick={() => setSelectedPlayer(player)} className="rounded-lg border border-white/6 bg-white/[0.025] px-2.5 py-2 text-[10px] font-semibold text-white/55 hover:text-white">{player.first_name} {player.last_name}</button>)}
+            {!starters.length && <p className="text-xs text-white/30">Nenhuma escalação definida. O próximo jogo começa com decisão sua.</p>}
+          </div>
+          <button onClick={() => onNavigate('tactics')} className="mt-5 flex items-center gap-2 text-xs font-semibold text-emerald-300">Abrir escalação <ArrowRight size={14} /></button>
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.06] bg-[#0d131e] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div><p className="label-mono text-white/25">Diretoria</p><h2 className="mt-1 text-lg font-bold">{objectiveLabel}</h2><p className="mt-1 text-xs text-white/30">Expectativa: {Math.round(board.expectation)} · Confiança: {Math.round(board.confidence)}</p></div>
+            <Building2 size={20} className="text-amber-200/50" />
+          </div>
+          <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-white/8"><div className="h-full bg-emerald-400" style={{ width: `${Math.max(0, Math.min(100, board.confidence))}%` }} /></div>
+          <button onClick={() => onNavigate('board')} className="mt-5 flex items-center gap-2 text-xs font-semibold text-amber-200/80">Ver diretoria <ArrowRight size={14} /></button>
+        </div>
+      </section>
+
+      <section className="mt-4 grid gap-2 sm:grid-cols-4">
+        {[
+          ['Elenco', 'squad' as DashboardView, Users],
+          ['Escalação', 'tactics' as DashboardView, Shield],
+          ['Finanças', 'finance' as DashboardView, WalletCards],
+          ['Diretoria', 'board' as DashboardView, Building2],
+        ].map(([label, view, Icon]) => <button key={label} onClick={() => onNavigate(view as DashboardView)} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.04]">
+          <span className="flex items-center gap-2 text-xs font-semibold text-white/55"><Icon size={15} />{label}</span><ChevronRight size={14} className="text-white/20" />
+        </button>)}
+      </section>
+    </section>
+    {selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} today={today} onContractChange={onContractChange} close={() => setSelectedPlayer(null)} />}
+  </main>
+}
+
 function Squad({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (oldSalary: number, newSalary: number) => void; back: () => void }) {
   const [position, setPosition] = useState('ALL')
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
