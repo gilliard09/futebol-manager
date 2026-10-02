@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ArrowRight, GripVertical, SlidersHorizontal } from 'lucide-react'
 import type { Formation, Player } from '../types/game'
-import { FORMATIONS } from '../types/game'
 import type { InteractiveMatchState, InteractiveTactic, InteractiveTeam } from '../engine/interactiveMatch'
 import { playerOverall } from '../engine/matchCore'
 import { playerPositionLabel } from '../engine/playerPositions'
@@ -133,7 +132,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
                 {item.player.first_name[0]}{item.player.last_name[0]}
               </div>
               <span className="mt-1 block min-w-16 rounded bg-black/65 px-1 py-0.5 text-[8px] font-bold text-white">{shortName(item.player)}</span>
-              <span className="block text-[7px] font-bold uppercase tracking-wider text-white/55">{item.role}</span>
+              <span className="block text-[7px] font-bold uppercase tracking-wider text-white/55">{item.role} · {playerPositionLabel(item.player.position)}</span>
             </div>
           })}
 
