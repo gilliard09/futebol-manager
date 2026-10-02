@@ -1,33 +1,41 @@
-create schema if not exists private;
-
-create or replace function private.user_owns_season(p_season_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1
-    from public.seasons
-    where id = p_season_id
-      and owner_id = (select auth.uid())
-  );
-$$;
-
-revoke all on function private.user_owns_season(uuid) from public;
-grant execute on function private.user_owns_season(uuid) to authenticated;
-
 drop policy if exists "authenticated can create own scheduled fixtures" on public.fixtures;
+drop policy if exists "authenticated can create own completed fixtures" on public.fixtures;
 
 create policy "authenticated can create own scheduled fixtures"
 on public.fixtures
 for insert
 to authenticated
 with check (
-  (select private.user_owns_season(season_id))
+  exists (
+    select 1
+    from public.seasons s
+    where s.id = season_id
+      and s.owner_id = (select auth.uid())
+  )
   and status = 'scheduled'
   and home_score is null
   and away_score is null
+  and home_club_id <> away_club_id
+);
+
+create policy "authenticated can create own completed fixtures"
+on public.fixtures
+for insert
+to authenticated
+with check (
+  exists (
+    select 1
+    from public.seasons s
+    where s.id = season_id
+      and s.owner_id = (select auth.uid())
+  )
+  and status = 'completed'
+  and home_score is not null
+  and away_score is not null
+  and home_score >= 0
+  and away_score >= 0
+  and home_score <= 20
+  and away_score <= 20
+  and winner_club_id is not null
   and home_club_id <> away_club_id
 );
