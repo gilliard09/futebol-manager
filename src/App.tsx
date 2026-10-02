@@ -811,7 +811,10 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       top_scorer_player_id: row.top_scorer_player_id ?? null,
       top_scorer_goals: Number(row.top_scorer_goals ?? 0),
     }))
-    setHistoryRows(normalized)
+    const uniqueHistory = normalized.filter((row, index, list) =>
+      list.findIndex(other => other.season_id === row.season_id && other.competition_name === row.competition_name) === index
+    )
+    setHistoryRows(uniqueHistory)
 
     const playerIds = [...new Set(normalized.map(row => row.top_scorer_player_id).filter(Boolean))]
     if (playerIds.length) {
@@ -4539,6 +4542,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
+                  <button onClick={() => goToView('squad')} className="game-button game-button-secondary">Elenco</button>
                   <button onClick={openOpponentSquad} disabled={!opponent || opponentLoading} className="game-button game-button-secondary">{opponentLoading ? 'Carregando...' : 'Ver adversário'}</button>
                   <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary col-span-2 hidden w-full sm:order-first sm:col-auto sm:w-auto lg:inline-flex">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
                 </div>
@@ -4610,17 +4614,13 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 }
 
 function ClubMatchSide({ club, overall, align }: { club: { name: string; short_name?: string; logo_url?: string } | null | undefined; overall: number; align: 'left' | 'right' }) {
-  const label = club?.short_name ?? club?.name ?? (align === 'right' ? 'Seu clube' : 'Adversário')
   const fallback = (club?.short_name ?? club?.name ?? 'FC').slice(0, 3).toUpperCase()
-  const content = <div className={`flex min-w-0 items-center gap-2.5 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
-    {align === 'right' && <div className="min-w-0 max-w-[calc(100vw-150px)]"><p className="truncate text-xs font-black sm:text-base">{label}</p><p className="mt-1 font-display text-lg font-bold tabular-nums text-white/85 sm:text-xl">OVR {overall}</p></div>}
-    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg sm:h-16 sm:w-16">
+  return <div className={`flex min-w-0 items-center gap-2.5 ${align === 'right' ? 'justify-end text-right' : 'text-left'}`}>
+    <div className="flex h-[2.9rem] w-[2.9rem] shrink-0 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg sm:h-[4.2rem] sm:w-[4.2rem]">
       {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.style.display = 'none'; event.currentTarget.parentElement?.classList.add('club-logo-fallback') }} /> : <span className="font-display text-[11px] font-black text-slate-700">{fallback}</span>}
-      {club?.logo_url && <span className="hidden font-display text-[11px] font-black text-slate-700">{fallback}</span>}
     </div>
-    {align === 'left' && <div className="min-w-0 max-w-[calc(100vw-150px)]"><p className="truncate text-xs font-black sm:text-base">{label}</p><p className="mt-1 font-display text-lg font-bold tabular-nums text-white/85 sm:text-xl">OVR {overall}</p></div>}
+    <p className="font-display text-[10px] font-bold tabular-nums text-white/60 sm:text-xs">OVR {overall}</p>
   </div>
-  return content
 }
 
 function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, children }: {
@@ -4702,12 +4702,10 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     </aside>
 
     <div className="min-h-screen lg:pl-[248px]">
-      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/90 px-4 py-3 backdrop-blur sm:px-6 safe-top">
-        <div className="min-w-0"><p className="label-mono text-white/25">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p><p className="truncate text-sm font-semibold text-white/75">{activeLabel}</p></div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setMobileMenuOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/65 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
-          <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
-        </div>
+      <header className="sticky top-0 z-30 flex min-h-14 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/95 px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur sm:px-6">
+        <button onClick={() => setMobileMenuOpen(true)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
+        <div className="hidden min-w-0 lg:block"><p className="truncate text-sm font-semibold text-white/75">{activeLabel}</p></div>
+        <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
       </header>
       <div className="pb-4 lg:pb-0">{children}</div>
     </div>
