@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Club, Fixture, PlayedMatch } from '../types/game'
@@ -41,6 +41,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const [seasonHistory, setSeasonHistory] = useState<Array<{ season: string; year: number; leagueChampion: string; serieBChampion: string; cupChampion: string; status: string }>>([])
   const [clubHistory, setClubHistory] = useState<Array<{ season: string; competition: string; position: number; points: number; division: number }>>([])
   const [competitionRecords, setCompetitionRecords] = useState<Array<{ record_type: string; value: number; description: string; club_id: string | null }>>([])
+  const roundNavRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let active = true
@@ -134,6 +135,11 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
       : []
   const rounds = [...new Set(fixtures.map(item => item.round))].sort((a, b) => a - b)
   const roundFixtures = fixtures.filter(item => item.round === round)
+
+  useEffect(() => {
+    const active = roundNavRef.current?.querySelector<HTMLElement>(`[data-round="${round}"]`)
+    active?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  }, [round])
   const position = table.findIndex(item => item.id === currentClubId) + 1
   const rules = competition === 'Liga Nacional do Brasil'
     ? BRAZIL_LEAGUE_RULES
@@ -161,16 +167,18 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
   const history = useMemo(() => {
     const completed = fixtures.filter(item => item.status === 'completed')
+    const seasonFinished = fixtures.length > 0 && completed.length === fixtures.length
     if (competition === 'Liga Nacional do Brasil' || competition === 'Série B do Brasil') {
       const teams = competition === 'Liga Nacional do Brasil' ? brazilianFirstDivision : brazilianSecondDivision
       const standings = buildStandings(teams.map(c => ({ id: c.id, name: c.short_name })), fixtures)
-      const championId = standings[0]?.id
-      return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === standings[1]?.id) ?? null, completed: completed.length === fixtures.length && fixtures.length > 0 }
+      if (!seasonFinished) return { champion: null, runnerUp: null, completed: false }
+      return { champion: clubs.find(c => c.id === standings[0]?.id) ?? null, runnerUp: clubs.find(c => c.id === standings[1]?.id) ?? null, completed: true }
     }
     const final = fixtures.find(item => item.round === 7 && item.status === 'completed')
-    const championId = final?.winner_club_id ?? (final && final.home_score != null && final.away_score != null ? (final.home_score > final.away_score ? final.home_club_id : final.away_score > final.home_score ? final.away_club_id : null) : null)
-    const runnerUpId = championId && final ? (championId === final.home_club_id ? final.away_club_id : final.home_club_id) : null
-    return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === runnerUpId) ?? null, completed: Boolean(final) }
+    if (!final) return { champion: null, runnerUp: null, completed: false }
+    const championId = final.winner_club_id ?? (final.home_score != null && final.away_score != null ? (final.home_score > final.away_score ? final.home_club_id : final.away_score > final.home_score ? final.away_club_id : null) : null)
+    const runnerUpId = championId ? (championId === final.home_club_id ? final.away_club_id : final.home_club_id) : null
+    return { champion: clubs.find(c => c.id === championId) ?? null, runnerUp: clubs.find(c => c.id === runnerUpId) ?? null, completed: true }
   }, [competition, fixtures, clubs])
 
   const champion = competition === 'Copa Nacional do Brasil'
@@ -266,19 +274,35 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">{competition === 'Copa Nacional do Brasil' ? 'Fase' : 'Rodadas'}</p><h2 className="mt-2 text-2xl font-bold">{currentStage}</h2></div><Trophy className="text-emerald-300/50" /></div>
-          <div className="mt-5 flex gap-2 overflow-x-auto pb-1">{rounds.map(r => <button key={r} onClick={() => setRound(r)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 text-white/35'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}</div>
-          <div className="mt-5 grid gap-2 md:grid-cols-2">
-            {roundFixtures.map(item => <div key={item.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${item.home_club_id === currentClubId || item.away_club_id === currentClubId ? 'border-emerald-400/15 bg-emerald-400/[0.03]' : 'border-white/5 bg-black/10'}`}>
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">{item.home_club?.logo_url ? <img src={item.home_club.logo_url} alt="" className="h-full w-full object-contain" /> : item.home_club?.short_name?.slice(0, 3)}</span>
-                  <span>{item.home_club?.short_name ?? 'Casa'}</span><span className="px-1 text-white/20">×</span><span>{item.away_club?.short_name ?? 'Fora'}</span>
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">{item.away_club?.logo_url ? <img src={item.away_club.logo_url} alt="" className="h-full w-full object-contain" /> : item.away_club?.short_name?.slice(0, 3)}</span>
+          <div className="relative mt-5">
+            <div ref={roundNavRef} className="round-scroller flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-2">
+              {rounds.map(r => <button key={r} data-round={r} onClick={() => setRound(r)} className={`shrink-0 snap-center rounded-lg px-3 py-2 text-xs font-bold ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 text-white/45'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}
+            </div>
+            <span className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#131b2a] to-transparent" />
+            <span className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#131b2a] to-transparent" />
+          </div>
+          <div className="mt-5 space-y-2">
+            {roundFixtures.map(item => {
+              const code = (club: typeof item.home_club) => {
+                const name = club?.short_name ?? club?.name ?? '—'
+                const known: Record<string, string> = { 'Corinthians': 'COR', 'Atlético-MG': 'CAM', 'Red Bull Bragantino': 'RBB', 'Athletico-PR': 'CAP', 'Flamengo': 'FLA', 'Palmeiras': 'PAL', 'São Paulo': 'SAO', 'Santos': 'SAN', 'Cruzeiro': 'CRU', 'Grêmio': 'GRE', 'Internacional': 'INT', 'Fluminense': 'FLU', 'Botafogo': 'BOT', 'Bahia': 'BAH', 'Vasco': 'VAS', 'Vitória': 'VIT' }
+                return known[name] ?? name.replace(/[^A-Za-zÀ-ÿ]/g, '').slice(0, 3).toUpperCase()
+              }
+              const current = item.home_club_id === currentClubId || item.away_club_id === currentClubId
+              return <div key={item.id} className={`grid grid-cols-[minmax(0,1fr)_48px_minmax(0,1fr)] items-center gap-2 rounded-xl border px-3 py-3 ${current ? 'border-emerald-400/15 bg-emerald-400/[0.03]' : 'border-white/5 bg-black/10'}`}>
+                <div className="min-w-0 flex items-center justify-end gap-2 text-right">
+                  <span className="min-w-0 truncate text-xs font-semibold sm:text-sm"><span className="sm:hidden">{code(item.home_club)}</span><span className="hidden sm:inline">{item.home_club?.short_name ?? 'Casa'}</span></span>
+                  <span className="hidden h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1 sm:flex">{item.home_club?.logo_url ? <img src={item.home_club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{code(item.home_club)}</span>}</span>
                 </div>
-                <p className="mt-1 text-xs text-white/25">{dateLabel(item.scheduled_at)} · {item.home_club?.city ?? 'Cidade a definir'} · {item.home_club?.stadium ?? 'Estádio a definir'}</p>
+                <span className="text-center text-sm font-black tabular-nums">{item.status === 'completed' ? `${item.home_score}–${item.away_score}` : '–'}</span>
+                <div className="min-w-0 flex items-center gap-2">
+                  <span className="hidden h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1 sm:flex">{item.away_club?.logo_url ? <img src={item.away_club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{code(item.away_club)}</span>}</span>
+                  <span className="min-w-0 truncate text-xs font-semibold sm:text-sm"><span className="sm:hidden">{code(item.away_club)}</span><span className="hidden sm:inline">{item.away_club?.short_name ?? 'Fora'}</span></span>
+                </div>
+                <p className="col-span-3 truncate text-center text-[10px] text-white/25 sm:hidden">{dateLabel(item.scheduled_at)}</p>
+                <p className="col-span-3 hidden text-xs text-white/25 sm:block">{dateLabel(item.scheduled_at)} · {item.home_club?.city ?? 'Cidade a definir'} · {item.home_club?.stadium ?? 'Estádio a definir'}</p>
               </div>
-              <span className="text-sm font-bold">{item.status === 'completed' ? `${item.home_score} × ${item.away_score}` : '—'}</span>
-            </div>)}
+            })}
           </div>
         </section>
 
@@ -298,7 +322,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             <Info label="Vice-campeão" value={history.runnerUp?.short_name ?? 'Em aberto'} />
             <Info label="Status" value={seasonStatus === 'completed' ? 'Temporada encerrada' : history.completed ? 'Competição encerrada' : 'Em andamento'} />
           </div>
-          <p className="mt-3 text-xs text-white/25">{seasonStatus === 'completed' ? `Registro oficial salvo no histórico · ${officialHistory.length} competição(ões) consolidada(s).` : 'O registro persistente será gravado no encerramento da temporada.'}</p>
+          <p className="mt-3 text-xs text-white/35">{seasonStatus === 'completed' ? `Registro oficial salvo no histórico · ${officialHistory.length} competição(ões) consolidada(s).` : history.completed ? 'A competição foi concluída e o campeão está definido.' : 'Nenhum campeão é exibido até a competição terminar.'}</p>
         </section>
 
         {competitionRecords.length > 0 && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
