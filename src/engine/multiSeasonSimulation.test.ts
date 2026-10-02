@@ -279,6 +279,7 @@ describe('multi-season simulation', () => {
     expect(popularity.regional).toBeGreaterThanOrEqual(initialPopularity.regional - 10)
     expect(popularity.national).toBeGreaterThanOrEqual(initialPopularity.national - 10)
     expect(totalAIManagers).toBeGreaterThan(0)
+    expect(totalNegotiations).toBeGreaterThan(0)
     expect(totalTransfers + totalNegotiations).toBeGreaterThan(0)
     expect(totalManagerOffers).toBeGreaterThan(0)
     expect(popularity.regional).toBeGreaterThan(popularity.national)
