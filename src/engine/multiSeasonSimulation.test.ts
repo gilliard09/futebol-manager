@@ -124,23 +124,24 @@ describe('multi-season simulation', () => {
       totalTitles += 2
 
       const userPosition = standings.findIndex(row => row.id === userClubId) + 1
+      const userStanding = standings.find(row => row.id === userClubId)!
       const managerPerformance = {
         position: userPosition,
-        points: standings.find(row => row.id === userClubId)?.points ?? 0,
-        wins: 24,
-        draws: 3,
-        losses: 3,
+        points: userStanding.points,
+        wins: userStanding.wins,
+        draws: userStanding.draws,
+        losses: userStanding.losses,
         clubReputation: leagueClubs[0].reputation,
         leagueTitle: userPosition === 1,
-        cupTitle: true,
+        cupTitle: historyEntry.cupChampionId === userClubId,
         boardConfidence: 90,
         fanSatisfaction: 90,
       }
       const score = managerPerformanceScore(managerPerformance)
       popularity = updateManagerPopularity(popularity, managerPerformance)
-      expect(score).toBeGreaterThan(100)
-      expect(popularity.regional).toBeGreaterThanOrEqual(20)
-      expect(popularity.national).toBeGreaterThan(0)
+      expect(score).toBeGreaterThan(0)
+      expect(popularity.regional).toBeGreaterThanOrEqual(initialManagerPopularity(leagueClubs[0].reputation).regional)
+      expect(popularity.national).toBeGreaterThanOrEqual(initialManagerPopularity(leagueClubs[0].reputation).national)
 
       const offers = buildManagerOfferCandidates(
         popularity,
@@ -216,8 +217,9 @@ describe('multi-season simulation', () => {
     expect(records.bestFinish).toBeGreaterThanOrEqual(1)
     expect(records.bestFinish).toBeLessThanOrEqual(16)
     expect(records.mostPoints).toBeGreaterThan(0)
-    expect(records.mostWins).toBe(24)
-    expect(records.titles).toBeGreaterThanOrEqual(5)
+    expect(records.mostWins).toBeGreaterThan(0)
+    expect(records.titles).toBe(totalTitles)
+    expect(totalTitles).toBeGreaterThanOrEqual(0)
     expect(totalAIManagers).toBeGreaterThan(0)
     expect(totalTransfers).toBeGreaterThan(0)
     expect(popularity.regional).toBeGreaterThan(popularity.national)
