@@ -4703,7 +4703,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     if (!currentStanding || top.some(team => team.id === career.club.id)) return top
     return [...top, currentStanding]
   })()
-  const managerLevel = Math.max(1, Math.floor(Number(career.careerPoints ?? 0) / 100) + 1)
+  const managerLevel = Math.max(1, Math.floor(Number(managerPopularity.national ?? 0) / 20) + 1)
 
   return <GameShell
     career={career}
