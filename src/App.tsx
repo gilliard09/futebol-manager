@@ -4731,6 +4731,27 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           <button onClick={newCareer} className="hidden rounded-lg border border-white/8 px-3 py-2 text-xs font-semibold text-white/45 transition hover:border-white/15 hover:text-white lg:block">Nova carreira</button>
         </div>
 
+        <section className="mb-5 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0d131e]">
+          <div className="grid grid-cols-2 divide-x divide-y divide-white/[0.05] sm:grid-cols-4 sm:divide-y-0">
+            <button onClick={() => goToView('calendar')} className="group px-4 py-4 text-left transition hover:bg-white/[0.025] sm:px-5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Classificação</p>
+              <div className="mt-1.5 flex items-baseline gap-2"><span className="font-display text-2xl font-bold tabular-nums">{position ? position + 'º' : '—'}</span><span className="text-[10px] text-white/30">{currentStanding ? currentStanding.points + ' pts' : 'sem dados'}</span></div>
+            </button>
+            <button onClick={() => goToView('calendar')} className="group px-4 py-4 text-left transition hover:bg-white/[0.025] sm:px-5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Campanha</p>
+              <div className="mt-1.5 flex items-baseline gap-2"><span className="font-display text-2xl font-bold tabular-nums">{currentStanding?.wins ?? 0}–{currentStanding?.draws ?? 0}–{currentStanding?.losses ?? 0}</span><span className={`text-[10px] ${goalDifference >= 0 ? 'text-emerald-300/70' : 'text-red-300/70'}`}>SG {goalDifference >= 0 ? '+' : ''}{goalDifference}</span></div>
+            </button>
+            <button onClick={() => goToView('board')} className="group px-4 py-4 text-left transition hover:bg-white/[0.025] sm:px-5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Diretoria</p>
+              <div className="mt-1.5 flex items-baseline gap-2"><span className="font-display text-2xl font-bold tabular-nums text-emerald-300">{boardState.confidence}</span><span className="text-[10px] text-white/30">confiança</span></div>
+            </button>
+            <button onClick={() => goToView('legacy')} className="group px-4 py-4 text-left transition hover:bg-white/[0.025] sm:px-5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-white/25">Treinador</p>
+              <div className="mt-1.5 flex items-baseline gap-2"><span className="font-display text-2xl font-bold tabular-nums">Nível {managerLevel}</span><span className="text-[10px] text-white/30">{Math.round(managerPopularity.national)} nacional</span></div>
+            </button>
+          </div>
+        </section>
+
         {pendingEvent && (() => {
           const offeredPlayer = pendingEvent.type === 'player_offer' ? players.find(item => item.id === pendingEvent.playerId) : null
           const offerOptions = pendingEvent.type === 'player_offer'
