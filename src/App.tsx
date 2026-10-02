@@ -521,17 +521,30 @@ function GameApp() {
       const firstDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 1)
       const secondDivision = clubs.filter(club => club.country === 'Brasil' && Number(club.division ?? 1) === 2)
 
+      await ensureCompetitionTeams(careerSeason.id, leagueId, firstDivision)
+      await ensureCompetitionTeams(careerSeason.id, serieBId, secondDivision)
+      await ensureCompetitionTeams(careerSeason.id, cupId, [...firstDivision, ...secondDivision])
+
+      const { data: existingNationalFixtures } = await supabase
+        .from('fixtures')
+        .select('id,competition_id')
+        .eq('season_id', careerSeason.id)
+        .in('competition_id', [leagueId, serieBId, cupId])
+      const existingNationalCompetitionIds = new Set((existingNationalFixtures ?? []).map(row => String(row.competition_id)))
+      const missingFixtureRows = [
+        ...(existingNationalCompetitionIds.has(leagueId) ? [] : buildLeagueFixtures(careerSeason.id, leagueStartDate(year), firstDivision, leagueId)),
+        ...(existingNationalCompetitionIds.has(serieBId) ? [] : buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5)),
+        ...(existingNationalCompetitionIds.has(cupId) ? [] : buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId)),
+      ]
+      if (missingFixtureRows.length) {
+        const { error: fixtureError } = await supabase.from('fixtures').insert(missingFixtureRows)
+        if (fixtureError) {
+          setError(fixtureError.message)
+          return
+        }
+      }
+
       if (!seasonAlreadyInitialized) {
-        await ensureCompetitionTeams(careerSeason.id, leagueId, firstDivision)
-        await ensureCompetitionTeams(careerSeason.id, serieBId, secondDivision)
-        await ensureCompetitionTeams(careerSeason.id, cupId, [...firstDivision, ...secondDivision])
-
-        const fixtureRows = [
-          ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), firstDivision, leagueId),
-          ...buildLeagueFixtures(careerSeason.id, leagueStartDate(year), secondDivision, serieBId, 5),
-          ...buildCupFixtures(careerSeason.id, cupStartDate(year), [...firstDivision, ...secondDivision], cupId),
-        ]
-
         const { data: continentalCompetitions } = await supabase
           .from('competitions')
           .select('id,name')
