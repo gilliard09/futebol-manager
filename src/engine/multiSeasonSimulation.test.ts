@@ -102,13 +102,13 @@ describe('multi-season simulation', () => {
           )
         }),
       ),
-      player('free-agent', '', 21, 'GK'),
+      player('free-agent', '', 21, 'ST'),
     ]
 
     // Um jogador da IA começa a carreira explicitamente pedindo transferência.
     // Isso torna o teste determinístico: o mercado deve registrar interesse,
     // amadurecer a negociação e permitir uma transferência entre clubes da IA.
-    const transferTarget = players.find(player => player.id === 'A02-p1')!
+    const transferTarget = players.find(player => player.id === 'A02-p9')!
     transferTarget.transferRequested = true
     transferTarget.transferRequestDate = '2026-01-01'
     transferTarget.dissatisfaction = 80
@@ -216,8 +216,8 @@ describe('multi-season simulation', () => {
         janFirst.aiManagers,
       )
 
-      const february = simulateWorldDay(
-        year + '-02-20',
+      const januaryFreeAgents = simulateWorldDay(
+        year + '-01-25',
         seasonId,
         leagueClubs,
         players,
@@ -227,9 +227,22 @@ describe('multi-season simulation', () => {
         januaryWindow.loans,
         januaryWindow.aiManagers,
       )
+
+      const february = simulateWorldDay(
+        year + '-02-20',
+        seasonId,
+        leagueClubs,
+        players,
+        userClubId,
+        {},
+        januaryFreeAgents.marketInterest,
+        januaryFreeAgents.loans,
+        januaryFreeAgents.aiManagers,
+      )
       totalTransfers += januaryWindow.transfers.length + januaryWindow.freeAgentSignings.length
+      totalTransfers += januaryFreeAgents.transfers.length + januaryFreeAgents.freeAgentSignings.length
       totalTransfers += february.transfers.length + february.freeAgentSignings.length
-      totalAIManagers += januaryWindow.aiManagers.length + february.aiManagers.length
+      totalAIManagers += januaryWindow.aiManagers.length + januaryFreeAgents.aiManagers.length + february.aiManagers.length
 
       managerSeasons += 1
       history.push({
