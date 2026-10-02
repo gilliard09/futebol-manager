@@ -4617,8 +4617,16 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     career={career}
     activeView={view}
     onNavigate={goToView}
-    onAdvanceDay={matchReady ? restOneDay : advanceToNextMatch}
-    canAdvance={!advancingDays && (matchReady || (clock?.currentDate && nextMatchDate ? clock.currentDate < nextMatchDate : false))}
+    onAdvanceDay={matchReady
+      ? () => {
+          if (nextFixture) {
+            setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture)))
+            goToView('match')
+          }
+        }
+      : restOneDay}
+    advanceLabel={matchReady ? 'Jogar partida' : advancingDays ? 'Avançando...' : 'Avançar dia'}
+    canAdvance={!advancingDays && Boolean(matchReady || (clock?.currentDate && nextMatchDate ? clock.currentDate < nextMatchDate : false))}
   >
     <main className="min-h-screen pb-24 lg:pb-0">
       <section className="px-4 py-5 sm:px-6 lg:px-8">
@@ -4788,11 +4796,12 @@ function ClubMatchSide({ club, overall, align }: { club: { name: string; short_n
   </div>
 }
 
-function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, children }: {
+function GameShell({ career, activeView, onNavigate, onAdvanceDay, advanceLabel, canAdvance, children }: {
   career: ManagerProfile
   activeView: string
   onNavigate: (view: DashboardView) => void
   onAdvanceDay: () => void
+  advanceLabel: string
   canAdvance: boolean
   children: ReactNode
 }) {
@@ -4878,7 +4887,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
       >
         <div className="min-w-0"><p className="truncate text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/55">Você está no comando</p><p className="truncate text-sm font-semibold text-white/80">{activeLabel}</p></div>
         <div className="ml-auto flex items-center gap-2">
-          <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
+          <button onClick={() => { void onAdvanceDay() }} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> {advanceLabel}</button>
           <button onClick={() => setMobileMenuOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.02] text-white/75 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
         </div>
       </header>
