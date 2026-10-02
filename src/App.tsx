@@ -2106,7 +2106,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     async function loadDashboard() {
       setLoading(true)
       await Promise.all([loadCareerHistory(), loadManagerCareer()])
-      const { data: currentSeasonRow } = await supabase.from('seasons').select('id,status').eq('name', career.season).maybeSingle()
+      const { data: currentSeasonRow } = await supabase.from('seasons').select('id,status').eq('id', career.seasonId).maybeSingle()
       const currentSeasonId = currentSeasonRow?.id ?? null
       if (currentSeasonId) {
         setDatabaseSeasonId(currentSeasonId)
@@ -2181,11 +2181,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       }
       const [squadResult, fixtureResult, tableResult, clubsResult, salaryResult, seasonStatsResult] = await Promise.all([
         supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').order('squad_number'),
-        supabase.from('fixtures').select('id,season_id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('scheduled_at'),
-        supabase.from('fixtures').select('id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name),seasons!inner(name)').eq('seasons.name', career.season).eq('status','completed').eq('competitions.name','Liga Nacional do Brasil'),
+        supabase.from('fixtures').select('id,season_id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)').eq('season_id', currentSeasonId ?? '').or(`home_club_id.eq.${career.club.id},away_club_id.eq.${career.club.id}`).eq('status','scheduled').order('scheduled_at'),
+        supabase.from('fixtures').select('id,season_id,competition_id,home_club_id,away_club_id,home_score,away_score,status,competitions!inner(name)').eq('season_id', currentSeasonId ?? '').eq('status','completed').eq('competitions.name','Liga Nacional do Brasil'),
         supabase.from('clubs').select('id,name,short_name,city,country,division,budget,reputation,stadium,logo_url').order('name'),
         supabase.from('club_players').select('player_id,club_id,salary,contract_until,players!inner(first_name,last_name)').order('player_id'),
-        supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,avg_rating,seasons!inner(name)').eq('seasons.name', career.season),
+        supabase.from('player_season_stats').select('player_id,appearances,starts,minutes,avg_rating,goals,assists').eq('season_id', currentSeasonId ?? ''),
       ])
       if (!active) return
       if (!squadResult.error) {
@@ -2326,7 +2326,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
 
   async function loadWorldState() {
-    const { data: season } = await supabase.from('seasons').select('id').eq('name', career.season).maybeSingle()
+    const { data: season } = await supabase.from('seasons').select('id').eq('id', career.seasonId).maybeSingle()
     if (!season?.id) return null
 
     const [{ data: clubRows }, { data: playerRows }, { data: seasonStatRows }] = await Promise.all([
@@ -4533,11 +4533,9 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
   canAdvance: boolean
   children: ReactNode
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const groups: Array<{ label: string; items: Array<{ key: DashboardView; label: string; icon: typeof Settings }> }> = [
-    {
-      label: 'Hoje',
-      items: [{ key: 'overview', label: 'Dashboard', icon: House }],
-    },
+    { label: 'Hoje', items: [{ key: 'overview', label: 'Dashboard', icon: House }] },
     {
       label: 'Clube',
       items: [
@@ -4553,17 +4551,23 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
         { key: 'legacy', label: 'Carreira do Técnico', icon: Medal },
       ],
     },
-    {
-      label: 'Mercado',
-      items: [{ key: 'market', label: 'Mercado', icon: ShoppingBag }],
-    },
-    {
-      label: 'Mundo',
-      items: [{ key: 'stats', label: 'Estatísticas', icon: BarChart3 }],
-    },
+    { label: 'Mercado', items: [{ key: 'market', label: 'Mercado', icon: ShoppingBag }] },
+    { label: 'Mundo', items: [{ key: 'stats', label: 'Estatísticas', icon: BarChart3 }] },
   ] as const
 
-  const activeLabel = groups.flatMap(group => group.items).find(item => item.key === activeView)?.label ?? 'Futebol Manager'
+  const extras = [
+    { key: 'loans' as DashboardView, label: 'Empréstimos', icon: Handshake },
+    { key: 'training' as DashboardView, label: 'Treinamento', icon: Dumbbell },
+    { key: 'settings' as DashboardView, label: 'Configurações', icon: Settings },
+  ]
+  const activeLabel = groups.flatMap(group => group.items).find(item => item.key === activeView)?.label
+    ?? extras.find(item => item.key === activeView)?.label
+    ?? 'Futebol Manager'
+
+  function navigateMobile(view: DashboardView) {
+    setMobileMenuOpen(false)
+    onNavigate(view)
+  }
 
   return <div className="min-h-screen bg-[#0a0f1a]">
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] border-r border-white/5 bg-[#0d1421] lg:flex lg:flex-col">
@@ -4581,18 +4585,16 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
         </div>)}
         <div className="mb-5">
           <p className="px-3 pb-2 label-mono text-white/20">Extras</p>
-          <div className="space-y-0.5">
-            <button onClick={() => onNavigate('loans')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${activeView === 'loans' ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Handshake size={16} /><span>Empréstimos</span></button>
-            <button onClick={() => onNavigate('training')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${activeView === 'training' ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Dumbbell size={16} /><span>Treinamento</span></button>
-          </div>
+          <div className="space-y-0.5">{extras.slice(0, 2).map(item => {
+            const Icon = item.icon
+            return <button key={item.key} onClick={() => onNavigate(item.key)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-xs font-semibold ${activeView === item.key ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/45 hover:bg-white/[0.035] hover:text-white/80'}`}><Icon size={16} /><span>{item.label}</span></button>
+          })}</div>
         </div>
       </nav>
       <div className="border-t border-white/5 p-3">
         <div className="rounded-xl bg-white/[0.025] p-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5">
-              {career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-[10px] font-black text-white/55">{(career.club.short_name ?? career.club.name ?? "FM").slice(0, 3).toUpperCase()}</span>}
-            </div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/5 p-1.5">{career.club.logo_url ? <img src={career.club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="font-display text-[10px] font-black text-white/55">{(career.club.short_name ?? career.club.name ?? "FM").slice(0, 3).toUpperCase()}</span>}</div>
             <div className="min-w-0"><p className="truncate text-xs font-bold">{career.club.name}</p><p className="mt-0.5 truncate text-[10px] text-white/30">{career.name}</p></div>
           </div>
           <div className="mt-3 border-t border-white/5 pt-3"><div className="flex items-center justify-between"><span className="text-[10px] text-white/35">Contrato / temporada</span><span className="font-display text-xs font-bold tabular-nums text-emerald-300">{career.season.match(/\d{4}/)?.[0] ?? '2026'}</span></div><div className="mt-1 flex items-center justify-between"><span className="text-[10px] text-white/25">Nível do técnico</span><span className="text-[10px] font-bold text-white/65">Nível 1 · 0 pts</span></div></div>
@@ -4603,21 +4605,41 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
 
     <div className="min-h-screen lg:pl-[248px]">
       <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/90 px-4 backdrop-blur sm:px-6">
-        <div className="min-w-0"><p className="label-mono text-white/25">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p><p className="truncate text-sm font-semibold text-white/75">{groups.flatMap(group => group.items).find(item => item.key === activeView)?.label ?? 'Futebol Manager'}</p></div>
-        <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30"><CalendarDays size={14} /> Avançar dia</button>
+        <div className="min-w-0"><p className="label-mono text-white/25">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p><p className="truncate text-sm font-semibold text-white/75">{activeLabel}</p></div>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setMobileMenuOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/65 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
+          <button onClick={onAdvanceDay} disabled={!canAdvance} className="game-button game-button-primary hidden items-center gap-2 disabled:cursor-not-allowed disabled:opacity-30 lg:flex"><CalendarDays size={14} /> Avançar dia</button>
+        </div>
       </header>
-      <div className="pb-24 lg:pb-0">{children}</div>
+      <div className="pb-4 lg:pb-0">{children}</div>
     </div>
 
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-[#0d1421]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur lg:hidden">
-      <div className="flex gap-1 overflow-x-auto overscroll-contain pb-1">
-        {[
-          ['overview','Dashboard',House],['board','Diretoria',Building2],['contracts','Contratos',Handshake],['calendar','Calendário',CalendarDays],['news','Notícias',Newspaper],['squad','Elenco',Users],
-          ['tactics','Táticas',Shield],['finance','Finanças',WalletCards],['stadium','Estádio',Building2],['market','Mercado',ShoppingBag],
-          ['stats','Estatísticas',BarChart3],['training','Treinamento',Dumbbell],['trophies','Troféus',Trophy],['settings','Configurações',Settings],
-        ].map(([key,label,Icon]) => <button key={String(key)} onClick={() => onNavigate(key as DashboardView)} className={`flex min-w-[72px] shrink-0 flex-col items-center gap-1 rounded-lg py-2 text-[10px] font-semibold ${activeView === key ? 'text-emerald-300' : 'text-white/40'}`}><Icon size={16} /><span>{String(label)}</span></button>)}
-      </div>
-    </nav>
+    {mobileMenuOpen && <div className="fixed inset-0 z-[60] lg:hidden">
+      <button className="absolute inset-0 bg-black/60" onClick={() => setMobileMenuOpen(false)} aria-label="Fechar menu" />
+      <aside className="absolute right-0 top-0 h-full w-[min(86vw,340px)] overflow-y-auto border-l border-white/8 bg-[#0d1421] px-4 pb-8 pt-4 shadow-2xl">
+        <div className="mb-5 flex items-center justify-between border-b border-white/5 pb-4">
+          <div><p className="font-display text-sm font-bold">FUTEBOL MANAGER</p><p className="label-mono mt-1 text-white/25">{career.club.short_name ?? career.club.name}</p></div>
+          <button onClick={() => setMobileMenuOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/60" aria-label="Fechar menu">×</button>
+        </div>
+        {groups.map(group => <div key={group.label} className="mb-5">
+          <p className="px-2 pb-2 label-mono text-white/30">{group.label}</p>
+          <div className="space-y-1">{group.items.map(item => {
+            const Icon = item.icon
+            const active = activeView === item.key
+            return <button key={item.key} onClick={() => navigateMobile(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/55'}`}><Icon size={18} /><span>{item.label}</span></button>
+          })}</div>
+        </div>)}
+        <div className="mb-5">
+          <p className="px-2 pb-2 label-mono text-white/30">Extras</p>
+          <div className="space-y-1">{extras.map(item => {
+            const Icon = item.icon
+            const active = activeView === item.key
+            return <button key={item.key} onClick={() => navigateMobile(item.key)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold ${active ? 'bg-emerald-400/10 text-emerald-300' : 'text-white/55'}`}><Icon size={18} /><span>{item.label}</span></button>
+          })}</div>
+        </div>
+      </aside>
+    </div>}
+
   </div>
 }
 
