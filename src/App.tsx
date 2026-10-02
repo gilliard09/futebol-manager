@@ -4540,8 +4540,11 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
                   <button onClick={openOpponentSquad} disabled={!opponent || opponentLoading} className="game-button game-button-secondary">{opponentLoading ? 'Carregando...' : 'Ver adversário'}</button>
-                  <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary col-span-2 w-full sm:order-first sm:col-auto sm:w-auto">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
+                  <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary col-span-2 hidden w-full sm:order-first sm:col-auto sm:w-auto lg:inline-flex">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
                 </div>
+              </div>
+              <div className="mobile-thumb-action fixed inset-x-0 bottom-0 z-30 border-t border-white/8 bg-[#101827]/95 px-4 pt-3 backdrop-blur-lg lg:hidden">
+                <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary w-full py-3.5">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
               </div>
             </section>
 
@@ -4699,7 +4702,7 @@ function GameShell({ career, activeView, onNavigate, onAdvanceDay, canAdvance, c
     </aside>
 
     <div className="min-h-screen lg:pl-[248px]">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/90 px-4 backdrop-blur sm:px-6">
+      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-white/5 bg-[#0a0f1a]/90 px-4 py-3 backdrop-blur sm:px-6 safe-top">
         <div className="min-w-0"><p className="label-mono text-white/25">Temporada {career.season.match(/\d{4}/)?.[0] ?? '2026'}</p><p className="truncate text-sm font-semibold text-white/75">{activeLabel}</p></div>
         <div className="flex items-center gap-2">
           <button onClick={() => setMobileMenuOpen(true)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/8 text-white/65 lg:hidden" aria-label="Abrir menu"><span className="text-xl leading-none">☰</span></button>
