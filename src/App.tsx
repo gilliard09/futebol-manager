@@ -4378,6 +4378,67 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
       localStorage.setItem(seasonStorageKey(MATCHES_KEY, career.seasonId), JSON.stringify(nextMatches))
       setPlayedMatches(nextMatches)
 
+      // A imprensa recebe um resumo de cada rodada disputada: maior placar e defesa mais vazada.
+      const pressMatches = [
+        { fixture: activeMatchFixture, match: nextMatches[activeMatchFixture.id] },
+        ...remainingFixtures
+          .filter(item => nextMatches[item.id])
+          .map(item => ({ fixture: item, match: nextMatches[item.id] })),
+      ]
+      if (pressMatches.length) {
+        const clubById = new Map(clubs.map(club => [club.id, club]))
+        const clubLabel = (id: string) => clubById.get(id)?.short_name ?? clubById.get(id)?.name ?? 'Clube'
+        const mostGoals = [...pressMatches].sort((a, b) => ((b.match?.homeScore ?? 0) + (b.match?.awayScore ?? 0)) - ((a.match?.homeScore ?? 0) + (a.match?.awayScore ?? 0)))[0]
+        const conceded = new Map<string, number>()
+        for (const item of pressMatches) {
+          if (!item.match) continue
+          conceded.set(item.fixture.home_club_id, (conceded.get(item.fixture.home_club_id) ?? 0) + item.match.awayScore)
+          conceded.set(item.fixture.away_club_id, (conceded.get(item.fixture.away_club_id) ?? 0) + item.match.homeScore)
+        }
+        const mostConceded = [...conceded.entries()].sort((a, b) => b[1] - a[1])[0]
+        const date = toDateKey(activeMatchFixture.scheduled_at)
+        const pressItems: WorldNews[] = []
+        if (mostGoals?.match) {
+          const total = mostGoals.match.homeScore + mostGoals.match.awayScore
+          pressItems.push({
+            id: `press-highscore:${date}:${activeMatchFixture.competition_id}:${activeMatchFixture.round}`,
+            date,
+            title: 'Jogo da rodada tem chuva de gols',
+            message: `${clubLabel(mostGoals.fixture.home_club_id)} ${mostGoals.match.homeScore} x ${mostGoals.match.awayScore} ${clubLabel(mostGoals.fixture.away_club_id)} — ${total} gols na partida.`,
+            tone: 'positive',
+            category: 'match',
+            priority: 96,
+          })
+        }
+        if (mostConceded && mostConceded[1] >= 3) {
+          pressItems.push({
+            id: `press-defense:${date}:${activeMatchFixture.competition_id}:${activeMatchFixture.round}`,
+            date,
+            title: 'Defesa mais vazada da rodada',
+            message: `${clubLabel(mostConceded[0])} sofreu ${mostConceded[1]} gol(s) na rodada e vira alvo das análises da imprensa.`,
+            tone: 'warning',
+            category: 'match',
+            priority: 88,
+          })
+        }
+        const currentManagers: AIClubManager[] = (() => {
+          try { return JSON.parse(localStorage.getItem(AI_MANAGERS_KEY) ?? '[]') } catch { return [] }
+        })()
+        const pressuredManager = currentManagers.filter(manager => manager.confidence <= 42).sort((a, b) => a.confidence - b.confidence)[0]
+        if (pressuredManager) {
+          pressItems.push({
+            id: `press-manager:${date}:${pressuredManager.clubId}`,
+            date,
+            title: 'Treinador perde força nos bastidores',
+            message: `${pressuredManager.name}, do ${clubLabel(pressuredManager.clubId)}, caiu para ${pressuredManager.confidence}% de confiança e começa a enfrentar pressão.`,
+            tone: 'warning',
+            category: 'club',
+            priority: 86,
+          })
+        }
+        appendWorldNews(pressItems)
+      }
+
       const { data: refreshedFixtures } = await supabase
         .from('fixtures')
         .select('id,competition_id,round,scheduled_at,status,home_club_id,away_club_id,home_score,away_score,home_club:clubs!fixtures_home_club_id_fkey(name,short_name,city,stadium,logo_url),away_club:clubs!fixtures_away_club_id_fkey(name,short_name,city,stadium,logo_url),competitions(name)')
