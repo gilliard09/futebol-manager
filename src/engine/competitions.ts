@@ -158,7 +158,13 @@ export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound:
     choosePenaltyWinner(fixture.home_club_id, fixture.away_club_id, fixture.id)
 
   if (currentRound === 1) {
-    if (completed.length !== 4 || availableClubIds.length !== 36) return null
+    const clubsInRound = completed.flatMap(fixture => [fixture.home_club_id, fixture.away_club_id])
+    if (
+      completed.length !== 4 ||
+      new Set(clubsInRound).size !== 8 ||
+      availableClubIds.length !== 36 ||
+      new Set(availableClubIds).size !== 36
+    ) return null
     const winners = completed.map(winnerOf)
     const eliminated = new Set(completed.flatMap(f => [f.home_club_id, f.away_club_id]))
     const byes = availableClubIds.filter(id => !eliminated.has(id))
@@ -176,7 +182,8 @@ export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound:
   }
 
   if (currentRound === 2) {
-    if (completed.length !== 16) return null
+    const clubsInRound = completed.flatMap(fixture => [fixture.home_club_id, fixture.away_club_id])
+    if (completed.length !== 16 || new Set(clubsInRound).size !== 32) return null
     const winners = completed.map(winnerOf)
     const latest = Math.max(...completed.map(f => new Date(f.scheduled_at).getTime()))
     const firstDate = new Date(latest + 7 * 86400000)
@@ -200,7 +207,18 @@ export function resolveCompletedKnockoutStage(fixtures: Fixture[], currentRound:
     tie.push(fixture); ties.set(key, tie)
   }
   const expectedTies = currentRound === 4 ? 8 : currentRound === 6 ? 4 : currentRound === 8 ? 2 : 0
-  if (previous.length !== expectedTies * 2 || ties.size !== expectedTies || [...ties.values()].some(tie => tie.length !== 2)) return null
+  const clubAppearances = new Map<string, number>()
+  previous.forEach(fixture => {
+    clubAppearances.set(fixture.home_club_id, (clubAppearances.get(fixture.home_club_id) ?? 0) + 1)
+    clubAppearances.set(fixture.away_club_id, (clubAppearances.get(fixture.away_club_id) ?? 0) + 1)
+  })
+  if (
+    previous.length !== expectedTies * 2 ||
+    ties.size !== expectedTies ||
+    [...ties.values()].some(tie => tie.length !== 2) ||
+    clubAppearances.size !== expectedTies * 2 ||
+    [...clubAppearances.values()].some(count => count !== 2)
+  ) return null
 
   const winners: string[] = []
   for (const tie of ties.values()) {
