@@ -351,10 +351,11 @@ function simulateDisciplineAndIncidents(state: InteractiveMatchState) {
     if (injured) {
       const name = injured.player.first_name + ' ' + injured.player.last_name
       stats.injuries = (stats.injuries ?? 0) + 1
+      // A lesão tira o jogador da ação, mas preserva sua vaga até o treinador escolher o substituto.
+      // Assim o painel de incidente consegue identificar exatamente quem saiu e a equipe não fica
+      // com 10 jogadores por um erro de interface.
       team.removed.add(injured.player.id)
-      const index = team.lineup.findIndex(item => item.player.id === injured.player.id)
-      if (index >= 0) team.lineup.splice(index, 1)
-      pushEvent(state, { minute: state.minute, type: 'injury', team: teamName, player: name, playerId: injured.player.id, text: name + ' sente uma lesão e deixa a partida.' })
+      pushEvent(state, { minute: state.minute, type: 'injury', team: teamName, player: name, playerId: injured.player.id, text: name + ' sente uma lesão e deixa a partida. Escolha um substituto.' })
     }
   }
 }
@@ -461,13 +462,16 @@ export function makeInteractiveSubstitution(
 ) {
   const next = cloneState(state)
   const team = teamName === 'home' ? next.home : next.away
-  if (team.substitutions >= 5 || team.removed.has(outgoingId)) return state
+  if (team.substitutions >= 5) return state
   const index = team.lineup.findIndex(item => item.player.id === outgoingId)
   const incoming = team.bench.find(player => player.id === incomingId)
   if (index < 0 || !incoming) return state
   const outgoing = team.lineup[index]
+  const isForcedIncidentReplacement = team.removed.has(outgoingId)
+  if (!isForcedIncidentReplacement && team.removed.has(outgoingId)) return state
   team.lineup[index] = { player: incoming, role: outgoing.role, slot: outgoing.slot }
   team.bench = team.bench.filter(player => player.id !== incomingId)
+  team.removed.delete(outgoingId)
   team.substitutions += 1
   recalculateMetrics(team)
   next.events.push({
