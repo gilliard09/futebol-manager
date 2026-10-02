@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, GripVertical, SlidersHorizontal, Activity } from 'lucide-react'
 import type { Formation, Player } from '../types/game'
 import type { InteractiveMatchState, InteractiveTactic, InteractiveTeam, TacticalInstruction } from '../engine/interactiveMatch'
@@ -13,6 +13,7 @@ type Props = {
   onInstruction?: (sector: 'defense' | 'midfield' | 'attack', instruction: TacticalInstruction) => void
   onPlayerInstruction?: (playerId: string, instruction: TacticalInstruction) => void
   onRisk?: (risk: number) => void
+  forcedOutgoingId?: string
   compact?: boolean
 }
 
@@ -67,13 +68,19 @@ const instructionLabel: Record<TacticalInstruction, string> = {
   direct: 'Direto',
 }
 
-export default function MatchTacticsBoard({ session, userTeam, onSubstitution, onTactic, onInstruction, onPlayerInstruction, onRisk, compact = false }: Props) {
+export default function MatchTacticsBoard({ session, userTeam, onSubstitution, onTactic, onInstruction, onPlayerInstruction, onRisk, forcedOutgoingId, compact = false }: Props) {
   const team = userTeam === 'home' ? session.home : session.away
   const [dragged, setDragged] = useState<{ kind: 'starter' | 'bench'; id: string } | null>(null)
   const [dragOverId, setDragOverId] = useState('')
   const [selectedOutgoing, setSelectedOutgoing] = useState('')
   const boardRef = useRef<HTMLDivElement>(null)
   const draggedRef = useRef<{ kind: 'starter' | 'bench'; id: string } | null>(null)
+
+  useEffect(() => {
+    if (forcedOutgoingId && team.lineup.some(item => item.player.id === forcedOutgoingId)) {
+      setSelectedOutgoing(forcedOutgoingId)
+    }
+  }, [forcedOutgoingId, team.lineup])
 
   const beginDrag = (kind: 'starter' | 'bench', id: string) => {
     draggedRef.current = { kind, id }
@@ -111,7 +118,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Escalação e substituições</p>
-        <p className="mt-1 text-xs text-white/40">Arraste um reserva sobre o jogador que deseja substituir.</p>
+        <p className="mt-1 text-xs text-white/40">{forcedOutgoingId ? 'O jogador lesionado está selecionado. Escolha um reserva para continuar.' : 'Arraste um reserva sobre o jogador que deseja substituir.'}</p>
       </div>
       <span className="rounded-full border border-white/8 px-2.5 py-1 font-mono text-[9px] font-bold text-white/40">{team.formation} · {team.substitutions}/5</span>
     </div>
