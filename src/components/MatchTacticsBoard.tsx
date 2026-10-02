@@ -218,6 +218,16 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
               <div className="grid grid-cols-3 gap-1">{instructionOptions.map(value => <button key={value} onClick={() => onInstruction(sector, value)} className={team.sectorInstructions[sector] === value ? 'rounded-md bg-emerald-400/15 px-1 py-1.5 text-[8px] font-bold text-emerald-300' : 'rounded-md border border-white/5 px-1 py-1.5 text-[8px] text-white/30'}>{instructionLabel[value]}</button>)}</div>
             </div>)}
           </div>
+          {onPlayerInstruction && selectedOutgoing && team.lineup.some(item => item.player.id === selectedOutgoing) && <div className="mt-3 rounded-xl border border-emerald-400/10 bg-[#131b2a] p-2">
+            {(() => {
+              const selected = team.lineup.find(item => item.player.id === selectedOutgoing)
+              if (!selected) return null
+              const current = team.playerInstructions[selected.player.id] ?? 'normal'
+              return <><div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-wider text-white/35">Instrução individual</p><p className="mt-1 text-[10px] font-semibold">{name(selected.player)} · fôlego {playerStamina(selected.player, session.minute, true)}%</p></div><span className="text-[8px] text-emerald-300/60">{instructionLabel[current]}</span></div>
+                <div className="mt-2 grid grid-cols-3 gap-1">{instructionOptions.map(value => <button key={value} onClick={() => onPlayerInstruction(selected.player.id, value)} className={current === value ? 'rounded-md bg-emerald-400/15 px-1 py-1.5 text-[8px] font-bold text-emerald-300' : 'rounded-md border border-white/5 px-1 py-1.5 text-[8px] text-white/30'}>{instructionLabel[value]}</button>)}</div>
+              </>
+            })()}
+          </div>}
           {onRisk && <div className="mt-3 rounded-xl border border-white/5 bg-[#131b2a] p-2">
             <div className="flex justify-between"><span className="text-[9px] font-bold uppercase tracking-wider text-white/35">Risco</span><span className="font-mono text-[9px] text-white/50">{Math.round(team.risk)}/100</span></div>
             <input aria-label="Risco da equipe" className="mt-2 w-full accent-emerald-400" type="range" min="10" max="95" value={team.risk} onChange={event => onRisk(Number(event.target.value))} />
