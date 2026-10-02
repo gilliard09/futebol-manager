@@ -105,6 +105,14 @@ describe('multi-season simulation', () => {
       player('free-agent', '', 21, 'GK'),
     ]
 
+    // Um jogador da IA começa a carreira explicitamente pedindo transferência.
+    // Isso torna o teste determinístico: o mercado deve registrar interesse,
+    // amadurecer a negociação e permitir uma transferência entre clubes da IA.
+    const transferTarget = players.find(player => player.id === 'A02-p1')!
+    transferTarget.transferRequested = true
+    transferTarget.transferRequestDate = '2026-01-01'
+    transferTarget.dissatisfaction = 80
+
     for (const year of seasons) {
       const seasonId = 'season-' + year
       const leagueFixtures = completeLeagueFixtures(year, leagueClubs)
