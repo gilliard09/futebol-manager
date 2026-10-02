@@ -73,8 +73,8 @@ const AI_MANAGERS_KEY = 'futebol-manager:ai-managers'
 const AI_BOARD_DECISIONS_KEY = 'futebol-manager:ai-board-decisions'
 const PLAYER_LIFECYCLE_KEY = 'futebol-manager:player-lifecycle'
 
-function seasonStorageKey(prefix: string, seasonId: string) {
-  return `${prefix}:${seasonId}`
+function seasonStorageKey(prefix: string, seasonId?: string) {
+  return `${prefix}:${seasonId ?? 'default'}`
 }
 
 
