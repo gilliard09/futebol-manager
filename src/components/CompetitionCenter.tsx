@@ -203,6 +203,31 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
   const nextClubFixture = clubCompetitionFixtures.find(item => item.status === 'scheduled') ?? null
   const clubStanding = table.find(item => item.id === currentClubId) ?? null
 
+  const leagueRace = useMemo(() => {
+    if (competition !== 'Liga Nacional do Brasil' || !clubStanding || table.length === 0) return null
+    const total = table.length
+    const title = { start: 1, end: 1 }
+    const libertadores = { start: 2, end: Math.min(4, total) }
+    const sulAmericana = { start: 5, end: Math.min(8, total) }
+    const relegation = { start: Math.max(1, total - 3), end: total }
+    const pointsAt = (targetPosition: number) => table[Math.max(0, Math.min(total - 1, targetPosition - 1))]?.points ?? 0
+    const inZone = (zone: { start: number; end: number }) => position >= zone.start && position <= zone.end
+    const distanceUp = (zoneEnd: number) => Math.max(0, pointsAt(zoneEnd) - clubStanding.points)
+    const titleText = inZone(title) ? 'Líder' : `${distanceUp(1)} pts para o líder`
+    const libText = inZone(libertadores) ? 'Dentro da zona' : `${distanceUp(libertadores.end)} pts para o G4`
+    const sulText = inZone(sulAmericana) ? 'Dentro da zona' : `${distanceUp(sulAmericana.end)} pts para o G8`
+    const safePosition = Math.max(1, relegation.start - 1)
+    const relegationText = inZone(relegation)
+      ? `${Math.max(0, pointsAt(safePosition) - clubStanding.points)} pts para sair do Z4`
+      : `${Math.max(0, clubStanding.points - pointsAt(relegation.start))} pts de vantagem sobre o Z4`
+    return {
+      title: { text: titleText },
+      libertadores: { text: libText },
+      sulAmericana: { text: sulText },
+      relegation: { text: relegationText },
+    }
+  }, [competition, clubStanding, table, position])
+
   const history = useMemo(() => {
     const completed = fixtures.filter(item => item.status === 'completed')
     const seasonFinished = fixtures.length > 0 && completed.length === fixtures.length
@@ -356,7 +381,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
         <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.18em] text-white/30">{competition === 'Copa Nacional do Brasil' ? 'Fase' : 'Rodadas'}</p><h2 className="mt-2 text-2xl font-bold">{currentStage}</h2></div><Trophy className="text-emerald-300/50" /></div>
           <div className="relative mt-5">
-            <div ref={roundNavRef} className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8 xl:grid-cols-12">
+            <div ref={roundNavRef} className="flex gap-2 overflow-x-auto pb-1 pr-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
               {rounds.map(r => <button key={r} data-round={r} onClick={() => setRound(r)} className={`min-w-0 rounded-lg px-2 py-2.5 text-xs font-bold transition ${round === r ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/6 bg-white/[0.015] text-white/45 hover:border-white/10 hover:text-white/70'}`}>{competition === 'Copa Nacional do Brasil' ? getCompetitionStageLabel(r, rounds.length, true) : `Rodada ${r}`}</button>)}
             </div>
             <span className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#131b2a] to-transparent" />
@@ -389,29 +414,63 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
         {(competition === 'Liga Nacional do Brasil' || competition === 'Série B do Brasil') && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">{competition}</h2>
-          <div className="mt-5 overflow-hidden rounded-xl border border-white/5">
-            <div className="grid grid-cols-[28px_minmax(0,1fr)_48px_48px_48px_48px_48px_56px] items-center gap-1 bg-white/[0.03] px-3 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 sm:grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] sm:gap-2 sm:px-4">
+          <div className="mb-5 rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.025] p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/60">Corrida da temporada</p>
+                <h3 className="mt-1 text-xl font-bold">Onde estou e o que preciso alcançar?</h3>
+                <p className="mt-1 text-xs text-white/30">Posição ${{position} · ${{clubStanding.points} pontos</p>
+              </div>
+              <div className="text-xs text-white/30">Sua posição está marcada na corrida.</div>
+            </div>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+              ${{[
+                ['Título', leagueRace.title.text, '1º'],
+                ['Libertadores', leagueRace.libertadores.text, 'G4'],
+                ['Sul-Americana', leagueRace.sulAmericana.text, 'G8'],
+                ['Rebaixamento', leagueRace.relegation.text, 'Z4'],
+              ].map(([label, text, target]) => {
+                const positive = label === 'Rebaixamento' ? text.includes('vantagem') : text === 'Líder' || text === 'Dentro da zona'
+                return <div key={label} className={'rounded-xl border p-3.5 ' + (positive ? 'border-emerald-400/15 bg-emerald-400/[0.04]' : 'border-white/5 bg-black/10')}>
+                  <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">{label}</p><span className="text-[9px] text-white/20">{target}</span></div>
+                  <p className={'mt-2 text-sm font-bold ' + (positive ? 'text-emerald-300' : 'text-white/75')}>{text}</p>
+                </div>
+              })
+              ${}
+            </div>
+            <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
+              <div className="flex h-2">
+                ${{table.map((team, index) => <span key={team.id} className={'flex-1 ' + (index === 0 ? 'bg-amber-300' : index < 4 ? 'bg-blue-400' : index < 8 ? 'bg-sky-300' : index >= table.length - 4 ? 'bg-red-400' : 'bg-white/10')} />)}
+              </div>
+              <div className="relative mt-2 h-8">
+                ${{table.map((team, index) => team.id === currentClubId ? <span key={team.id} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: ((index + 0.5) / table.length) * 100 + '%' }}><span className="h-3 w-3 rounded-full bg-emerald-300 ring-4 ring-emerald-300/10" /><span className="mt-1 text-[9px] font-black text-emerald-300">#{index + 1}</span></span> : null)}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 px-2 pb-2 text-[9px] text-white/25"><span>● Título</span><span>● Libertadores</span><span>● Sul-Americana</span><span>● Rebaixamento</span></div>
+            </div>
+          </div>
+          <div className="hidden overflow-hidden rounded-xl border border-white/5 sm:block">
+            <div className="grid grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] items-center gap-2 bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">
               <span>#</span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">V</span><span className="text-center">E</span><span className="text-center">D</span><span className="text-center">SG</span>
             </div>
-            {table.map((team, i) => {
+            ${{table.map((team, i) => {
               const club = clubs.find(item => item.id === team.id)
-              return <div key={team.id} className={`grid grid-cols-[28px_minmax(0,1fr)_48px_48px_48px_48px_48px_56px] items-center gap-1 border-t border-white/5 px-3 py-3 text-xs sm:grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] sm:gap-2 sm:px-4 sm:text-sm ${team.id === currentClubId ? 'bg-emerald-400/[0.06]' : ''}`}>
+              return <div key={team.id} className={'grid grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] items-center gap-2 border-t border-white/5 px-4 py-3 text-sm ' + (team.id === currentClubId ? 'bg-emerald-400/[0.06]' : '')}>
                 <span className="font-bold text-white/45">{i + 1}</span>
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">
-                    {club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{(club?.short_name ?? team.name).slice(0,3).toUpperCase()}</span>}
-                  </span>
-                  <span className="min-w-0 truncate font-semibold">{club?.short_name ?? team.name}</span>
-                </div>
-                <span className="text-center font-black tabular-nums text-emerald-300">{team.points}</span>
-                <span className="text-center tabular-nums text-white/55">{team.played}</span>
-                <span className="text-center tabular-nums text-white/55">{team.wins}</span>
-                <span className="text-center tabular-nums text-white/55">{team.draws}</span>
-                <span className="text-center tabular-nums text-white/55">{team.losses}</span>
-                <span className="text-center tabular-nums text-white/55">{team.gf - team.ga}</span>
+                <div className="flex min-w-0 items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{(club?.short_name ?? team.name).slice(0,3).toUpperCase()}</span>}</span><span className="truncate font-semibold">{club?.short_name ?? team.name}</span></div>
+                <span className="text-center font-black tabular-nums text-emerald-300">{team.points}</span><span className="text-center tabular-nums text-white/55">{team.played}</span><span className="text-center tabular-nums text-white/55">{team.wins}</span><span className="text-center tabular-nums text-white/55">{team.draws}</span><span className="text-center tabular-nums text-white/55">{team.losses}</span><span className="text-center tabular-nums text-white/55">{team.gf - team.ga}</span>
               </div>
             })}
           </div>
+          <div className="overflow-hidden rounded-xl border border-white/5 sm:hidden">
+            ${{table.map((team, i) => {
+              const club = clubs.find(item => item.id === team.id)
+              return <div key={team.id} className={'grid grid-cols-[24px_minmax(0,1fr)_56px] items-center gap-2 border-t border-white/5 px-3 py-3 ' + (team.id === currentClubId ? 'bg-emerald-400/[0.06]' : '')}>
+                <span className="font-bold text-white/40">{i + 1}</span>
+                <div className="min-w-0"><div className="flex min-w-0 items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1">{club?.logo_url ? <img src={club.logo_url} alt="" className="h-full w-full object-contain" /> : <span className="text-[7px] font-black text-slate-700">{(club?.short_name ?? team.name).slice(0,3).toUpperCase()}</span>}</span><span className="truncate text-sm font-semibold">{club?.short_name ?? team.name}</span></div><p className="mt-1 pl-8 text-[9px] text-white/25">{team.played}J · {team.wins}V · {team.draws}E · {team.losses}D · SG {team.gf - team.ga}</p></div>
+                <span className="text-right text-lg font-black tabular-nums text-emerald-300">{team.points}<small className="ml-1 text-[8px] font-bold uppercase text-white/25">pts</small></span>
+              </div>
+            })}
+          </div>          </div>
           <p className="mt-3 text-xs text-white/25">{competition === 'Liga Nacional do Brasil' ? 'Os quatro últimos clubes descem para a Série B.' : 'Os dois primeiros sobem diretamente; 3º a 6º disputam os dois acessos restantes em playoffs; os quatro últimos são rebaixados quando a divisão inferior existir.'}</p>
         </section>}
 
