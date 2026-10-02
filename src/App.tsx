@@ -694,6 +694,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
   const [players, setPlayers] = useState<Player[]>([])
   const [nextFixture, setNextFixture] = useState<Fixture | null>(null)
   const [opponentPlayers, setOpponentPlayers] = useState<Player[]>([])
+  const [opponentLoading, setOpponentLoading] = useState(false)
   const [table, setTable] = useState<{ id: string; name: string; points: number; played: number; wins: number; draws: number; losses: number; gf: number; ga: number }[]>([])
   const [playedMatches, setPlayedMatches] = useState<Record<string, PlayedMatch>>(() => {
     try { return JSON.parse(localStorage.getItem(seasonStorageKey(MATCHES_KEY, career.seasonId)) ?? '{}') } catch { return {} }
@@ -2262,10 +2263,18 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
         }
         if (fixture) {
           const opponentId = fixture.home_club_id === career.club.id ? fixture.away_club_id : fixture.home_club_id
-          const { data: opponentSquad, error: opponentSquadError } = await supabase.from('club_players').select('club_id,squad_number, players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)').eq('club_id', opponentId).order('squad_number')
-          if (opponentSquadError) console.error('Não foi possível carregar o elenco do adversário', opponentSquadError)
-          const effectiveOpponent = (opponentSquad ?? []).filter((row: any) => getLoanClubId(row.club_id, row.players?.id ?? row.players?.[0]?.id, clock?.currentDate ?? SEASON_START, transferState.playerClubOverrides, loanState) === opponentId)
-          if (active) setOpponentPlayers(effectiveOpponent.map(normalizePlayer))
+          const { data: opponentSquad, error: opponentSquadError } = await supabase
+            .from('club_players')
+            .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)')
+            .eq('club_id', opponentId)
+            .order('squad_number')
+          if (opponentSquadError) {
+            console.error('Não foi possível carregar o elenco do adversário', opponentSquadError)
+          }
+          // club_players já representa o elenco atual do clube. Não filtramos novamente
+          // por empréstimos aqui, pois isso podia zerar a lista quando o estado local
+          // ainda não refletia a movimentação daquele jogador.
+          if (active) setOpponentPlayers((opponentSquad ?? []).map(normalizePlayer))
         } else {
           setOpponentPlayers([])
         }
@@ -2346,6 +2355,30 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
     })
   const nextMatchDate = nextFixture ? toDateKey(nextFixture.scheduled_at) : null
   const matchReady = Boolean(clock && nextMatchDate && clock.currentDate >= nextMatchDate)
+
+  async function openOpponentSquad() {
+    if (!nextFixture) return
+    const opponentId = nextFixture.home_club_id === career.club.id ? nextFixture.away_club_id : nextFixture.home_club_id
+    setOpponentLoading(true)
+    setViewOpponent(true)
+    goToView('squad')
+
+    try {
+      const { data, error } = await supabase
+        .from('club_players')
+        .select('club_id,squad_number,players!inner(id,first_name,last_name,age,nationality,position,pace,shooting,passing,dribbling,defending,physical,goalkeeping,mental,potential,form,morale,injured_until,suspended_until,yellow_cards,red_cards)')
+        .eq('club_id', opponentId)
+        .order('squad_number')
+
+      if (error) throw error
+      setOpponentPlayers((data ?? []).map(normalizePlayer))
+    } catch (error) {
+      console.error('Não foi possível carregar o elenco do adversário', error)
+      setOpponentPlayers([])
+    } finally {
+      setOpponentLoading(false)
+    }
+  }
 
   async function loadWorldState() {
     const { data: season } = await supabase.from('seasons').select('id').eq('id', career.seasonId).maybeSingle()
@@ -4502,7 +4535,7 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
                 <div className="flex flex-wrap gap-2">
                   <button onClick={restOneDay} disabled={!clock || !canAdvanceDay(clock, nextMatchDate) || advancingDays} className="game-button game-button-secondary">{advancingDays ? 'Avançando...' : 'Avançar dia'}</button>
                   <button onClick={() => goToView('tactics')} className="game-button game-button-secondary">Escalação</button>
-                  <button onClick={() => { if (opponent) { setViewOpponent(true); goToView('squad') } }} className="game-button game-button-secondary">Ver adversário</button>
+                  <button onClick={openOpponentSquad} disabled={!opponent || opponentLoading} className="game-button game-button-secondary">{opponentLoading ? 'Carregando...' : 'Ver adversário'}</button>
                   <button disabled={boardState.managerStatus === 'dismissed' || boardState.managerStatus === 'contract_ended' || advancingDays || !nextFixture} onClick={() => { if (nextFixture) { if (matchReady) { setActiveMatchFixture(JSON.parse(JSON.stringify(nextFixture))); goToView('match') } else { advanceToNextMatch() } } }} className="game-button game-button-primary">{matchReady ? 'Jogar partida' : (advancingDays ? 'Avançando...' : 'Aguardar dia de jogo')}</button>
                 </div>
               </div>
