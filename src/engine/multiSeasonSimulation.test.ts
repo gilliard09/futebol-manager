@@ -196,19 +196,19 @@ describe('multi-season simulation', () => {
       )
       expect(players[0].age).toBe(ageBefore + 1)
 
-      const june = simulateWorldDay(
-        year + '-06-15',
+      const february = simulateWorldDay(
+        year + '-02-20',
         seasonId,
         leagueClubs,
         players,
         userClubId,
         {},
-        [],
-        [],
+        janFirst.marketInterest,
+        janFirst.loans,
         janFirst.aiManagers,
       )
-      totalTransfers += june.transfers.length + june.freeAgentSignings.length
-      totalAIManagers += june.aiManagers.length
+      totalTransfers += february.transfers.length + february.freeAgentSignings.length
+      totalAIManagers += february.aiManagers.length
 
       managerSeasons += 1
       history.push({
