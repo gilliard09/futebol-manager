@@ -38,8 +38,16 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
   const [renewing, setRenewing] = useState(false)
   const [years, setYears] = useState(2)
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null)
+  const [lastPerformance, setLastPerformance] = useState<{ date: string; result: string; score: string; rating: number; formDelta: number; moraleDelta: number; fatigueDelta: number } | null>(null)
 
   useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('futebol-manager:last-match-impact') ?? 'null')
+      const performance = saved?.clubId === club.id ? saved.players?.find((item: { name?: string }) => item.name === `${player.first_name} ${player.last_name}`) : null
+      setLastPerformance(performance ? { date: saved.date, result: saved.result, score: saved.score, rating: Number(performance.rating ?? 0), formDelta: Number(performance.formDelta ?? 0), moraleDelta: Number(performance.moraleDelta ?? 0), fatigueDelta: Number(performance.fatigueDelta ?? 0) } : null)
+    } catch {
+      setLastPerformance(null)
+    }
     let active = true
     async function loadContract() {
       const [contractResult, seasonResult] = await Promise.all([
@@ -152,6 +160,14 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
           <div><p className="text-[9px] uppercase tracking-[0.12em] text-white/25">Moral</p><p className="mt-1 text-xs font-bold">{player.morale}</p></div>
         </div>
       </div>
+
+      {lastPerformance && <div className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
+        <div className="flex items-end justify-between gap-4">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Última atuação</p><p className="mt-2 text-sm font-semibold">{lastPerformance.result} · {lastPerformance.score}</p><p className="mt-1 text-xs text-white/30">{date(lastPerformance.date)}</p></div>
+          <span className="font-display text-3xl font-black text-emerald-300">{lastPerformance.rating.toFixed(1)}</span>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2"><Info label="Forma" value={lastPerformance.formDelta > 0 ? '+' + lastPerformance.formDelta : String(lastPerformance.formDelta)} /><Info label="Moral" value={lastPerformance.moraleDelta > 0 ? '+' + lastPerformance.moraleDelta : String(lastPerformance.moraleDelta)} /><Info label="Fôlego" value={'-' + Math.max(0, lastPerformance.fatigueDelta)} /></div>
+      </div>}
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Info label="Relação com treinador" value={String(player.coachRelationship ?? 50)} />
