@@ -3352,8 +3352,13 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
 
     setAdvancingDays(true)
     try {
-      const advanceResult = await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
-      const targetDate = advanceResult?.date ?? nextMatchDate
+      let advanceResult: Awaited<ReturnType<typeof simulateWorldUntilMatch>> = { date: nextMatchDate, event: null }
+      try {
+        advanceResult = await simulateWorldUntilMatch(clock.currentDate, nextMatchDate)
+      } catch (simulationError) {
+        console.error('Falha na simulação do mundo; avançando diretamente até a data da partida.', simulationError)
+      }
+      const targetDate = advanceResult.date ?? nextMatchDate
 
       let current = clock
       let nextPlayers = players
