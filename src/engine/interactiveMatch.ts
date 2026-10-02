@@ -438,7 +438,10 @@ export function changeInteractivePlayerInstruction(state: InteractiveMatchState,
   const team = teamName === 'home' ? next.home : next.away
   if (!team.lineup.some(item => item.player.id === playerId)) return state
   team.playerInstructions[playerId] = instruction
-  next.events.push({ minute: next.minute, type: 'tactical_change', team: teamName, player: team.lineup.find(item => item.player.id === playerId)?.player.first_name + ' ' + team.lineup.find(item => item.player.id === playerId)?.player.last_name, playerId, text: 'Instrução individual alterada para ' + instruction + '.' })
+  const selected = team.lineup.find(item => item.player.id === playerId)
+  if (!selected) return state
+  const selectedName = selected.player.first_name + ' ' + selected.player.last_name
+  next.events.push({ minute: next.minute, type: 'tactical_change', team: teamName, player: selectedName, playerId, text: 'Instrução individual alterada para ' + instruction + '.' })
   return next
 }
 
