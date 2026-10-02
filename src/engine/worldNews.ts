@@ -409,5 +409,5 @@ export function buildWorldNews(
 
   return news
     .sort((a, b) => b.priority - a.priority || b.id.localeCompare(a.id))
-    .slice(0, 8)
+    .slice(0, 20)
 }
