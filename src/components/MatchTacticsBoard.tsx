@@ -179,6 +179,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
               </div>
               <span className="mt-1 block min-w-16 rounded bg-black/65 px-1 py-0.5 text-[8px] font-bold text-white">{shortName(item.player)}</span>
               <span className="block text-[7px] font-bold uppercase tracking-wider text-white/55">{item.role} · {playerPositionLabel(item.player.position)}</span>
+              <span className={`mt-0.5 block rounded px-1 py-0.5 text-[7px] font-bold ${playerStamina(item.player, session.minute, true) <= 25 ? 'bg-red-500/80 text-white' : playerStamina(item.player, session.minute, true) <= 45 ? 'bg-amber-500/70 text-white' : 'bg-black/55 text-white/65'}`}>Fôlego {playerStamina(item.player, session.minute, true)}%</span>
             </div>
           })}
 
@@ -191,7 +192,7 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
           <div className="flex items-center justify-between">
             <div>
               <p className="label-mono text-white/30">Banco</p>
-              <p className="mt-1 text-[10px] text-white/35">{selectedOutgoing ? 'Agora clique ou arraste o reserva para o titular selecionado.' : 'Arraste um jogador do banco para dentro do titular.'}</p>
+              <p className="mt-1 text-[10px] text-white/35">{selectedOutgoing ? 'Agora clique ou arraste o reserva para o titular selecionado.' : 'Selecione um titular para ver o fôlego e escolher a troca.'}</p>
             </div>
             <GripVertical size={15} className="text-white/20" />
           </div>
