@@ -522,15 +522,27 @@ export default function InteractiveMatch({ fixture, userClubId, homePlayers, awa
 
       {phase === 'halftime' && session && <section className="space-y-4">
         <MatchHeader fixture={fixture} homeScore={session.homeScore} awayScore={session.awayScore} minute={45} finished={false} />
-        <div className="game-panel"><div className="flex items-center justify-between"><div><p className="label-mono text-amber-200/60">INTERVALO</p><h2 className="mt-1 font-display text-2xl font-bold">45 minutos concluídos</h2><p className="mt-1 text-sm text-white/40">Confira a energia do elenco antes de voltar para o segundo tempo.</p></div><span className="font-display text-4xl font-bold">45'</span></div>
+        <section className="space-y-4">
+          <div className="rounded-3xl border border-amber-400/10 bg-[#131b2a] p-5">
+            <div className="flex items-end justify-between gap-4">
+              <div><p className="label-mono text-amber-200/60">INTERVALO · SUA DECISÃO</p><h2 className="mt-1 font-display text-2xl font-bold">O que muda para o segundo tempo?</h2><p className="mt-1 text-sm text-white/40">A partida está pausada. Faça os ajustes que considerar necessários.</p></div>
+              <span className="font-display text-3xl font-black text-white/70">45'</span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Placar</p><p className="mt-1 font-mono text-lg font-bold">{session.homeScore}–{session.awayScore}</p></div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Condição</p><p className="mt-1 font-mono text-lg font-bold">{averageCondition}%</p></div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Moral</p><p className="mt-1 font-mono text-lg font-bold">{averageMorale}%</p></div>
+              <div className="rounded-xl border border-white/5 bg-black/10 p-3"><p className="label-mono text-white/25">Plano</p><p className="mt-1 text-sm font-bold">{user?.tactic === 'offensive' ? 'Ofensivo' : user?.tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'}</p></div>
+            </div>
+          </div>
           <MatchTacticsBoard session={session} userTeam={userTeam} onSubstitution={(outgoingId, incomingId) => { applySubstitution(outgoingId, incomingId); setSelectedOutgoing('') }} onTactic={applyTactic} onInstruction={applyInstruction} onPlayerInstruction={applyPlayerInstruction} onRisk={applyRisk} />
-          <div className="mt-4 rounded-2xl border border-white/6 bg-[#131b2a] p-4"><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Intervalo</p><p className="mt-1 text-sm text-white/45">Você pode trocar jogadores e mudar a formação agora. As alterações entram no segundo tempo.</p></div>
+          <p className="rounded-2xl border border-white/6 bg-[#131b2a] px-4 py-3 text-xs leading-5 text-white/40">Trocas, formação, instruções e risco definidos aqui entram no segundo tempo.</p>
           <button type="button" onClick={() => {
             setPaused(false)
             setSession(current => current ? advanceInteractiveMinute(current, userTeam) : current)
             setPhase('live')
-          }} className="relative z-10 mt-5 flex min-h-14 w-full touch-manipulation items-center justify-center gap-1 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c] active:scale-[0.99]">Voltar ao segundo tempo <ArrowRight size={16} /></button>
-        </div>
+          }} className="relative z-10 flex min-h-14 w-full touch-manipulation items-center justify-center gap-1 rounded-xl bg-emerald-400 px-5 py-4 text-sm font-bold text-[#06100c] active:scale-[0.99]">Voltar ao segundo tempo <ArrowRight size={16} /></button>
+        </section>
       </section>}
 
       {phase === 'live' && session && <section className="space-y-4">
