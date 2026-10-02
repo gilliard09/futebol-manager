@@ -5463,6 +5463,7 @@ function Tactics({ players, club, today, back }: { players: Player[]; club: Club
 
 
 function Training({ players, club, salaryTotal, nextFixture, back, onComplete }: { players: Player[]; club: Club; salaryTotal: number; nextFixture: Fixture | null; back: () => void; onComplete: (players: Player[], career: ManagerProfile, cost: number) => void }) {
+  const [mode, setMode] = useState<'training' | 'recovery'>('training')
   const [focus, setFocus] = useState<TrainingFocus>('balanced')
   const [saving, setSaving] = useState(false)
   const [report, setReport] = useState<TrainingReport | null>(null)
@@ -5471,46 +5472,79 @@ function Training({ players, club, salaryTotal, nextFixture, back, onComplete }:
   const selected = TRAINING_FOCUSES[focus]
   const affordable = club.budget >= selected.cost
   const trainingState = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
-  const alreadyTrained = Boolean(nextFixture && trainingState.lastTrainingFixtureId === nextFixture.id)
+  const alreadyPrepared = Boolean(nextFixture && trainingState.lastPreparationFixtureId === nextFixture.id)
   const opponentName = nextFixture ? (nextFixture.home_club_id === club.id ? nextFixture.away_club?.name : nextFixture.home_club?.name) : null
+  const averageCondition = players.length ? Math.round(players.reduce((sum, player) => sum + Math.max(0, 100 - (player.fatigue ?? 0)), 0) / players.length) : 0
+  const averageMorale = players.length ? Math.round(players.reduce((sum, player) => sum + (player.morale ?? 0), 0) / players.length) : 0
 
   function complete() {
-    if (!affordable || saving) return
+    if (saving || alreadyPrepared || (mode === 'training' && !affordable)) return
     setSaving(true)
     const beforePlayers = players.map(player => ({ ...player }))
-    const nextPlayers = trainSquad(players, focus)
+    const nextPlayers = mode === 'training'
+      ? trainSquad(players, focus)
+      : players.map(player => ({
+          ...player,
+          fatigue: Math.max(0, (player.fatigue ?? 0) - 18),
+          morale: Math.min(100, (player.morale ?? 0) + 1),
+          form: Math.min(100, player.form + 1),
+        }))
     const changes = buildTrainingReport(beforePlayers, nextPlayers)
     const previous = JSON.parse(localStorage.getItem(TRAINING_KEY) ?? '{}')
     const map = Object.fromEntries(nextPlayers.map(player => [player.id, player]))
-    localStorage.setItem(TRAINING_KEY, JSON.stringify({ players: { ...(previous.players ?? {}), ...map }, lastFocus: focus, lastTrainingAt: new Date().toISOString(), lastTrainingFixtureId: nextFixture?.id ?? null }))
+    localStorage.setItem(TRAINING_KEY, JSON.stringify({
+      ...previous,
+      players: { ...(previous.players ?? {}), ...map },
+      lastFocus: mode === 'training' ? focus : null,
+      lastPreparationMode: mode,
+      lastTrainingAt: new Date().toISOString(),
+      lastPreparationFixtureId: nextFixture?.id ?? null,
+      lastTrainingFixtureId: mode === 'training' ? nextFixture?.id ?? null : previous.lastTrainingFixtureId ?? null,
+    }))
     const savedCareer = localStorage.getItem(CAREER_KEY)
     const career = savedCareer ? JSON.parse(savedCareer) as ManagerProfile : null
     if (!career) { setSaving(false); return }
-    const nextCareer = { ...career, club: { ...club, budget: Math.max(0, club.budget - selected.cost) } }
+    const cost = mode === 'training' ? selected.cost : 0
+    const nextCareer = { ...career, club: { ...club, budget: Math.max(0, club.budget - cost) } }
     localStorage.setItem(CAREER_KEY, JSON.stringify(nextCareer))
     setTimeout(() => { setPendingPlayers(nextPlayers); setPendingCareer(nextCareer); setReport(changes); setSaving(false) }, 250)
   }
 
-  if (report && pendingPlayers && pendingCareer) return <TrainingReportView report={report} close={() => onComplete(pendingPlayers, pendingCareer, selected.cost)} />
-  return <main className="min-h-screen"><Top label="TREINAMENTO" back={back} /><section className="px-6 py-8 md:px-10">
+  if (report && pendingPlayers && pendingCareer) return <TrainingReportView report={report} close={() => onComplete(pendingPlayers, pendingCareer, mode === 'training' ? selected.cost : 0)} />
+  return <main className="min-h-screen"><Top label="PREPARAÇÃO" back={back} /><section className="px-6 py-8 md:px-10">
     <p className="text-sm text-white/35">{club.name}</p>
     <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Prepare o elenco</h1>
-    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Escolha o foco da sessão. Jogadores jovens têm maior capacidade de evolução, mas ninguém ultrapassa o próprio potencial.</p>{nextFixture && <div className="mt-5 rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 text-xs text-white/45">Próximo jogo: <span className="font-semibold text-white/70">{club.name} {nextFixture.home_club_id === club.id ? '×' : 'fora de casa'} {opponentName ?? 'adversário'}</span> · Rodada {nextFixture.round}</div>}
-    <div className="mt-8 grid gap-3 md:grid-cols-2">
-      {(Object.entries(TRAINING_FOCUSES) as [TrainingFocus, typeof selected][]).map(([key, item]) => <button key={key} onClick={() => setFocus(key)} className={`rounded-2xl border p-5 text-left ${focus === key ? 'border-emerald-400/40 bg-emerald-400/8' : 'border-white/6 bg-white/[0.02]'}`}>
-        <div className="flex items-center justify-between"><p className="font-semibold">{item.label}</p><span className="text-xs font-bold text-emerald-300">{money(item.cost)}</span></div>
-        <p className="mt-2 text-xs leading-5 text-white/35">{item.description}</p>
-      </button>)}
+    <p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Antes do próximo jogo, você escolhe: desenvolver a equipe ou recuperar quem está desgastado. Uma sessão por partida.</p>
+    {nextFixture && <div className="mt-5 rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 text-xs text-white/45">Próximo jogo: <span className="font-semibold text-white/70">{club.name} {nextFixture.home_club_id === club.id ? '×' : 'fora de casa'} {opponentName ?? 'adversário'}</span> · Rodada {nextFixture.round}</div>}
+    <div className="mt-6 grid grid-cols-2 gap-2 rounded-xl border border-white/6 bg-white/[0.02] p-1">
+      <button type="button" onClick={() => setMode('training')} className={`rounded-lg px-3 py-3 text-xs font-bold ${mode === 'training' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/45'}`}>Treinar</button>
+      <button type="button" onClick={() => setMode('recovery')} className={`rounded-lg px-3 py-3 text-xs font-bold ${mode === 'recovery' ? 'bg-emerald-400 text-[#06100c]' : 'text-white/45'}`}>Recuperar</button>
     </div>
-    <div className="mt-6 grid gap-3 md:grid-cols-3">
-      <Info label="Custo da sessão" value={money(selected.cost)} />
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <Info label="Condição média" value={`${averageCondition}%`} />
+      <Info label="Moral média" value={String(averageMorale)} />
       <Info label="Folha mensal" value={money(calculateMonthlyPayroll([salaryTotal ?? 0]))} />
-      <Info label="Orçamento disponível" value={money(club.budget)} />
+      <Info label="Orçamento" value={money(club.budget)} />
     </div>
+    {mode === 'training' ? <>
+      <div className="mt-6 grid gap-3 md:grid-cols-2">
+        {(Object.entries(TRAINING_FOCUSES) as [TrainingFocus, typeof selected][]).map(([key, item]) => <button key={key} onClick={() => setFocus(key)} className={`rounded-2xl border p-5 text-left ${focus === key ? 'border-emerald-400/40 bg-emerald-400/8' : 'border-white/6 bg-white/[0.02]'}`}>
+          <div className="flex items-center justify-between"><p className="font-semibold">{item.label}</p><span className="text-xs font-bold text-emerald-300">{money(item.cost)}</span></div>
+          <p className="mt-2 text-xs leading-5 text-white/35">{item.description}</p>
+        </button>)}
+      </div>
+      <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
+        <p className="text-sm font-semibold">Escolha desenvolvimento quando o elenco estiver fisicamente pronto.</p>
+        <p className="mt-2 text-xs leading-6 text-white/35">O treino pode melhorar atributos, forma e moral, mas aumenta a fadiga. Se a prioridade for chegar inteiro à partida, a recuperação pode ser mais adequada.</p>
+      </div>
+    </> : <div className="mt-6 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.03] p-5">
+      <p className="text-sm font-semibold">Recuperação do elenco</p>
+      <p className="mt-2 text-xs leading-6 text-white/35">Reduz a fadiga de todos em 18 pontos e melhora levemente forma e moral. Não custa nada, mas ocupa sua única sessão de preparação desta partida.</p>
+    </div>}
     <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
-      <p className="text-sm font-semibold">O que acontece?</p>
-      <p className="mt-2 text-xs leading-6 text-white/35">Os atributos relacionados ao foco podem subir 1 ponto, respeitando o potencial do atleta. A sessão também melhora ligeiramente forma e moral.</p>
-      <button disabled={!affordable || alreadyTrained || saving} onClick={complete} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{saving ? 'Treinando...' : alreadyTrained ? 'Treinamento desta rodada já realizado' : affordable ? 'Realizar treinamento' : 'Orçamento insuficiente'} <ArrowRight size={16} /></button>
+      <p className="text-sm font-semibold">Decisão para o próximo jogo</p>
+      <p className="mt-2 text-xs leading-6 text-white/35">{alreadyPrepared ? 'A preparação desta partida já foi realizada.' : mode === 'training' ? `Foco: ${selected.label}. Custo ${money(selected.cost)}.` : 'Foco: recuperação. Custo zero e prioridade total à condição física.'}</p>
+      <button disabled={alreadyPrepared || (mode === 'training' && !affordable) || saving} onClick={complete} className="mt-6 flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-[#06100c] disabled:cursor-not-allowed disabled:opacity-30">{saving ? 'Preparando...' : alreadyPrepared ? 'Preparação desta partida já realizada' : mode === 'recovery' ? 'Recuperar elenco' : affordable ? 'Realizar treinamento' : 'Orçamento insuficiente'} <ArrowRight size={16} /></button>
     </div>
   </section></main>
 }
