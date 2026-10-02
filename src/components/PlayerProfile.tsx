@@ -135,6 +135,24 @@ export default function PlayerProfile({ player, club, today, close, onContractCh
         <Info label="Moral" value={String(player.morale)} />
       </div>
 
+      <div className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-5">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estado para o próximo jogo</p>
+            <p className="mt-2 text-sm text-white/40">Condição física, forma e moral entram na decisão de escalação.</p>
+          </div>
+          <span className="font-display text-2xl font-black text-emerald-300">{Math.max(0, 100 - (player.fatigue ?? 0))}%</span>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+          <div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: (Math.max(0, 100 - (player.fatigue ?? 0))) + '%' }} />
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div><p className="text-[9px] uppercase tracking-[0.12em] text-white/25">Condição</p><p className="mt-1 text-xs font-bold">{Math.max(0, 100 - (player.fatigue ?? 0))}%</p></div>
+          <div><p className="text-[9px] uppercase tracking-[0.12em] text-white/25">Forma</p><p className="mt-1 text-xs font-bold">{player.form}</p></div>
+          <div><p className="text-[9px] uppercase tracking-[0.12em] text-white/25">Moral</p><p className="mt-1 text-xs font-bold">{player.morale}</p></div>
+        </div>
+      </div>
+
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Info label="Relação com treinador" value={String(player.coachRelationship ?? 50)} />
         <Info label="Insatisfação" value={String(player.dissatisfaction ?? 0)} />
