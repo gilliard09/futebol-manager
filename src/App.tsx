@@ -46,6 +46,7 @@ import { playerPositionLabel } from './engine/playerPositions'
 
 const CAREER_KEY = 'futebol-manager:career'
 const MATCHES_KEY = 'futebol-manager:matches'
+const LAST_MATCH_IMPACT_KEY = 'futebol-manager:last-match-impact'
 const TACTIC_KEY = 'futebol-manager:tactic'
 const TRAINING_KEY = 'futebol-manager:training'
 const CLOCK_KEY = 'futebol-manager:season-clock'
@@ -4210,6 +4211,33 @@ function Dashboard({ career, clubs, newCareer, onCareerUpdate, onClubsUpdate }: 
           const values = playerStateUpdates.get(player.id)
           return values ? { ...player, ...values } : player
         }))
+
+        const userMatch = matchesToPersist[activeMatchFixture.id]
+        const userRatings = (userMatch?.playerRatings ?? [])
+          .filter(player => player.team === (activeMatchFixture.home_club_id === career.club.id ? 'home' : 'away'))
+          .sort((a, b) => b.rating - a.rating)
+          .slice(0, 3)
+          .map(player => {
+            const current = matchPlayers.get(player.playerId)
+            const next = playerStateUpdates.get(player.playerId)
+            return {
+              name: player.name,
+              rating: player.rating,
+              formDelta: next && current ? next.form - current.form : 0,
+              moraleDelta: next && current ? next.morale - current.morale : 0,
+              fatigueDelta: next && current ? next.fatigue - (current.fatigue ?? 0) : 0,
+            }
+          })
+        const userGoals = activeMatchFixture.home_club_id === career.club.id ? userMatch?.homeScore ?? 0 : userMatch?.awayScore ?? 0
+        const opponentGoals = activeMatchFixture.home_club_id === career.club.id ? userMatch?.awayScore ?? 0 : userMatch?.homeScore ?? 0
+        const userResult = userGoals > opponentGoals ? 'VITÓRIA' : userGoals < opponentGoals ? 'DERROTA' : 'EMPATE'
+        localStorage.setItem(LAST_MATCH_IMPACT_KEY, JSON.stringify({
+          clubId: career.club.id,
+          date: toDateKey(activeMatchFixture.scheduled_at),
+          result: userResult,
+          score: userGoals + '–' + opponentGoals,
+          players: userRatings,
+        }))
       }
 
       // Consequências disciplinares e médicas passam a fazer parte do elenco real.
@@ -5216,6 +5244,14 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
   const daysToMatch = nextDate ? daysBetween(today, nextDate) : null
   const tacticLabel = tacticState.tactic === 'offensive' ? 'Ofensivo' : tacticState.tactic === 'defensive' ? 'Defensivo' : 'Equilibrado'
   const objectiveLabel = board.objectiveLabel || 'Objetivo da temporada'
+  const lastMatchImpact = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_MATCH_IMPACT_KEY) ?? 'null')
+      return saved && saved.clubId === club.id ? saved : null
+    } catch {
+      return null
+    }
+  })()
 
   return <main className="min-h-screen pb-24 lg:pb-0">
     <section className="px-4 py-5 sm:px-6 lg:px-8">
@@ -5266,6 +5302,31 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
           <p className="mt-1 truncate text-[10px] text-white/30">{item.detail}</p>
         </button>)}
       </section>
+
+      {lastMatchImpact && (
+        <section className="mt-4 rounded-2xl border border-white/[0.06] bg-[#0d131e]">
+          <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-4 sm:px-5">
+            <div><p className="label-mono text-emerald-300/60">ÚLTIMA PARTIDA</p><h2 className="mt-1 text-lg font-bold">{lastMatchImpact.result}</h2></div>
+            <span className="font-mono text-lg font-bold tabular-nums">{lastMatchImpact.score}</span>
+          </div>
+          <div className="grid gap-2 p-3 sm:grid-cols-3">
+            {(lastMatchImpact.players ?? []).map((item: { name: string; rating: number; formDelta: number; moraleDelta: number; fatigueDelta: number }) => (
+              <div key={item.name} className="rounded-xl border border-white/5 bg-black/10 px-3 py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-xs font-semibold">{item.name}</p>
+                  <span className="font-mono text-xs font-bold text-emerald-300">{item.rating.toFixed(1)}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-white/35">
+                  <span>Forma {item.formDelta >= 0 ? '+' : ''}{item.formDelta}</span>
+                  <span>Moral {item.moraleDelta >= 0 ? '+' : ''}{item.moraleDelta}</span>
+                  <span>Fôlego -{item.fatigueDelta}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="border-t border-white/[0.05] px-4 py-3 text-[10px] leading-5 text-white/30 sm:px-5">A atuação já alterou forma, moral e condição. Esses valores entram na próxima escalação.</p>
+        </section>
+      )}
 
       <section className="mt-4 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
         <div className="rounded-2xl border border-white/[0.06] bg-[#0d131e]">
