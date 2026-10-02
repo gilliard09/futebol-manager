@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildLeagueFixtures, buildCupFixtures } from './seasonSchedule'
-import {
-  buildStandings,
-  resolveCompletedKnockoutStage,
-} from './competitions'
+import { buildStandings, resolveCompletedKnockoutStage } from './competitions'
 import {
   buildContinentalGroupQualification,
   pairLibertadoresRoundOf16,
@@ -95,17 +92,12 @@ function playKnockoutStage(rows: SimFixture[]) {
 }
 
 function simulateBrazilCup(): SimFixture[] {
-  const initial = buildCupFixtures(seasonId, '2026-02-18', copa, 'copa')
-    .map((row, i) => asFixture(row, i))
+  const initial = buildCupFixtures(seasonId, '2026-02-18', copa, 'copa').map((row, i) => asFixture(row, i))
   const all = [...playKnockoutStage(initial)]
   const resolverRounds = [1, 2, 4, 6, 8]
 
   for (const currentRound of resolverRounds) {
-    const next = resolveCompletedKnockoutStage(
-      all,
-      currentRound,
-      copa.map(item => item.id),
-    )
+    const next = resolveCompletedKnockoutStage(all, currentRound, copa.map(item => item.id))
     expect(next, `Copa deveria gerar a rodada seguinte após a rodada ${currentRound}`).not.toBeNull()
 
     const nextRows = next!.map((row, index) =>
@@ -144,11 +136,7 @@ function buildGroups(prefix: string, qualifiedFromPreliminary: string[] = []): C
   }))
 }
 
-function buildGroupFixtures(
-  competitionId: string,
-  groups: ContinentalGroup[],
-  startDay: number,
-): SimFixture[] {
+function buildGroupFixtures(competitionId: string, groups: ContinentalGroup[], startDay: number): SimFixture[] {
   const rows: SimFixture[] = []
   for (const group of groups) {
     const [a, b, c, d] = group.teams
@@ -222,8 +210,7 @@ function stageFixtures(fixtures: SimFixture[], stage: ContinentalStage) {
 }
 
 function stageDates(fixtures: SimFixture[], stage: ContinentalStage) {
-  return [...new Set(stageFixtures(fixtures, stage).map(fixture => fixture.scheduled_at.slice(0, 10)))]
-    .sort()
+  return [...new Set(stageFixtures(fixtures, stage).map(fixture => fixture.scheduled_at.slice(0, 10)))].sort()
 }
 
 function participants(fixtures: SimFixture[]) {
@@ -235,13 +222,7 @@ function simulateLibertadoresPreliminary() {
     continentalClub(`lib-pre-${index + 1}`, index % 2 === 0 ? 'Brasil' : 'Paraguai', 72 - index),
   )
   const pairs = pairSequential(teams.map(team => team.id))
-  const rows = buildTwoLegFixtures(
-    pairs,
-    1,
-    '2026-02-18',
-    '2026-02-25',
-    'libertadores_preliminary',
-  )
+  const rows = buildTwoLegFixtures(pairs, 1, '2026-02-18', '2026-02-25', 'libertadores_preliminary')
   const fixtures = rows.map((item, index) => fixtureFromContinental('libertadores', index, item))
   const winners: string[] = []
 
@@ -265,13 +246,7 @@ function simulateContinentalKnockout(
 
   if (competitionId === 'sudamericana') {
     const playoffPairs = pairSudamericanaPlayoffs(libertadoresThirds, runnersUp)
-    const playoff = buildTwoLegFixtures(
-      playoffPairs,
-      1,
-      '2026-07-01',
-      '2026-07-08',
-      'sudamericana_playoff',
-    )
+    const playoff = buildTwoLegFixtures(playoffPairs, 1, '2026-07-01', '2026-07-08', 'sudamericana_playoff')
     const played = playoff.map((item, index) => fixtureFromContinental(competitionId, fixtures.length + index, item))
     fixtures.push(...played)
 
@@ -286,10 +261,7 @@ function simulateContinentalKnockout(
 
   const pairs = competitionId === 'libertadores'
     ? pairLibertadoresRoundOf16(currentWinners, runnersUp)
-    : currentWinners.map((winner, index) => ({
-        homeClubId: winner,
-        awayClubId: winners[index],
-      }))
+    : currentWinners.map((winner, index) => ({ homeClubId: winner, awayClubId: winners[index] }))
 
   let active = pairs
   const stages: Array<{
@@ -313,13 +285,7 @@ function simulateContinentalKnockout(
 
   for (const stage of stages) {
     expect(active.length).toBe(stage.stage === 'round_of_16' ? 8 : stage.stage === 'quarterfinals' ? 4 : 2)
-    const tieFixtures = buildTwoLegFixtures(
-      active,
-      stage.round,
-      stage.firstDate,
-      stage.secondDate,
-      stage.stage,
-    )
+    const tieFixtures = buildTwoLegFixtures(active, stage.round, stage.firstDate, stage.secondDate, stage.stage)
     const played = tieFixtures.map((item, index) => fixtureFromContinental(competitionId, fixtures.length + index, item))
     fixtures.push(...played)
 
@@ -338,12 +304,7 @@ function simulateContinentalKnockout(
   }
 
   expect(finalists).toHaveLength(2)
-  const final = buildSingleFinalFixture(
-    finalists[0],
-    finalists[1],
-    9,
-    '2026-11-28T20:00:00.000Z',
-  )
+  const final = buildSingleFinalFixture(finalists[0], finalists[1], 9, '2026-11-28T20:00:00.000Z')
   fixtures.push(fixtureFromContinental(competitionId, fixtures.length, final))
   const last = fixtures.at(-1)!
   expect(resolveContinentalSingleMatch(last, last.home_club_id)).toBe(last.home_club_id)
@@ -356,12 +317,7 @@ function simulateContinental(prefix: 'lib' | 'sul', libertadoresThirds: string[]
   const preliminary = prefix === 'lib' ? simulateLibertadoresPreliminary() : null
   const groups = buildGroups(prefix, preliminary?.winners ?? [])
   const teams = groups.flatMap(group => group.teams)
-  const groupFixtures = buildGroupFixtures(
-    competitionId,
-    groups,
-    prefix === 'lib' ? 7 : 8,
-  )
-
+  const groupFixtures = buildGroupFixtures(competitionId, groups, prefix === 'lib' ? 7 : 8)
   const qualification = buildContinentalGroupQualification(groups, groupFixtures)
   const allFixtures = [...(preliminary?.fixtures ?? []), ...groupFixtures]
 
@@ -375,14 +331,7 @@ function simulateContinental(prefix: 'lib' | 'sul', libertadoresThirds: string[]
         libertadoresThirds,
       )
 
-  return {
-    groups,
-    teams,
-    fixtures: allFixtures,
-    qualification,
-    preliminary,
-    knockout,
-  }
+  return { groups, teams, fixtures: allFixtures, qualification, preliminary, knockout }
 }
 
 describe('season simulation', () => {
@@ -403,7 +352,6 @@ describe('season simulation', () => {
     expect(libPreliminary.fixtures).toHaveLength(8)
     expect(libPreliminary.winners).toHaveLength(4)
     expect(new Set(libPreliminary.winners).size).toBe(4)
-    expect(participants(libPreliminary.fixtures)).toHaveLength?.toBeUndefined
     expect(participants(libPreliminary.fixtures).size).toBe(8)
     expect(stageDates(libertadores.fixtures, 'libertadores_preliminary')).toEqual(['2026-02-18', '2026-02-25'])
     expect(new Set(libPreliminary.teams.map(team => team.id).filter(id => !libPreliminary.winners.includes(id))).size).toBe(4)
@@ -414,22 +362,8 @@ describe('season simulation', () => {
     expect(sulGroupFixtures).toHaveLength(8 * 12)
     expect(new Set(libGroupFixtures.map(f => f.round))).toEqual(new Set([1, 2, 3, 4, 5, 6]))
     expect(new Set(sulGroupFixtures.map(f => f.round))).toEqual(new Set([1, 2, 3, 4, 5, 6]))
-    expect(stageDates(libertadores.fixtures, 'group_stage')).toEqual([
-      '2026-04-07',
-      '2026-04-08',
-      '2026-04-09',
-      '2026-04-10',
-      '2026-04-11',
-      '2026-04-12',
-    ])
-    expect(stageDates(sudamericana.fixtures, 'group_stage')).toEqual([
-      '2026-04-08',
-      '2026-04-09',
-      '2026-04-10',
-      '2026-04-11',
-      '2026-04-12',
-      '2026-04-13',
-    ])
+    expect(stageDates(libertadores.fixtures, 'group_stage')).toEqual(['2026-04-07', '2026-04-08', '2026-04-09', '2026-04-10', '2026-04-11', '2026-04-12'])
+    expect(stageDates(sudamericana.fixtures, 'group_stage')).toEqual(['2026-04-08', '2026-04-09', '2026-04-10', '2026-04-11', '2026-04-12', '2026-04-13'])
 
     expect(libertadores.qualification.winners).toHaveLength(8)
     expect(libertadores.qualification.runnersUp).toHaveLength(8)
@@ -477,10 +411,7 @@ describe('season simulation', () => {
     const libQF = participants(libStages.quarterfinals)
     const libSF = participants(libStages.semifinals)
     const libFinal = participants(libStages.final)
-    expect(libR16).toEqual(new Set([
-      ...libertadores.qualification.winners,
-      ...libertadores.qualification.runnersUp,
-    ]))
+    expect(libR16).toEqual(new Set([...libertadores.qualification.winners, ...libertadores.qualification.runnersUp]))
     expect(libR16.size).toBe(16)
     expect(libQF.size).toBe(8)
     expect(libSF.size).toBe(4)
@@ -497,12 +428,13 @@ describe('season simulation', () => {
     expect(sulQF.size).toBe(8)
     expect(sulSF.size).toBe(4)
     expect(sulFinal.size).toBe(2)
-    expect(sulR16).toEqual(new Set([
-      ...libertadores.qualification.thirds.slice(0, 0),
-      ...sudamericana.qualification.winners,
-      ...sulPlayoff,
-    ]))
+    expect(sudamericana.qualification.winners.every(id => sulR16.has(id))).toBe(true)
     expect(sudamericana.qualification.thirds.every(id => !sulR16.has(id))).toBe(true)
+
+    const sulPlayoffEliminated = new Set(
+      [...sulPlayoff].filter(id => !sulR16.has(id)),
+    )
+    expect(sulPlayoffEliminated.size).toBe(8)
 
     expect(libertadores.fixtures.every(f => f.status === 'completed')).toBe(true)
     expect(sudamericana.fixtures.every(f => f.status === 'completed')).toBe(true)
