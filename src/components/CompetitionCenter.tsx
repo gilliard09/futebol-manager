@@ -414,7 +414,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
 
         {(competition === 'Liga Nacional do Brasil' || competition === 'Série B do Brasil') && <section className="mt-4 rounded-2xl border border-white/6 bg-white/[0.02] p-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/30">Classificação</p><h2 className="mt-2 text-2xl font-bold">{competition}</h2>
-          <div className="mb-5 rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.025] p-4 sm:p-5">
+          {competition === 'Liga Nacional do Brasil' && leagueRace && clubStanding && <div className="mb-5 rounded-2xl border border-emerald-400/10 bg-emerald-400/[0.025] p-4 sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/60">Corrida da temporada</p>
@@ -446,7 +446,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 px-2 pb-2 text-[9px] text-white/25"><span>● Título</span><span>● Libertadores</span><span>● Sul-Americana</span><span>● Rebaixamento</span></div>
             </div>
-          </div>
+          </div>}
           <div className="hidden overflow-hidden rounded-xl border border-white/5 sm:block">
             <div className="grid grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] items-center gap-2 bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">
               <span>#</span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">V</span><span className="text-center">E</span><span className="text-center">D</span><span className="text-center">SG</span>
