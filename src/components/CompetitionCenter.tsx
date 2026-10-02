@@ -435,8 +435,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
                   <div className="flex items-center justify-between gap-2"><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">{label}</p><span className="text-[9px] text-white/20">{target}</span></div>
                   <p className={'mt-2 text-sm font-bold ' + (positive ? 'text-emerald-300' : 'text-white/75')}>{text}</p>
                 </div>
-              })
-              }
+              })}
             </div>
             <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
               <div className="flex h-2">
@@ -470,7 +469,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
                 <span className="text-right text-lg font-black tabular-nums text-emerald-300">{team.points}<small className="ml-1 text-[8px] font-bold uppercase text-white/25">pts</small></span>
               </div>
             })}
-          </div>          </div>
+          </div>
           <p className="mt-3 text-xs text-white/25">{competition === 'Liga Nacional do Brasil' ? 'Os quatro últimos clubes descem para a Série B.' : 'Os dois primeiros sobem diretamente; 3º a 6º disputam os dois acessos restantes em playoffs; os quatro últimos são rebaixados quando a divisão inferior existir.'}</p>
         </section>}
 
