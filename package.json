@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:season": "vitest run src/engine/seasonSimulation.test.ts --reporter=verbose"
+    "test:season": "vitest run src/engine/seasonSimulation.test.ts --reporter=verbose",
+    "test:seasons": "vitest run src/engine/multiSeasonSimulation.test.ts --reporter=verbose"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
