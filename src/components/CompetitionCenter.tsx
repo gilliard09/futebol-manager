@@ -419,12 +419,12 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
               <div>
                 <p className="text-xs uppercase tracking-[0.18em] text-emerald-300/60">Corrida da temporada</p>
                 <h3 className="mt-1 text-xl font-bold">Onde estou e o que preciso alcançar?</h3>
-                <p className="mt-1 text-xs text-white/30">Posição ${{position} · ${{clubStanding.points} pontos</p>
+                <p className="mt-1 text-xs text-white/30">Posição {position} · {clubStanding.points} pontos</p>
               </div>
               <div className="text-xs text-white/30">Sua posição está marcada na corrida.</div>
             </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-              ${{[
+              {[
                 ['Título', leagueRace.title.text, '1º'],
                 ['Libertadores', leagueRace.libertadores.text, 'G4'],
                 ['Sul-Americana', leagueRace.sulAmericana.text, 'G8'],
@@ -436,14 +436,14 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
                   <p className={'mt-2 text-sm font-bold ' + (positive ? 'text-emerald-300' : 'text-white/75')}>{text}</p>
                 </div>
               })
-              ${}
+              }
             </div>
             <div className="mt-4 overflow-hidden rounded-xl border border-white/5">
               <div className="flex h-2">
-                ${{table.map((team, index) => <span key={team.id} className={'flex-1 ' + (index === 0 ? 'bg-amber-300' : index < 4 ? 'bg-blue-400' : index < 8 ? 'bg-sky-300' : index >= table.length - 4 ? 'bg-red-400' : 'bg-white/10')} />)}
+                {table.map((team, index) => <span key={team.id} className={'flex-1 ' + (index === 0 ? 'bg-amber-300' : index < 4 ? 'bg-blue-400' : index < 8 ? 'bg-sky-300' : index >= table.length - 4 ? 'bg-red-400' : 'bg-white/10')} />)}
               </div>
               <div className="relative mt-2 h-8">
-                ${{table.map((team, index) => team.id === currentClubId ? <span key={team.id} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: ((index + 0.5) / table.length) * 100 + '%' }}><span className="h-3 w-3 rounded-full bg-emerald-300 ring-4 ring-emerald-300/10" /><span className="mt-1 text-[9px] font-black text-emerald-300">#{index + 1}</span></span> : null)}
+                {table.map((team, index) => team.id === currentClubId ? <span key={team.id} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: ((index + 0.5) / table.length) * 100 + '%' }}><span className="h-3 w-3 rounded-full bg-emerald-300 ring-4 ring-emerald-300/10" /><span className="mt-1 text-[9px] font-black text-emerald-300">#{index + 1}</span></span> : null)}
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 px-2 pb-2 text-[9px] text-white/25"><span>● Título</span><span>● Libertadores</span><span>● Sul-Americana</span><span>● Rebaixamento</span></div>
             </div>
@@ -452,7 +452,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             <div className="grid grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] items-center gap-2 bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25">
               <span>#</span><span>Clube</span><span className="text-center">P</span><span className="text-center">J</span><span className="text-center">V</span><span className="text-center">E</span><span className="text-center">D</span><span className="text-center">SG</span>
             </div>
-            ${{table.map((team, i) => {
+            {table.map((team, i) => {
               const club = clubs.find(item => item.id === team.id)
               return <div key={team.id} className={'grid grid-cols-[32px_minmax(0,1fr)_56px_56px_56px_56px_56px_64px] items-center gap-2 border-t border-white/5 px-4 py-3 text-sm ' + (team.id === currentClubId ? 'bg-emerald-400/[0.06]' : '')}>
                 <span className="font-bold text-white/45">{i + 1}</span>
@@ -462,7 +462,7 @@ export default function CompetitionCenter({ clubs, currentClubId, playedMatches,
             })}
           </div>
           <div className="overflow-hidden rounded-xl border border-white/5 sm:hidden">
-            ${{table.map((team, i) => {
+            {table.map((team, i) => {
               const club = clubs.find(item => item.id === team.id)
               return <div key={team.id} className={'grid grid-cols-[24px_minmax(0,1fr)_56px] items-center gap-2 border-t border-white/5 px-3 py-3 ' + (team.id === currentClubId ? 'bg-emerald-400/[0.06]' : '')}>
                 <span className="font-bold text-white/40">{i + 1}</span>
