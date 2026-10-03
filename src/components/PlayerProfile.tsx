@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { playerOverall } from '../engine/matchCore'
 import { playerPositionLabel } from '../engine/playerPositions'
+import { getSquadRole } from '../engine/matchCore'
 import { addContractYears, calculateRenewalSalary, daysUntilContractEnd, getContractStatus } from '../engine/contracts'
 import type { Club, Player } from '../types/game'
 
@@ -34,6 +35,22 @@ function Info({ label, value }: { label: string; value: string }) {
 
 export function PlayerInfoCard({ player, compact = false }: { player: Player; compact?: boolean }) {
   const condition = Math.max(0, 100 - (player.fatigue ?? 0))
+  const overall = playerOverall(player)
+  const position = playerPositionLabel(player.position)
+  const role = getSquadRole(player)
+  const roleLabel: Record<typeof role, string> = {
+    starter: 'Titular',
+    rotation: 'Rotação',
+    backup: 'Reserva',
+    prospect: 'Promessa',
+  }
+  const roleTone: Record<typeof role, string> = {
+    starter: 'border-emerald-300/25 bg-emerald-300/10 text-emerald-200',
+    rotation: 'border-sky-300/20 bg-sky-300/10 text-sky-200',
+    backup: 'border-white/10 bg-white/[0.05] text-white/60',
+    prospect: 'border-amber-300/20 bg-amber-300/10 text-amber-200',
+  }
+
   const attributes = [
     ['Velocidade', player.pace],
     ['Finalização', player.shooting],
@@ -45,41 +62,102 @@ export function PlayerInfoCard({ player, compact = false }: { player: Player; co
     ['Goleiro', player.goalkeeping],
   ]
 
-  return <section className={compact ? 'rounded-2xl border border-white/8 bg-[#10141b] p-4' : 'rounded-2xl border border-white/8 bg-[#10141b] p-5'}>
-    <div className="flex items-center gap-3 border-b border-white/6 pb-4">
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-sm font-black text-emerald-300">
-        {player.first_name[0]}{player.last_name[0]}
+  return <section className={compact ? 'overflow-hidden rounded-2xl border border-white/8 bg-[#10141b]' : 'overflow-hidden rounded-2xl border border-white/8 bg-[#10141b]'}>
+    <div className="relative overflow-hidden border-b border-white/6 bg-[radial-gradient(circle_at_72%_20%,rgba(0,196,140,0.18),transparent_42%),linear-gradient(135deg,#182333_0%,#101722_58%,#0c111a_100%)] px-4 pb-4 pt-4">
+      <div className="absolute -right-10 -top-14 h-40 w-40 rounded-full border border-emerald-300/10" />
+      <div className="absolute -right-2 -top-6 h-24 w-24 rounded-full border border-emerald-300/[0.07]" />
+
+      <div className="relative flex items-end gap-3">
+        <div className="relative h-32 w-24 shrink-0 overflow-hidden">
+          <div className="absolute bottom-0 left-1/2 h-[72px] w-[76px] -translate-x-1/2 rounded-t-[42px] bg-gradient-to-b from-white/20 to-white/[0.07] opacity-90" />
+          <div className="absolute left-1/2 top-3 h-14 w-14 -translate-x-1/2 rounded-full border border-white/10 bg-gradient-to-b from-white/30 to-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.25)]" />
+          <div className="absolute bottom-0 left-1/2 h-[92px] w-[58px] -translate-x-1/2 rounded-t-[30px] bg-[#d8dee8]/[0.12]" />
+          <div className="absolute bottom-0 left-1/2 h-20 w-[74px] -translate-x-1/2 border-t border-white/10 bg-emerald-300/[0.07]" />
+          <div className="absolute bottom-2 left-1/2 h-1 w-12 -translate-x-1/2 rounded-full bg-emerald-300/35" />
+        </div>
+
+        <div className="min-w-0 flex-1 pb-1">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="label-mono text-white/30">Jogador</p>
+              <h3 className="mt-1 truncate text-xl font-black leading-none text-white">{player.first_name} {player.last_name}</h3>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="font-display text-[10px] font-bold uppercase tracking-wider text-white/30">GER</p>
+              <p className="font-display text-4xl font-black leading-none text-emerald-300">{overall}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-md border border-white/10 bg-black/20 px-2 py-1 font-display text-xs font-black uppercase tracking-wide text-white">{position}</span>
+            <span className={`rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] ${roleTone[role]}`}>{roleLabel[role]}</span>
+            <span className="rounded-md border border-white/8 bg-black/15 px-2 py-1 text-[9px] font-bold text-white/45">#{player.squad_number}</span>
+          </div>
+
+          <p className="mt-2 truncate text-[10px] uppercase tracking-[0.12em] text-white/30">{player.age} anos · {player.nationality}</p>
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-2xl font-black leading-none text-emerald-300">{playerOverall(player)}</p>
-        <h3 className="mt-1 truncate text-base font-bold">{player.first_name} {player.last_name}</h3>
-        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/35">{playerPositionLabel(player.position)} · {player.age} anos · {player.nationality}</p>
+
+      <div className="relative mt-3 grid grid-cols-3 overflow-hidden rounded-xl border border-white/7 bg-black/20">
+        <div className="border-r border-white/6 px-3 py-2">
+          <p className="text-[8px] font-bold uppercase tracking-[0.13em] text-white/25">Fôlego</p>
+          <p className="mt-0.5 font-display text-lg font-bold text-emerald-300">{condition}%</p>
+        </div>
+        <div className="border-r border-white/6 px-3 py-2">
+          <p className="text-[8px] font-bold uppercase tracking-[0.13em] text-white/25">Forma</p>
+          <p className="mt-0.5 font-display text-lg font-bold text-white">{player.form}</p>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-[8px] font-bold uppercase tracking-[0.13em] text-white/25">Moral</p>
+          <p className="mt-0.5 font-display text-lg font-bold text-white">{player.morale}</p>
+        </div>
       </div>
     </div>
 
-    <div className="mt-4 grid grid-cols-3 gap-2">
-      <div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">Fôlego</p><p className="mt-1 text-sm font-bold text-emerald-300">{condition}%</p></div>
-      <div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">Forma</p><p className="mt-1 text-sm font-bold">{player.form}</p></div>
-      <div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">Moral</p><p className="mt-1 text-sm font-bold">{player.morale}</p></div>
-    </div>
-
-    <div className="mt-4">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">Informações de atleta</p>
-      <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2.5">
-        {attributes.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
-          <span className="text-[10px] text-white/35">{label}</span>
-          <span className={Number(value) >= 85 ? 'text-xs font-bold text-white' : 'text-xs font-semibold text-white/65'}>{String(value)}</span>
-        </div>)}
+    <div className={compact ? 'p-4' : 'p-4'}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="label-mono text-white/30">Perfil de jogo</p>
+          <p className="mt-1 text-xs text-white/35">Posição natural e função no elenco</p>
+        </div>
+        <div className="relative h-10 w-14 overflow-hidden rounded-lg border border-white/7 bg-[#0c382c]">
+          <div className="absolute inset-1 rounded border border-white/15" />
+          <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-emerald-300 shadow-[0_0_10px_rgba(0,196,140,0.6)]" />
+          <div className="absolute bottom-0 left-1/2 h-3 w-6 -translate-x-1/2 border-x border-t border-white/15" />
+        </div>
       </div>
-    </div>
 
-    <div className="mt-4 grid grid-cols-2 gap-2">
-      <div className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5"><p className="text-[9px] text-white/25">Potencial</p><p className="mt-1 text-xs font-bold">{player.potential}</p></div>
-      <div className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5"><p className="text-[9px] text-white/25">Treinador</p><p className="mt-1 text-xs font-bold">{player.coachRelationship ?? 50}</p></div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-white/6 bg-black/10 p-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-white/25">Posição</p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="font-display text-xl font-black text-white">{position}</span>
+            <span className="text-[9px] text-white/25">{player.position}</span>
+          </div>
+        </div>
+        <div className="rounded-xl border border-white/6 bg-black/10 p-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-white/25">Função</p>
+          <p className="mt-1 text-sm font-bold text-white">{roleLabel[role]}</p>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="label-mono text-white/30">Atributos</p>
+        <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2.5">
+          {attributes.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+            <span className="text-[10px] text-white/35">{label}</span>
+            <span className={Number(value) >= 85 ? 'text-xs font-bold text-white' : 'text-xs font-semibold text-white/65'}>{String(value)}</span>
+          </div>)}
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5"><p className="text-[9px] text-white/25">Potencial</p><p className="mt-1 text-xs font-bold">{player.potential}</p></div>
+        <div className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5"><p className="text-[9px] text-white/25">Treinador</p><p className="mt-1 text-xs font-bold">{player.coachRelationship ?? 50}</p></div>
+      </div>
     </div>
   </section>
 }
-
 export default function PlayerProfile({ player, club, today, close, onContractChange }: { player: Player; club: Club; today: string; close: () => void; onContractChange?: (oldSalary: number, newSalary: number) => void }) {
   const [contract, setContract] = useState<Contract | null>(null)
   const [loading, setLoading] = useState(true)
