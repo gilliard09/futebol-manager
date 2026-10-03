@@ -4,6 +4,7 @@ import type { Formation, Player } from '../types/game'
 import type { InteractiveMatchState, InteractiveTactic, InteractiveTeam, TacticalInstruction } from '../engine/interactiveMatch'
 import { playerOverall } from '../engine/matchCore'
 import { playerPositionLabel } from '../engine/playerPositions'
+import { PlayerInfoCard } from './PlayerProfile'
 
 type Props = {
   session: InteractiveMatchState
@@ -188,6 +189,14 @@ export default function MatchTacticsBoard({ session, userTeam, onSubstitution, o
       </div>
 
       <div className="space-y-3">
+        {selectedOutgoing && (() => {
+          const selected = team.lineup.find(item => item.player.id === selectedOutgoing)
+          if (!selected) return null
+          return <div>
+            <p className="mb-2 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300/60">Jogador selecionado</p>
+            <PlayerInfoCard player={selected.player} compact />
+          </div>
+        })()}
         <div className="rounded-2xl border border-white/6 bg-black/10 p-3">
           <div className="flex items-center justify-between">
             <div>
