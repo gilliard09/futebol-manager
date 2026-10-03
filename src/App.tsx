@@ -6,7 +6,7 @@ import type { Club, Fixture, Formation, LineupPlayer, ManagerProfile, Player } f
 import { getAiCoachProfile, getSquadRole, lineupFromPlayerIds, playerOverall, selectStartingLineup } from './engine/matchCore'
 import type { MatchResult } from './engine/match'
 import type { PlayedMatch } from './types/game'
-import PlayerProfile from './components/PlayerProfile'
+import PlayerProfile, { PlayerInfoCard } from './components/PlayerProfile'
 import TransferMarket from './components/TransferMarket'
 import LoanMarket from './components/LoanMarket'
 import BoardScreen from './components/BoardScreen'
@@ -34,6 +34,7 @@ import { buildCupPrizePayments, buildLeaguePrizePayments, type CompetitionPrizeC
 import { simulateWorldDay, type MarketInterest, type WorldClub, type WorldClubPerformance, type WorldPlayer, type WorldSimulationResult } from './engine/worldSimulation'
 import type { AIClubManager } from './engine/aiClubManagement'
 import InteractiveMatch from './components/InteractiveMatch'
+import { formationFieldPosition } from './components/MatchTacticsBoard'
 import { buildWorldNews, type WorldNews } from './engine/worldNews'
 import { chooseSponsor, createStadium, stadiumUpgradeCost, canUpgradeStadium, upgradeStadium, estimateStadiumAttendance, resolveSponsorAtSeasonEnd, carryStadiumToNextSeason, type SponsorContract, type StadiumState } from './engine/commercial'
 import { advanceSeasonDay, canAdvanceDay, createSeasonClock, daysBetween, formatSeasonDate, toDateKey, type SeasonClock } from './engine/calendar'
@@ -5403,49 +5404,63 @@ function ClubManagementHub({ players, club, today, nextFixture, balance, salaryT
 
 function Squad({ players, club, today, onContractChange, back }: { players: Player[]; club: Club; today: string; onContractChange?: (oldSalary: number, newSalary: number) => void; back: () => void }) {
   const [position, setPosition] = useState('ALL')
-  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null)
+  const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(players[0] ?? null)
+  const [fullProfile, setFullProfile] = useState(false)
   const positions = ['ALL', 'GK', 'RB', 'CB', 'LB', 'DM', 'CM', 'AM', 'RW', 'LW', 'ST']
   const filtered = position === 'ALL' ? players : players.filter(p => p.position === position)
+
+  useEffect(() => {
+    if (selectedPlayer && !filtered.some(player => player.id === selectedPlayer.id)) setSelectedPlayer(filtered[0] ?? null)
+  }, [position])
 
   return <main className="min-h-screen">
     <Top label="ELENCO" back={back} />
     <section className="px-6 py-8 md:px-10">
-      <div>
-        <p className="text-sm text-white/35">{club.name}</p>
-        <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Elenco</h1>
-        <p className="mt-3 text-sm text-white/35">Conheça os jogadores que estão sob seu comando.</p>
+      <div className="flex flex-col justify-between gap-4 border-b border-white/6 pb-7 md:flex-row md:items-end">
+        <div>
+          <p className="text-sm text-white/35">{club.name}</p>
+          <h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Elenco</h1>
+          <p className="mt-3 text-sm text-white/35">Selecione um jogador para acompanhar o momento e os atributos dele.</p>
+        </div>
+        <span className="label-mono text-white/25">{filtered.length} jogadores</span>
       </div>
 
-      <div className="mt-8 flex gap-2 overflow-x-auto pb-2">
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
         {positions.map(item => <button key={item} onClick={() => setPosition(item)} className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold ${position === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/7 bg-white/[0.02] text-white/40 hover:text-white'}`}>{item === 'ALL' ? 'Todos' : item}</button>)}
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border border-white/6">
-        <div className="hidden grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 md:grid">
-          <span>#</span><span>Jogador</span><span>Pos.</span><span>Idade</span><span>GER</span><span>Forma</span><span>Moral</span><span>Pot.</span><span>Valor</span>
-        </div>
-        {filtered.map(player => <button key={player.id} onClick={() => setSelectedPlayer(player)} className="grid w-full grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left hover:bg-white/[0.025] md:grid-cols-[48px_1.8fr_70px_70px_repeat(5,1fr)]">
-          <span className="text-xs text-white/25">#{player.squad_number}</span>
-          <div>
-            <p className="text-sm font-semibold">{player.first_name} {player.last_name}</p>
-            <p className="text-xs text-white/30">{player.nationality}</p>
-            {(player.injuredUntil && player.injuredUntil > today) && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-red-300">Lesionado até {player.injuredUntil}</p>}
-            {(!player.injuredUntil || player.injuredUntil <= today) && player.suspendedUntil && player.suspendedUntil > today && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Suspenso até {player.suspendedUntil}</p>}
-            {((player.yellowCards ?? 0) > 0 || (player.redCards ?? 0) > 0) && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-white/25">CA {player.yellowCards ?? 0} · CV {player.redCards ?? 0}</p>}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+        <section className="overflow-hidden rounded-2xl border border-white/6 bg-white/[0.02]">
+          <div className="hidden grid-cols-[48px_1.8fr_70px_70px_repeat(4,1fr)] bg-white/[0.03] px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-white/25 md:grid">
+            <span>#</span><span>Jogador</span><span>Pos.</span><span>Idade</span><span>GER</span><span>Forma</span><span>Moral</span><span>Pot.</span>
           </div>
-          <span className="text-xs font-bold text-emerald-300">{playerPositionLabel(player.position)}</span>
-          <span className="hidden text-sm text-white/50 md:block">{player.age}</span>
-          <span className="hidden text-sm font-bold md:block">{playerOverall(player)}</span>
-          <span className="hidden text-sm text-white/45 md:block">{player.form}</span>
-          <span className="hidden text-sm text-white/45 md:block">{player.morale}</span>
-          <span className="hidden text-sm text-white/45 md:block">{player.potential}</span>
-          <span className="hidden text-xs text-white/35 md:block">Ver ficha</span>
-        </button>)}
+          {filtered.map(player => <button key={player.id} onClick={() => { setSelectedPlayer(player); setFullProfile(false) }} className={`grid w-full grid-cols-[44px_1fr_auto] items-center gap-3 border-t border-white/5 px-4 py-4 text-left transition md:grid-cols-[48px_1.8fr_70px_70px_repeat(4,1fr)] ${selectedPlayer?.id === player.id ? 'bg-emerald-400/[0.07]' : 'hover:bg-white/[0.025]'}`}>
+            <span className="text-xs text-white/25">#{player.squad_number}</span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{player.first_name} {player.last_name}</p>
+              <p className="text-xs text-white/30">{player.nationality}</p>
+              {(player.injuredUntil && player.injuredUntil > today) && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-red-300">Lesionado até {player.injuredUntil}</p>}
+              {(!player.injuredUntil || player.injuredUntil <= today) && player.suspendedUntil && player.suspendedUntil > today && <p className="mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">Suspenso até {player.suspendedUntil}</p>}
+            </div>
+            <span className="text-xs font-bold text-emerald-300">{playerPositionLabel(player.position)}</span>
+            <span className="hidden text-sm text-white/50 md:block">{player.age}</span>
+            <span className="hidden text-sm font-bold md:block">{playerOverall(player)}</span>
+            <span className="hidden text-sm text-white/45 md:block">{player.form}</span>
+            <span className="hidden text-sm text-white/45 md:block">{player.morale}</span>
+            <span className="hidden text-sm text-white/45 md:block">{player.potential}</span>
+          </button>)}
+        </section>
+
+        <div className="lg:sticky lg:top-5 lg:self-start">
+          {selectedPlayer ? <div className="space-y-3">
+            <PlayerInfoCard player={selectedPlayer} />
+            <button onClick={() => setFullProfile(true)} className="w-full rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs font-bold text-white/55 hover:bg-white/[0.05] hover:text-white">Abrir ficha completa</button>
+          </div> : <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6 text-sm text-white/35">Selecione um jogador para abrir o card.</div>}
+        </div>
       </div>
-      <p className="mt-4 text-xs text-white/25">{filtered.length} jogadores exibidos. Selecione um jogador para abrir a ficha.</p>
     </section>
 
-    {selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} today={today} onContractChange={onContractChange} close={() => setSelectedPlayer(null)} />}
+    {fullProfile && selectedPlayer && <PlayerProfile player={selectedPlayer} club={club} today={today} onContractChange={onContractChange} close={() => setFullProfile(false)} />}
   </main>
 }
 
@@ -5463,17 +5478,16 @@ function Tactics({ players, club, today, back }: { players: Player[]; club: Club
   const [lineup, setLineup] = useState<Record<number, string>>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(TACTIC_KEY) ?? '{}').lineup ?? {}
-      return Object.fromEntries(
-        Object.entries(saved).filter(([, playerId]) => {
-          const player = players.find(item => item.id === playerId)
-          return player ? isPlayerAvailable(player, today) : false
-        }),
-      ) as Record<number, string>
+      return Object.fromEntries(Object.entries(saved).filter(([, playerId]) => {
+        const player = players.find(item => item.id === playerId)
+        return player ? isPlayerAvailable(player, today) : false
+      })) as Record<number, string>
     } catch { return {} }
   })
+  const [selectedSlot, setSelectedSlot] = useState(9)
   const slots = formations[formation]
-  const overall = (p: Player) => p.position === 'GK' ? p.goalkeeping : Math.round((p.pace + p.shooting + p.passing + p.dribbling + p.defending + p.physical + p.mental) / 7)
 
+  function condition(player: Player) { return Math.max(0, 100 - (player.fatigue ?? 0)) }
   function canPlayPosition(player: Player, position: string) {
     if (player.position === position) return true
     if (position === 'CB') return ['CB', 'DM'].includes(player.position)
@@ -5482,83 +5496,109 @@ function Tactics({ players, club, today, back }: { players: Player[]; club: Club
     if (['CM', 'DM', 'AM'].includes(position)) return ['CM', 'DM', 'AM'].includes(player.position)
     return false
   }
-
-  function condition(player: Player) {
-    return Math.max(0, 100 - (player.fatigue ?? 0))
-  }
-
   function selectionScore(player: Player) {
     const physicalPenalty = condition(player) < 45 ? 7 : condition(player) < 60 ? 3 : 0
     const moraleBonus = player.morale >= 75 ? 2 : player.morale < 45 ? -2 : 0
-    return overall(player) + moraleBonus - physicalPenalty
+    return playerOverall(player) + moraleBonus - physicalPenalty
   }
-
   function bestForPosition(position: string, usedIds: Set<string>) {
-    return players
-      .filter(player => isPlayerAvailable(player, today) && !usedIds.has(player.id) && canPlayPosition(player, position))
-      .sort((a, b) => selectionScore(b) - selectionScore(a))[0]
+    return players.filter(player => isPlayerAvailable(player, today) && !usedIds.has(player.id) && canPlayPosition(player, position)).sort((a, b) => selectionScore(b) - selectionScore(a))[0]
   }
-
+  function persist(next: Record<number, string>, nextFormation = formation, nextTactic = tactic) {
+    setLineup(next)
+    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation: nextFormation, lineup: next, tactic: nextTactic }))
+  }
   function autoPick() {
     const next: Record<number, string> = {}
     const usedIds = new Set<string>()
-
     slots.forEach((position, index) => {
       const picked = bestForPosition(position, usedIds)
-      if (picked) {
-        next[index] = picked.id
-        usedIds.add(picked.id)
-      }
+      if (picked) { next[index] = picked.id; usedIds.add(picked.id) }
     })
-
-    setLineup(next)
-    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation, lineup: next, tactic }))
+    persist(next)
+    setSelectedSlot(slots.findIndex(position => Boolean(next[position === 'ST' ? slots.indexOf(position) : -1])) >= 0 ? 9 : 0)
   }
-
   function changeFormation(value: keyof typeof formations) {
     setFormation(value)
     setLineup({})
-    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation: value, lineup: {} }))
+    setSelectedSlot(0)
+    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation: value, lineup: {}, tactic }))
+  }
+  function saveTactic(value: string) {
+    setTactic(value)
+    localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation, lineup, tactic: value }))
+  }
+  function assignSelected(playerId: string) {
+    const next = { ...lineup }
+    Object.keys(next).forEach(key => { if (next[Number(key)] === playerId) delete next[Number(key)] })
+    if (playerId) next[selectedSlot] = playerId
+    else delete next[selectedSlot]
+    persist(next)
   }
 
-  function saveTactic(value: string) { setTactic(value); localStorage.setItem(TACTIC_KEY, JSON.stringify({ formation, lineup, tactic: value })) }
-
-  const selected = slots.map((position,index) => ({ position, index, player: players.find(p => p.id === lineup[index]) }))
+  const selected = slots.map((position, index) => ({ position, index, player: players.find(p => p.id === lineup[index]) }))
+  const selectedPlayer = selected.find(item => item.index === selectedSlot)?.player ?? null
   const starters = selected.filter(x => x.player).length
+  const availablePlayers = players.filter(player => isPlayerAvailable(player, today))
+  const benchPlayers = availablePlayers.filter(player => !Object.values(lineup).includes(player.id))
 
-  return <main className="min-h-screen"><Top label="ESCALAÇÃO E TÁTICAS" back={back} /><section className="px-6 py-8 md:px-10">
-    <div className="flex flex-col justify-between gap-5 border-b border-white/6 pb-8 md:flex-row md:items-end"><div><p className="text-sm text-white/35">{club.name}</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Quem começa jogando?</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Monte sua equipe antes da partida. A escalação escolhida será a base para o motor de jogo.</p></div><button onClick={autoPick} className="rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] hover:bg-emerald-300">Escalar melhor time</button></div>
-    <div className="mt-8 flex flex-wrap gap-2">{(Object.keys(formations) as Array<keyof typeof formations>).map(item => <button key={item} onClick={() => changeFormation(item)} className={`rounded-lg px-4 py-2.5 text-xs font-bold ${formation === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/8 text-white/45 hover:text-white'}`}>{item}</button>)}</div>
-    <div className="mt-6 rounded-2xl border border-white/6 bg-white/[0.02] p-5"><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Estilo de jogo</p><div className="mt-4 grid grid-cols-3 gap-2">{[['defensive','Defensivo'],['balanced','Equilibrado'],['offensive','Ofensivo']].map(([value,label]) => <button key={value} onClick={() => saveTactic(value)} className={`rounded-xl border px-3 py-3 text-xs font-bold ${tactic === value ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300' : 'border-white/6 text-white/40'}`}>{label}</button>)}</div></div>
-    <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <Info label="Condição média" value={`${players.length ? Math.round(players.reduce((sum, player) => sum + condition(player), 0) / players.length) : 0}%`} />
-      <Info label="Moral média" value={String(players.length ? Math.round(players.reduce((sum, player) => sum + player.morale, 0) / players.length) : 0)} />
-      <Info label="Titulares" value={`${starters}/11`} />
-      <Info label="Formação" value={formation} />
-    </div>
-    <div className="mt-4 rounded-xl border border-white/6 bg-white/[0.02] px-4 py-3 text-xs text-white/40">
-      O “melhor time” agora considera GER, condição física e moral. Um jogador superior tecnicamente pode perder a vaga quando chega desgastado.
-    </div>
-    <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-      <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5">
-        <div className="mb-5 flex items-center justify-between"><span className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Titulares</span><span className="text-xs text-white/30">{starters}/11</span></div>
-        <div className="grid gap-2">{selected.map(({position,index,player}) => {
-          const playerCondition = player ? condition(player) : null
-          const status = playerCondition !== null && playerCondition < 45 ? 'Desgastado' : playerCondition !== null && playerCondition < 60 ? 'Atenção' : 'Pronto'
-          return <div key={index} className="flex items-center gap-3 rounded-xl border border-white/5 bg-black/10 p-3">
-            <span className="w-10 text-xs font-bold text-emerald-300">{position}</span>
-            <select value={player?.id ?? ''} onChange={e => { const next={...lineup}; if(e.target.value) next[index]=e.target.value; else delete next[index]; setLineup(next); localStorage.setItem(TACTIC_KEY,JSON.stringify({formation,lineup:next,tactic})) }} className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none">
-              <option value="">Escolher jogador</option>
-              {players.filter(p => (isPlayerAvailable(p, today) && (!Object.values(lineup).includes(p.id) || p.id === player?.id)) || p.id === player?.id).map(p => <option key={p.id} value={p.id}>{p.first_name} {p.last_name} · {playerOverall(p)} · condição {condition(p)}%</option>)}
-            </select>
-            {player && <div className="hidden shrink-0 text-right sm:block"><p className={`text-[9px] font-bold uppercase tracking-[0.12em] ${status === 'Desgastado' ? 'text-red-300' : status === 'Atenção' ? 'text-amber-300' : 'text-emerald-300'}`}>{status}</p><p className="text-[9px] text-white/25">{condition(player)}% · moral {player.morale}</p></div>}
-          </div>
-        })}</div>
-      </section>
-      <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-5"><div className="flex items-center justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/30">Banco</p><p className="mt-2 text-lg font-bold">{Math.max(0, players.length - starters)} jogadores</p></div><Users size={20} className="text-white/25" /></div><div className="mt-5 space-y-2">{players.filter(p => isPlayerAvailable(p, today) && !Object.values(lineup).includes(p.id)).map(p => <div key={p.id} className="flex items-center justify-between rounded-xl border border-white/5 px-3 py-3"><div><p className="text-sm font-semibold">{p.first_name} {p.last_name}</p><p className="text-xs text-white/30">{p.position} · {p.age} anos</p></div><span className="text-xs font-bold text-white/35">{playerOverall(p)}</span></div>)}</div></section>
-    </div>
-    <div className="mt-6 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">Sua escalação fica salva nesta carreira e será usada pelo motor da próxima partida.</div>
-  </section></main>
+  return <main className="min-h-screen"><Top label="ESCALAÇÃO E TÁTICAS" back={back} />
+    <section className="px-6 py-8 md:px-10">
+      <div className="flex flex-col justify-between gap-5 border-b border-white/6 pb-7 md:flex-row md:items-end">
+        <div><p className="text-sm text-white/35">{club.name}</p><h1 className="mt-2 text-4xl font-bold tracking-[-0.035em]">Gerenciamento do time</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/35">Escolha quem começa, ajuste o plano e veja cada jogador antes de confirmar a equipe.</p></div>
+        <button onClick={autoPick} className="rounded-xl bg-emerald-400 px-5 py-3 text-xs font-bold text-[#06100c] hover:bg-emerald-300">Escalar melhor time</button>
+      </div>
+
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
+        {(Object.keys(formations) as Array<keyof typeof formations>).map(item => <button key={item} onClick={() => changeFormation(item)} className={`shrink-0 rounded-lg px-4 py-2.5 text-xs font-bold ${formation === item ? 'bg-emerald-400 text-[#06100c]' : 'border border-white/8 text-white/45 hover:text-white'}`}>{item}</button>)}
+        {[['defensive','Defensivo'],['balanced','Equilibrado'],['offensive','Ofensivo']].map(([value,label]) => <button key={value} onClick={() => saveTactic(value)} className={`shrink-0 rounded-lg px-4 py-2.5 text-xs font-bold ${tactic === value ? 'bg-white/10 text-white' : 'border border-white/8 text-white/35'}`}>{label}</button>)}
+      </div>
+
+      <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
+        <div className="space-y-4">
+          <section className="rounded-3xl border border-white/8 bg-[#131b2a] p-3 md:p-4">
+            <div className="mb-3 flex items-center justify-between gap-3"><div><p className="label-mono text-emerald-300/60">ESCALAÇÃO</p><p className="mt-1 text-xs text-white/35">Clique em um jogador no campo para ajustar a equipe.</p></div><span className="font-mono text-xs text-white/30">{starters}/11</span></div>
+            <div className="relative mx-auto aspect-[16/10] max-w-[900px] overflow-hidden rounded-2xl border border-white/10 bg-[#145139]">
+              <div className="absolute inset-3 rounded-xl border border-white/25" />
+              <div className="absolute left-1/2 top-3 bottom-3 w-px -translate-x-1/2 bg-white/15" />
+              <div className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/20" />
+              <div className="absolute left-1/2 top-3 h-16 w-36 -translate-x-1/2 border border-t-0 border-white/20" />
+              <div className="absolute bottom-3 left-1/2 h-16 w-36 -translate-x-1/2 border border-b-0 border-white/20" />
+              {selected.map(({ position, index, player }) => {
+                const pos = formationFieldPosition(formation, index, 'home')
+                const active = selectedSlot === index
+                return <button type="button" key={index} onClick={() => setSelectedSlot(index)} className="absolute -translate-x-1/2 -translate-y-1/2 text-center" style={{ left: pos.x + '%', top: pos.y + '%' }}>
+                  <span className={`mx-auto flex h-11 w-11 items-center justify-center rounded-full border-2 bg-emerald-400 text-[10px] font-black text-[#06100c] shadow-lg ${active ? 'border-white ring-4 ring-emerald-300/30' : 'border-emerald-200/70'}`}>{player ? player.first_name[0] + player.last_name[0] : position}</span>
+                  <span className="mt-1 block min-w-16 rounded bg-black/65 px-1 py-0.5 text-[8px] font-bold text-white">{player ? player.last_name : 'Escolher'}</span>
+                  <span className="block text-[7px] uppercase tracking-wider text-white/55">{position}{player ? ' · ' + condition(player) + '%' : ''}</span>
+                </button>
+              })}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-4">
+            <div className="flex items-center justify-between"><div><p className="label-mono text-white/30">Banco</p><p className="mt-1 text-xs text-white/35">Clique em um reserva para colocá-lo na posição selecionada.</p></div><span className="text-xs text-white/25">{benchPlayers.length}</span></div>
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {benchPlayers.map(player => <button type="button" key={player.id} onClick={() => assignSelected(player.id)} className="min-w-36 rounded-xl border border-white/6 bg-black/10 p-3 text-left hover:border-emerald-400/30">
+                <p className="truncate text-xs font-bold">{player.first_name} {player.last_name}</p>
+                <p className="mt-1 text-[9px] text-white/30">{playerPositionLabel(player.position)} · GER {playerOverall(player)}</p>
+                <p className="mt-1 text-[9px] font-bold text-emerald-300">Fôlego {condition(player)}%</p>
+              </button>)}
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-3 xl:sticky xl:top-5 xl:self-start">
+          {selectedPlayer ? <PlayerInfoCard player={selectedPlayer} /> : <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-6 text-sm text-white/35">Selecione uma posição para ver o jogador.</div>}
+          <section className="rounded-2xl border border-white/6 bg-white/[0.02] p-4">
+            <div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[9px] uppercase tracking-wider text-white/25">Condição</p><p className="mt-1 text-sm font-bold">{players.length ? Math.round(players.reduce((sum, player) => sum + condition(player), 0) / players.length) : 0}%</p></div><div><p className="text-[9px] uppercase tracking-wider text-white/25">Moral</p><p className="mt-1 text-sm font-bold">{players.length ? Math.round(players.reduce((sum, player) => sum + player.morale, 0) / players.length) : 0}</p></div><div><p className="text-[9px] uppercase tracking-wider text-white/25">Titulares</p><p className="mt-1 text-sm font-bold">{starters}/11</p></div></div>
+          </section>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-emerald-400/10 bg-emerald-400/5 px-4 py-3 text-xs text-emerald-200/70">A escalação fica salva nesta carreira e será usada pelo motor da próxima partida.</div>
+    </section>
+  </main>
 }
 
 
