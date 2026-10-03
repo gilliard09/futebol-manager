@@ -32,6 +32,54 @@ function Info({ label, value }: { label: string; value: string }) {
   </div>
 }
 
+export function PlayerInfoCard({ player, compact = false }: { player: Player; compact?: boolean }) {
+  const condition = Math.max(0, 100 - (player.fatigue ?? 0))
+  const attributes = [
+    ['Velocidade', player.pace],
+    ['Finalização', player.shooting],
+    ['Passe', player.passing],
+    ['Drible', player.dribbling],
+    ['Defesa', player.defending],
+    ['Físico', player.physical],
+    ['Mental', player.mental],
+    ['Goleiro', player.goalkeeping],
+  ]
+
+  return <section className={compact ? 'rounded-2xl border border-white/8 bg-[#10141b] p-4' : 'rounded-2xl border border-white/8 bg-[#10141b] p-5'}>
+    <div className="flex items-center gap-3 border-b border-white/6 pb-4">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/10 text-sm font-black text-emerald-300">
+        {player.first_name[0]}{player.last_name[0]}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-2xl font-black leading-none text-emerald-300">{playerOverall(player)}</p>
+        <h3 className="mt-1 truncate text-base font-bold">{player.first_name} {player.last_name}</h3>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-white/35">{playerPositionLabel(player.position)} · {player.age} anos · {player.nationality}</p>
+      </div>
+    </div>
+
+    <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">Fôlego</p><p className="mt-1 text-sm font-bold text-emerald-300">{condition}%</p></div>
+      <div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">Forma</p><p className="mt-1 text-sm font-bold">{player.form}</p></div>
+      <div className="rounded-xl bg-black/15 p-3"><p className="text-[9px] uppercase tracking-wider text-white/25">Moral</p><p className="mt-1 text-sm font-bold">{player.morale}</p></div>
+    </div>
+
+    <div className="mt-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">Informações de atleta</p>
+      <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2.5">
+        {attributes.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+          <span className="text-[10px] text-white/35">{label}</span>
+          <span className={Number(value) >= 85 ? 'text-xs font-bold text-white' : 'text-xs font-semibold text-white/65'}>{String(value)}</span>
+        </div>)}
+      </div>
+    </div>
+
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5"><p className="text-[9px] text-white/25">Potencial</p><p className="mt-1 text-xs font-bold">{player.potential}</p></div>
+      <div className="rounded-xl border border-white/6 bg-black/10 px-3 py-2.5"><p className="text-[9px] text-white/25">Treinador</p><p className="mt-1 text-xs font-bold">{player.coachRelationship ?? 50}</p></div>
+    </div>
+  </section>
+}
+
 export default function PlayerProfile({ player, club, today, close, onContractChange }: { player: Player; club: Club; today: string; close: () => void; onContractChange?: (oldSalary: number, newSalary: number) => void }) {
   const [contract, setContract] = useState<Contract | null>(null)
   const [loading, setLoading] = useState(true)
